@@ -1,0 +1,24 @@
+name: Bug
+description: Something in Rascal is broken
+title: ""
+labels: []
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Rascal version
+      placeholder: 0.5.0
+    validations:
+      required: true

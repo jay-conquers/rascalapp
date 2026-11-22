@@ -1,0 +1,27 @@
+node_modules/
+dist/
+release/
+out/
+.vite/
+*.log
+.DS_Store
+
+# Packaged builds
+*.AppImage
+*.AppImage.part*
+*.AppImage.zsync
+*.blockmap
+
+# Local config and secrets. These belong in ~/.config/rascal, never in git.
+.env
+.env.*
+!.env.example
+tokens.json
+bot-tokens.json
+bot-secrets.json
+bot-link.json
+settings.json
+chat-overlay.json
+redeems.json
+bot.json
+logs/

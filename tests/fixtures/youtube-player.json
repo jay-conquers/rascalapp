@@ -1,0 +1,36 @@
+{
+  "live": {
+    "playabilityStatus": { "status": "OK" },
+    "videoDetails": {
+      "videoId": "livevideoli",
+      "title": "Sunday stream",
+      "isLive": true,
+      "isLiveContent": true
+    },
+    "microformat": {
+      "playerMicroformatRenderer": {
+        "liveBroadcastDetails": { "startTimestamp": "2026-11-21T00:00:00+00:00" }
+      }
+    }
+  },
+  "legacy": {
+    "videoDetails": { "videoId": "legacyvideo", "title": "Old flag" },
+    "microformat": {
+      "playerMicroformatRenderer": { "liveBroadcastDetails": { "isLiveNow": true } }
+    }
+  },
+  "vod": {
+    "playabilityStatus": { "status": "OK" },
+    "videoDetails": {
+      "videoId": "vodvideovod1",
+      "title": "Yesterday",
+      "isLiveContent": true,
+      "isLive": false
+    },
+    "microformat": { "playerMicroformatRenderer": { "liveBroadcastDetails": {} } }
+  },
+  "offline": {
+    "playabilityStatus": { "status": "LIVE_STREAM_OFFLINE" },
+    "videoDetails": { "videoId": "offlinevide", "title": "Waiting", "isLive": true }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "continuationContents": {
+    "liveChatContinuation": {
+      "actions": [
+        {
+          "addChatItemAction": {
+            "item": {
+              "liveChatTextMessageRenderer": {
+                "id": "yt-msg-1",
+                "timestampUsec": "1700000000000000",
+                "authorExternalChannelId": "UCviewer0000000000000001",
+                "authorName": { "simpleText": "NightOwl" },
+                "authorBadges": [
+                  {
+                    "liveChatAuthorBadgeRenderer": {
+                      "icon": { "iconType": "MODERATOR" },
+                      "tooltip": "Moderator"
+                    }
+                  },
+                  {
+                    "liveChatAuthorBadgeRenderer": {
+                      "tooltip": "New member",
+                      "customThumbnail": {
+                        "thumbnails": [{ "url": "https://yt3.ggpht.com/badge=s16" }]
+                      }
+                    }
+                  }
+                ],
+                "message": {
+                  "runs": [
+                    { "text": "Hello " },
+                    {
+                      "emoji": {
+                        "emojiId": "emoji-1",
+                        "shortcuts": [":wave:"],
+                        "image": {
+                          "thumbnails": [
+                            { "url": "https://yt3.ggpht.com/emoji-small", "width": 16 },
+                            { "url": "https://yt3.ggpht.com/emoji-large", "width": 64 }
+                          ]
+                        }
+                      }
+                    },
+                    { "text": " chat" }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "addChatItemAction": {
+            "item": {
+              "liveChatPaidMessageRenderer": {
+                "id": "yt-super-1",
+                "timestampUsec": "1700000001000000",
+                "authorName": { "simpleText": "Supporter" },
+                "purchaseAmountText": { "simpleText": "$5.00" },
+                "message": { "runs": [{ "text": "love the run" }] }
+              }
+            }
+          }
+        },
+        {
+          "addChatItemAction": {
+            "item": {
+              "liveChatMembershipItemRenderer": {
+                "id": "yt-member-1",
+                "timestampUsec": "1700000002000000",
+                "authorName": { "simpleText": "NewMember" },
+                "headerSubtext": { "simpleText": "Welcome to members!" },
+                "authorBadges": [
+                  { "liveChatAuthorBadgeRenderer": { "icon": { "iconType": "MEMBER" }, "tooltip": "Member (1 year)" } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "markChatItemAsDeletedAction": { "targetItemId": "yt-msg-1" }
+        },
+        {
+          "markChatItemsByAuthorAsDeletedAction": { "externalChannelId": "UCviewer0000000000000001" }
+        }
+      ],
+      "continuations": [
+        { "timedContinuationData": { "continuation": "NEXT_TOKEN_abcdef", "timeoutMs": 3200 } }
+      ]
+    }
+  }
+}

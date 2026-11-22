@@ -1,0 +1,31 @@
+{
+  "reward-nuts": {
+    "id": "reward-nuts",
+    "manageable": false,
+    "twitchData": { "id": "twitch-nuts", "title": "Video reward" },
+    "effects": {
+      "list": [
+        {
+          "type": "firebot:playvideo",
+          "videoType": "Local Video",
+          "file": "/abs/path.mp4",
+          "volume": 10
+        }
+      ]
+    }
+  },
+  "reward-rip": {
+    "id": "reward-rip",
+    "manageable": false,
+    "twitchData": { "id": "twitch-rip", "title": "Rip" },
+    "effects": {
+      "list": [
+        {
+          "type": "firebot:playsound",
+          "file": "/abs/rip.mp3",
+          "volume": 10
+        }
+      ]
+    }
+  }
+}

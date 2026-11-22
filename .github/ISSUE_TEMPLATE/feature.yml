@@ -1,0 +1,11 @@
+name: Feature
+description: Suggest a change to Rascal
+title: ""
+labels: []
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What should Rascal do
+    validations:
+      required: true

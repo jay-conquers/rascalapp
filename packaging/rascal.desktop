@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Rascal
+GenericName=Stream desk
+Comment=Twitch and YouTube chat and stream info
+Exec=Rascal.AppImage --ozone-platform-hint=auto %U
+Icon=rascal
+Terminal=false
+Categories=AudioVideo;Network;
+StartupWMClass=rascal
+Keywords=twitch;youtube;chat;stream;
+StartupNotify=true

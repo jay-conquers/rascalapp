@@ -1,0 +1,34 @@
+{
+  "rewards": [
+    {
+      "id": "local-video",
+      "name": "Video reward",
+      "manageable": false,
+      "twitchData": { "title": "Video reward", "cost": 500 },
+      "effects": {
+        "list": [
+          {
+            "type": "firebot:play-video",
+            "videoType": "Local Video",
+            "file": "/tmp/example/video.mp4",
+            "volume": 5
+          }
+        ]
+      }
+    },
+    {
+      "name": "Rip",
+      "effects": [
+        {
+          "type": "firebot:playsound",
+          "file": "/tmp/example/sound.mp3",
+          "volume": 80
+        }
+      ]
+    },
+    {
+      "name": "Already mapped",
+      "effects": [{ "type": "firebot:play-video", "file": "/tmp/new.mp4", "volume": 10 }]
+    }
+  ]
+}

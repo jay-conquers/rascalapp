@@ -1,0 +1,39 @@
+# Keep these names aligned with src/shared/brand.ts.
+appId: app.rascal.desktop
+productName: Rascal
+copyright: Copyright © 2026 jay-conquers
+asar: true
+npmRebuild: false
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - build/icons/**/*
+  - package.json
+extraMetadata:
+  main: dist/main/index.cjs
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  category: AudioVideo
+  icon: build/icons
+  executableName: rascal
+  syncDesktopName: true
+  artifactName: Rascal-${version}.${ext}
+  synopsis: Twitch and YouTube stream desk
+  description: Combined chat, alerts, and a chat bot.
+  maintainer: jay-conquers
+  desktop:
+    entry:
+      Name: Rascal
+      GenericName: Stream desk
+      Comment: Twitch and YouTube chat and stream info
+      Categories: AudioVideo;Network;
+      Keywords: twitch;youtube;chat;stream;
+      StartupWMClass: rascal
+      Terminal: "false"
+      StartupNotify: "true"
+publish: null
