@@ -66,7 +66,7 @@ export class Runtime {
     openExternal?: (url: string) => Promise<void>;
     fetchImpl?: typeof fetch;
   }) {
-    this.version = deps.version ?? "0.5.1";
+    this.version = deps.version ?? "0.5.2";
     this.log = new Logger(path.join(deps.dir, "logs", brand.logFile));
     this.settings = new SettingsStore(deps.dir);
     this.tokens = new TokenStore(deps.dir);

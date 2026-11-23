@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { brand } from "../shared/brand";
+import { chmodPrivate } from "../shared/private-mode";
 
 const SECRET_FILES = new Set(["tokens.json", "bot-tokens.json", "bot-secrets.json", "bot-link.json", "settings.json"]);
 
@@ -29,7 +30,7 @@ export function migrateLegacyConfig(configHome: string): MigrationResult[] {
 
 function copyTree(from: string, to: string, result: MigrationResult): void {
   fs.mkdirSync(to, { recursive: true, mode: 0o700 });
-  fs.chmodSync(to, 0o700);
+  chmodPrivate(to, 0o700);
   for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
     const source = path.join(from, entry.name);
     const dest = path.join(to, entry.name);
@@ -40,7 +41,7 @@ function copyTree(from: string, to: string, result: MigrationResult): void {
     if (!entry.isFile()) continue;
     fs.copyFileSync(source, dest);
     const mode = fs.statSync(source).mode & 0o777;
-    fs.chmodSync(dest, SECRET_FILES.has(entry.name) ? 0o600 : mode || 0o600);
+    chmodPrivate(dest, SECRET_FILES.has(entry.name) ? 0o600 : mode || 0o600);
     result.files += 1;
   }
 }

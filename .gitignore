@@ -11,6 +11,11 @@ out/
 *.AppImage.part*
 *.AppImage.zsync
 *.blockmap
+artifacts/
+
+# Generated from build/icon.svg by scripts/render-icon.py
+build/icon.ico
+build/icon.icns
 
 # Local config and secrets. These belong in ~/.config/rascal, never in git.
 .env

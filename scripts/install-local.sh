@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Rascal into the current user's launcher (wofi, rofi, walker, the KDE/GNOME menus).
+# Linux only. Install the AppImage into the current user's launcher (wofi, rofi, walker, the KDE/GNOME menus).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APPIMAGE="$(find "$ROOT/release" -maxdepth 1 -name 'Rascal-*.AppImage' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"

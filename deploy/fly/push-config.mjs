@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { configDir } from "../../src/shared/paths.ts";
 
 const args = process.argv.slice(2);
 const dirFlag = args.indexOf("--dir");
 const urlFlag = args.indexOf("--url");
 const withTokens = args.includes("--with-tokens");
 const withSe = args.includes("--with-se");
-const dir = dirFlag >= 0 ? args[dirFlag + 1] : path.join(process.env.HOME ?? "", ".config", "rascal");
+const dir = dirFlag >= 0 ? args[dirFlag + 1] : configDir();
 const origin = (urlFlag >= 0 ? args[urlFlag + 1] : "").replace(/\/$/, "");
 const token = process.env.RASCAL_BOT_API_KEY || process.env.EMBER_BOT_API_KEY || "";
 if (!process.env.RASCAL_BOT_API_KEY && process.env.EMBER_BOT_API_KEY) {
@@ -14,7 +15,7 @@ if (!process.env.RASCAL_BOT_API_KEY && process.env.EMBER_BOT_API_KEY) {
 }
 
 if (!origin || !token) {
-  console.error("Usage: RASCAL_BOT_API_KEY=... node deploy/fly/push-config.mjs --url https://rascal.fly.dev [--dir ~/.config/rascal] [--with-tokens] [--with-se]");
+  console.error("Usage: RASCAL_BOT_API_KEY=... node deploy/fly/push-config.mjs --url https://rascal.fly.dev [--dir <config dir>] [--with-tokens] [--with-se]");
   process.exit(1);
 }
 

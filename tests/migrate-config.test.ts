@@ -7,6 +7,7 @@ import { buildAlertsPage } from "../src/main/redeems/overlay-page";
 import { buildChatOverlayPage } from "../src/main/chat/page";
 import { Logger } from "../src/main/logger";
 import { OverlayServer } from "../src/main/server";
+import { expectPrivateMode } from "./expect-mode";
 
 describe("config migration", () => {
   it("copies the Ember config into rascal and leaves the original in place", () => {
@@ -26,7 +27,7 @@ describe("config migration", () => {
     expect(log).not.toContain(secret);
     const dest = path.join(home, "rascal", "bot-tokens.json");
     expect(fs.readFileSync(dest, "utf8")).toContain(secret);
-    expect(fs.statSync(dest).mode & 0o777).toBe(0o600);
+    expectPrivateMode(dest, 0o600);
     expect(fs.existsSync(path.join(ember, "settings.json"))).toBe(true);
     expect(fs.existsSync(path.join(home, "rascal", "chat-overlay.json"))).toBe(true);
     const again = migrateLegacyConfig(home);

@@ -120,7 +120,7 @@ Mods log in there with Twitch. Only the broadcaster and channel mods are allowed
 
 ## 8. Move the local bot onto the server
 
-Local files are under `~/.config/rascal/`:
+On Linux the local files are under `~/.config/rascal/` (`XDG_CONFIG_HOME` is honored). On Windows and macOS the upload script's default is the Rascal config folder (`%APPDATA%\Rascal` or `~/Library/Application Support/Rascal`). `--dir` still overrides that.
 
 | File | What it is | How it moves |
 |---|---|---|

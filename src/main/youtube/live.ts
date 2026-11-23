@@ -1,5 +1,5 @@
 import {
-  BROWSER_UA,
+  browserUserAgent,
   YOUTUBE_CLIENT_VERSION_FALLBACK,
   YOUTUBE_WEB_API_KEY_FALLBACK,
 } from "../../shared/defaults";
@@ -215,7 +215,7 @@ async function openLiveChat(live: LiveHit, fetchImpl: typeof fetch, signal: Abor
 
 function pageHeaders(): Record<string, string> {
   return {
-    "User-Agent": BROWSER_UA,
+    "User-Agent": browserUserAgent(),
     "Accept-Language": "en-US,en;q=0.9",
     Cookie:
       "CONSENT=YES+cb.20210328-17-p0.en+FX+667; SOCS=CAISNQgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwODI2LjA4X3AxGgJlbiACGgYIgLC_sAY",

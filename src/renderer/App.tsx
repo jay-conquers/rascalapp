@@ -28,7 +28,7 @@ export function App() {
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.5.1");
+  const [version, setVersion] = useState("0.5.2");
   const [banner, setBanner] = useState(true);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export function App() {
     return (
       <main className="boot">
         <h1>{brand.displayName} could not open its window bridge.</h1>
-        <p>Quit and start {brand.displayName} again. If it keeps happening, check ~/.config/{brand.configDirName}/logs/{brand.logFile}.</p>
+        <p>Quit and start {brand.displayName} again. If it keeps happening, check the log in the config folder.</p>
       </main>
     );
   }

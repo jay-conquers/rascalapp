@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { chmodPrivate } from "../shared/private-mode";
 
 export function ensurePrivateDir(dir: string): void {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  fs.chmodSync(dir, 0o700);
+  chmodPrivate(dir, 0o700);
 }
 
 export function writePrivateJson(file: string, value: unknown): void {
@@ -17,9 +18,9 @@ export function writePrivateJson(file: string, value: unknown): void {
   } finally {
     fs.closeSync(fd);
   }
-  fs.chmodSync(tmp, 0o600);
+  chmodPrivate(tmp, 0o600);
   fs.renameSync(tmp, file);
-  fs.chmodSync(file, 0o600);
+  chmodPrivate(file, 0o600);
 }
 
 export function readJson(file: string): unknown {
@@ -35,7 +36,7 @@ export function readJson(file: string): unknown {
 export function tightenFile(file: string): void {
   try {
     const mode = fs.statSync(file).mode & 0o777;
-    if (mode !== 0o600) fs.chmodSync(file, 0o600);
+    if (mode !== 0o600) chmodPrivate(file, 0o600);
   } catch {
     // Missing files are created on the next save.
   }
