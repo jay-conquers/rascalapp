@@ -94,7 +94,7 @@ export interface ConnectionSide {
 
 export interface ConnectionStatus {
   twitch: ConnectionSide;
-  youtube: ConnectionSide & { videoId?: string; title?: string };
+  youtube: ConnectionSide & { videoId?: string; title?: string; canSend?: boolean; sendAccount?: string | null };
   overlay: { listening: boolean; host: string; port: number };
 }
 

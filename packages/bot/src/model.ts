@@ -1,5 +1,14 @@
+import { normalizePlatformTarget, targetsPlatform, type PlatformTarget } from "../../../src/shared/platform/target.ts";
+
 export type UserLevel = "everyone" | "sub" | "vip" | "mod" | "broadcaster";
 export type FilterAction = "delete" | "timeout" | "ban";
+export type { PlatformTarget };
+export type BotAccountMode = "channel" | "bot";
+
+export interface BotAccounts {
+  twitch: BotAccountMode;
+  youtube: BotAccountMode;
+}
 
 export interface BotCommand {
   id: string;
@@ -11,6 +20,8 @@ export interface BotCommand {
   level: UserLevel;
   aliases: string[];
   count: number;
+  /** Missing or unknown values stay on Twitch, which is how older files behave. */
+  platforms: PlatformTarget;
 }
 
 export interface BotTimer {
@@ -22,6 +33,7 @@ export interface BotTimer {
   minChatLines: number;
   linesSince: number;
   lastFiredAt: number;
+  platforms: PlatformTarget;
 }
 
 export interface FilterWord {
@@ -37,6 +49,7 @@ export interface BotFilters {
   caps: { enabled: boolean; minLength: number; maxPercent: number; action: "delete" | "timeout"; timeoutSec: number };
   symbols: { enabled: boolean; minLength: number; maxPercent: number; action: "delete" | "timeout"; timeoutSec: number };
   permitSec: number;
+  platforms: PlatformTarget;
 }
 
 export interface ModLogEntry {
@@ -50,9 +63,12 @@ export interface ModLogEntry {
 export interface BotFile {
   channelLogin: string;
   broadcasterId: string;
+  /** YouTube channel the bot watches when it is not the signed-in channel. */
+  youtubeChannelId: string;
   portalPort: number;
   bindHost: string;
   publicUrl: string;
+  accounts: BotAccounts;
   commands: BotCommand[];
   timers: BotTimer[];
   filters: BotFilters;
@@ -132,13 +148,20 @@ export function defaultFilters(): BotFilters {
     caps: { enabled: false, minLength: 20, maxPercent: 80, action: "delete", timeoutSec: 30 },
     symbols: { enabled: false, minLength: 20, maxPercent: 70, action: "delete", timeoutSec: 30 },
     permitSec: 60,
+    platforms: "twitch",
   };
+}
+
+export function defaultAccounts(): BotAccounts {
+  return { twitch: "bot", youtube: "bot" };
 }
 
 export function defaultBotFile(): BotFile {
   return {
     channelLogin: "",
     broadcasterId: "",
+    youtubeChannelId: "",
+    accounts: defaultAccounts(),
     portalPort: DEFAULT_PORTAL_PORT,
     bindHost: "127.0.0.1",
     publicUrl: "",
@@ -157,6 +180,8 @@ export function normalizeBotFile(value: unknown): BotFile {
   return {
     channelLogin: cleanLogin(row.channelLogin) || base.channelLogin,
     broadcasterId: digits(row.broadcasterId),
+    youtubeChannelId: youtubeChannelId(row.youtubeChannelId),
+    accounts: normalizeAccounts(row.accounts),
     portalPort: clampInt(row.portalPort, 1024, 65535, base.portalPort),
     bindHost: row.bindHost === "0.0.0.0" ? "0.0.0.0" : "127.0.0.1",
     publicUrl: typeof row.publicUrl === "string" ? row.publicUrl.trim().slice(0, 200) : "",
@@ -184,6 +209,7 @@ export function normalizeCommand(value: unknown): BotCommand | null {
     level: LEVELS.includes(row.level as UserLevel) ? (row.level as UserLevel) : "everyone",
     aliases,
     count: clampInt(row.count, 0, 1_000_000_000, 0),
+    platforms: normalizePlatformTarget(row.platforms),
   };
 }
 
@@ -202,6 +228,7 @@ export function normalizeTimer(value: unknown): BotTimer | null {
     minChatLines: clampInt(row.minChatLines, 0, 500, 5),
     linesSince: clampInt(row.linesSince, 0, 100000, 0),
     lastFiredAt: typeof row.lastFiredAt === "number" && Number.isFinite(row.lastFiredAt) ? row.lastFiredAt : 0,
+    platforms: normalizePlatformTarget(row.platforms),
   };
 }
 
@@ -223,6 +250,7 @@ export function normalizeFilters(value: unknown): BotFilters {
     caps: ratioRule(caps, base.caps),
     symbols: ratioRule(symbols, base.symbols),
     permitSec: clampInt(row.permitSec, 5, 3600, 60),
+    platforms: normalizePlatformTarget(row.platforms),
   };
 }
 
@@ -247,23 +275,25 @@ export function decideChat(
   now: number,
   facts: ChannelFacts,
   botUserId: string,
+  platform: PlatformTarget | string = "twitch",
 ): BotDecision {
   const none = emptyDecision(line);
   if (!line.userId || line.userId === botUserId) return { ...none, chatLine: false };
-  const builtIn = builtInCommand(file, memory, line, now);
+  const builtIn = builtInCommand(file, memory, line, now, platform);
   if (builtIn) return builtIn;
-  const filter = applyFilters(file, memory, line, now);
+  const filter = targetsPlatform(file.filters.platforms, platform) ? applyFilters(file, memory, line, now) : null;
   if (filter) return filter;
-  const command = matchCommand(file, line.text);
+  const command = matchCommand(file, line.text, platform);
   if (!command || !command.enabled) return { ...none, chatLine: true };
   if (!levelAllows(command.level, line.roles)) {
     return { ...none, chatLine: true, log: { action: "ignored", user: line.login, text: `!${command.name} needs ${command.level}`, by: "bot" } };
   }
-  const userKey = `${command.id}:${line.userId}`;
-  if ((memory.globalCooldown.get(command.id) ?? 0) > now || (memory.userCooldown.get(userKey) ?? 0) > now) {
+  const globalKey = `${platform}:${command.id}`;
+  const userKey = `${platform}:${command.id}:${line.userId}`;
+  if ((memory.globalCooldown.get(globalKey) ?? 0) > now || (memory.userCooldown.get(userKey) ?? 0) > now) {
     return { ...none, chatLine: true };
   }
-  if (command.cooldownSec > 0) memory.globalCooldown.set(command.id, now + command.cooldownSec * 1000);
+  if (command.cooldownSec > 0) memory.globalCooldown.set(globalKey, now + command.cooldownSec * 1000);
   if (command.userCooldownSec > 0) memory.userCooldown.set(userKey, now + command.userCooldownSec * 1000);
   const said = expandTemplate(command.response, {
     user: line.displayName,
@@ -323,7 +353,7 @@ export function rolesFromBadges(badges: readonly { set_id?: string }[], login: s
   return roles;
 }
 
-function builtInCommand(file: BotFile, memory: RuntimeMemory, line: ChatLine, now: number): BotDecision | null {
+function builtInCommand(file: BotFile, memory: RuntimeMemory, line: ChatLine, now: number, platform: string): BotDecision | null {
   const parsed = splitCommand(line.text);
   if (!parsed) return null;
   const none = emptyDecision(line);
@@ -350,7 +380,7 @@ function builtInCommand(file: BotFile, memory: RuntimeMemory, line: ChatLine, no
     return { ...none, timeoutSec: seconds, targetLogin: target, chatLine: true, log: { action: "timeout", user: target, text: `${seconds}s ${reason.join(" ")}`.trim(), by: line.login } };
   }
   if (parsed.name === "commands") {
-    const names = file.commands.filter((command) => command.enabled && levelAllows(command.level, line.roles)).map((command) => `!${command.name}`);
+    const names = file.commands.filter((command) => command.enabled && targetsPlatform(command.platforms, platform) && levelAllows(command.level, line.roles)).map((command) => `!${command.name}`);
     return { ...none, say: [names.length ? `Commands: ${names.slice(0, 30).join(" ")}` : "No commands yet."], chatLine: true };
   }
   return null;
@@ -391,10 +421,14 @@ function punish(base: BotDecision, line: ChatLine, action: FilterAction | "delet
   };
 }
 
-function matchCommand(file: BotFile, text: string): BotCommand | null {
+function matchCommand(file: BotFile, text: string, platform: string): BotCommand | null {
   const parsed = splitCommand(text);
   if (!parsed) return null;
-  return file.commands.find((command) => command.name === parsed.name || command.aliases.includes(parsed.name)) ?? null;
+  return (
+    file.commands.find(
+      (command) => (command.name === parsed.name || command.aliases.includes(parsed.name)) && targetsPlatform(command.platforms, platform),
+    ) ?? null
+  );
 }
 
 function splitCommand(text: string): { name: string; args: string } | null {
@@ -512,6 +546,20 @@ function cleanLogin(value: unknown): string {
 
 function digits(value: unknown): string {
   return typeof value === "string" && /^\d{1,20}$/.test(value) ? value : "";
+}
+
+function youtubeChannelId(value: unknown): string {
+  return typeof value === "string" && /^UC[\w-]{22}$/.test(value.trim()) ? value.trim() : "";
+}
+
+function normalizeAccounts(value: unknown): BotAccounts {
+  const row = asRecord(value);
+  const base = defaultAccounts();
+  if (!row) return base;
+  return {
+    twitch: row.twitch === "channel" ? "channel" : "bot",
+    youtube: row.youtube === "channel" ? "channel" : "bot",
+  };
 }
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {

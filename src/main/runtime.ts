@@ -38,6 +38,7 @@ import { Helix } from "./twitch/helix";
 import { TwitchIrc } from "./twitch/irc";
 import { TwitchAuth } from "./twitch/oauth";
 import { YoutubeLive } from "./youtube/live";
+import { youtubeDesk, type YoutubeDesk, type YoutubeDeskState } from "./youtube/desk";
 
 export class Runtime {
   readonly settings: SettingsStore;
@@ -52,6 +53,7 @@ export class Runtime {
   private readonly badges: BadgeCatalog;
   private readonly irc: TwitchIrc;
   private readonly youtube: YoutubeLive;
+  private readonly youtubeSend: YoutubeDesk;
   private seq = 0;
   private stream: StreamInfo | null = null;
   private streamTimer: NodeJS.Timeout | null = null;
@@ -66,8 +68,10 @@ export class Runtime {
     openExternal?: (url: string) => Promise<void>;
     fetchImpl?: typeof fetch;
   }) {
-    this.version = deps.version ?? "0.5.2";
+    this.version = deps.version ?? "0.6.0";
     this.log = new Logger(path.join(deps.dir, "logs", brand.logFile));
+    this.youtubeSend = youtubeDesk(deps.dir, { log: this.log, fetchImpl: deps.fetchImpl });
+    this.youtubeSend.setOnChange(() => this.publishYoutubeSend());
     this.settings = new SettingsStore(deps.dir);
     this.tokens = new TokenStore(deps.dir);
     const settings = this.settings.load();
@@ -128,7 +132,8 @@ export class Runtime {
       onDelete: (id) => this.bus.delete(id),
       onDeleteAuthor: (authorId) => this.bus.clearAuthor(authorId),
       onStatus: (youtube) => {
-        this.status = { ...this.status, youtube };
+        const desk = this.youtubeSend.state();
+        this.status = { ...this.status, youtube: { ...youtube, canSend: desk.connected, sendAccount: desk.account } };
         this.emit({ type: "status", status: this.status });
       },
       log: this.log,
@@ -170,6 +175,7 @@ export class Runtime {
     void this.badges.loadGlobal();
     this.irc.start();
     this.youtube.start();
+    this.publishYoutubeSend();
     await this.auth.restore();
     if (this.auth.state().loggedIn) {
       try {
@@ -211,16 +217,30 @@ export class Runtime {
     };
   }
 
-  async sendChat(text: string): Promise<void> {
+  async sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean }): Promise<void> {
     const message = text.replace(/\r/g, "").trim();
     if (!message) throw new Error("Message is empty.");
-    if (message.length > TWITCH_MESSAGE_MAX) throw new Error("Twitch messages stop at 500 characters.");
+    const twitch = destinations ? destinations.twitch === true : true;
+    const youtube = destinations?.youtube === true;
+    if (!twitch && !youtube) throw new Error("Pick Twitch or YouTube.");
+    if (twitch && message.length > TWITCH_MESSAGE_MAX) throw new Error("Twitch messages stop at 500 characters.");
+    if (youtube && message.length > 200) throw new Error("YouTube live chat stops at 200 characters.");
     if (Date.now() - this.lastSend < 800) throw new Error("Wait a moment before sending another message.");
-    const user = this.requireUser();
-    const channel = this.settings.load().twitchChannel || user.login;
-    const broadcasterId =
-      user.login.toLowerCase() === channel ? user.userId : await this.helix.getUserId(channel);
-    await this.helix.sendChat(broadcasterId, user.userId, message);
+    if (twitch) {
+      const user = this.requireUser();
+      const channel = this.settings.load().twitchChannel || user.login;
+      const broadcasterId = user.login.toLowerCase() === channel ? user.userId : await this.helix.getUserId(channel);
+      await this.helix.sendChat(broadcasterId, user.userId, message);
+    }
+    if (youtube) {
+      try {
+        await this.youtubeSend.send(message, this.status.youtube.videoId);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "YouTube did not accept that message.";
+        if (twitch) throw new Error(`Sent on Twitch. ${detail}`);
+        throw err;
+      }
+    }
     this.lastSend = Date.now();
   }
 
@@ -252,7 +272,12 @@ export class Runtime {
         getBot()?.service.setIdentity({ channelLogin: next.twitchChannel || login });
       }
     }
-    if (next.youtubeChannelId !== prev.youtubeChannelId) this.youtube.setChannel(next.youtubeChannelId);
+    if (next.youtubeChannelId !== prev.youtubeChannelId) {
+      this.youtube.setChannel(next.youtubeChannelId);
+      if (loadBotLink(path.dirname(this.settings.file)).mode === "embedded") {
+        getBot()?.service.setIdentity({ youtubeChannelId: next.youtubeChannelId });
+      }
+    }
     if (next.overlayPort !== prev.overlayPort) {
       const port = await this.server.start(next.overlayPort);
       this.status = { ...this.status, overlay: { listening: true, host: this.server.host, port } };
@@ -380,6 +405,28 @@ export class Runtime {
     return botLinkView(saved);
   }
 
+  youtubeDeskState(): YoutubeDeskState {
+    return this.youtubeSend.state();
+  }
+
+  async youtubeConnect(): Promise<YoutubeDeskState> {
+    await this.youtubeSend.connectDesk();
+    this.publishYoutubeSend();
+    return this.youtubeSend.state();
+  }
+
+  youtubeCancel(): YoutubeDeskState {
+    this.youtubeSend.cancel();
+    this.publishYoutubeSend();
+    return this.youtubeSend.state();
+  }
+
+  youtubeLogout(): YoutubeDeskState {
+    this.youtubeSend.logout();
+    this.publishYoutubeSend();
+    return this.youtubeSend.state();
+  }
+
   botState(): Promise<BotSnapshot> {
     return this.botOps().state();
   }
@@ -424,6 +471,26 @@ export class Runtime {
     return this.botOps().exportConfig();
   }
 
+  botYoutubeLogin(): Promise<BotSnapshot> {
+    return this.botOps().youtubeLogin();
+  }
+
+  botYoutubeLogout(): Promise<BotSnapshot> {
+    return this.botOps().youtubeLogout();
+  }
+
+  botYoutubeCancel(): Promise<BotSnapshot> {
+    return this.botOps().youtubeCancel();
+  }
+
+  botSaveAccounts(patch: unknown): Promise<BotSnapshot> {
+    return this.botOps().saveAccounts(patch);
+  }
+
+  botSaveGoogleClient(patch: unknown): Promise<BotSnapshot> {
+    return this.botOps().saveGoogleClient(patch);
+  }
+
   private engine() {
     const engine = getRedeemEngine();
     if (!engine) throw new Error("Channel points are still starting.");
@@ -452,6 +519,11 @@ export class Runtime {
         importSe: (jwt: string) => remote.importSe(jwt),
         importJson: (payload: unknown) => remote.importJson(payload),
         exportConfig: () => remote.exportConfig(),
+        youtubeLogin: () => this.youtubeSend.loginForBot().then((tokens) => remote.importYoutubeTokens(tokens)),
+        youtubeLogout: () => remote.youtubeLogout(),
+        youtubeCancel: () => remote.youtubeCancel(),
+        saveAccounts: (patch: unknown) => remote.saveAccounts(patch),
+        saveGoogleClient: (patch: unknown) => remote.saveGoogleClient(patch),
       };
     }
     const bot = getBot();
@@ -496,7 +568,37 @@ export class Runtime {
         return snap();
       },
       exportConfig: async () => bot.service.exportConfig(),
+      youtubeLogin: async () => {
+        await bot.service.startYoutubeLogin();
+        return snap();
+      },
+      youtubeLogout: async () => {
+        bot.service.logoutYoutube();
+        return snap();
+      },
+      youtubeCancel: async () => {
+        bot.service.cancelYoutubeLogin();
+        return snap();
+      },
+      saveAccounts: async (patch: unknown) => {
+        const row = patch && typeof patch === "object" ? (patch as { twitch?: unknown; youtube?: unknown }) : {};
+        bot.service.setAccounts(row);
+        return snap();
+      },
+      saveGoogleClient: async (patch: unknown) => {
+        bot.service.saveGoogleClient(patch);
+        return snap();
+      },
     };
+  }
+
+  private publishYoutubeSend(): void {
+    const desk = this.youtubeSend.state();
+    this.status = {
+      ...this.status,
+      youtube: { ...this.status.youtube, canSend: desk.connected, sendAccount: desk.account },
+    };
+    this.emit({ type: "status", status: this.status });
   }
 
   private emptyRedeems(): RedeemSnapshot {
@@ -528,6 +630,7 @@ export class Runtime {
       emit: (event: WithoutSeq<AppEvent>) => this.emit(event),
       version: this.version,
       badgeImage: (badge: ChatBadge) => this.badges.imageFor(badge),
+      youtubeAuthChanged: () => this.publishYoutubeSend(),
     };
   }
 

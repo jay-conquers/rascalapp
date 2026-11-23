@@ -14,6 +14,21 @@ export interface BotTokens {
   login: string;
 }
 
+export interface YoutubeBotTokens {
+  clientId: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  scopes: string[];
+  channelId: string;
+  title: string;
+}
+
+export interface GoogleClientFile {
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface BotSecrets {
   apiKey: string;
   sessionSecret: string;
@@ -24,11 +39,19 @@ export class BotStore {
   readonly configFile: string;
   readonly tokenFile: string;
   readonly secretFile: string;
+  readonly youtubeTokenFile: string;
+  readonly deskTwitchTokenFile: string;
+  readonly deskYoutubeTokenFile: string;
+  readonly googleClientFile: string;
 
   constructor(dir: string) {
     this.configFile = path.join(dir, "bot.json");
     this.tokenFile = path.join(dir, "bot-tokens.json");
     this.secretFile = path.join(dir, "bot-secrets.json");
+    this.youtubeTokenFile = path.join(dir, "bot-youtube-tokens.json");
+    this.deskTwitchTokenFile = path.join(dir, "tokens.json");
+    this.deskYoutubeTokenFile = path.join(dir, "youtube-tokens.json");
+    this.googleClientFile = path.join(dir, "google-client.json");
   }
 
   loadConfig(): BotFile {
@@ -42,7 +65,11 @@ export class BotStore {
   }
 
   loadTokens(): BotTokens | null {
-    const row = asRecord(readJson(this.tokenFile));
+    return this.loadTokenRecord(readJson(this.tokenFile));
+  }
+
+  private loadTokenRecord(value: unknown): BotTokens | null {
+    const row = asRecord(value);
     if (!row || typeof row.accessToken !== "string" || typeof row.refreshToken !== "string") return null;
     return {
       clientId: typeof row.clientId === "string" ? row.clientId : "",
@@ -65,6 +92,62 @@ export class BotStore {
     } catch {
       // Already gone.
     }
+  }
+
+  loadYoutubeTokens(): YoutubeBotTokens | null {
+    return readYoutubeTokens(readJson(this.youtubeTokenFile));
+  }
+
+  saveYoutubeTokens(tokens: YoutubeBotTokens): void {
+    writePrivate(this.youtubeTokenFile, tokens);
+  }
+
+  clearYoutubeTokens(): void {
+    try {
+      fs.rmSync(this.youtubeTokenFile);
+    } catch {
+      // Already gone.
+    }
+  }
+
+  loadDeskTwitchTokens(): BotTokens | null {
+    return this.loadTokenRecord(readJson(this.deskTwitchTokenFile));
+  }
+
+  saveDeskTwitchTokens(tokens: BotTokens): void {
+    writePrivate(this.deskTwitchTokenFile, tokens);
+  }
+
+  loadDeskYoutubeTokens(): YoutubeBotTokens | null {
+    return readYoutubeTokens(readJson(this.deskYoutubeTokenFile));
+  }
+
+  saveDeskYoutubeTokens(tokens: YoutubeBotTokens): void {
+    writePrivate(this.deskYoutubeTokenFile, tokens);
+  }
+
+  clearDeskYoutubeTokens(): void {
+    try {
+      fs.rmSync(this.deskYoutubeTokenFile);
+    } catch {
+      // Already gone.
+    }
+  }
+
+  loadGoogleClient(): GoogleClientFile {
+    const row = asRecord(readJson(this.googleClientFile));
+    return {
+      clientId: typeof row?.clientId === "string" ? row.clientId.trim() : "",
+      clientSecret: typeof row?.clientSecret === "string" ? row.clientSecret : "",
+    };
+  }
+
+  saveGoogleClient(client: GoogleClientFile): void {
+    const previous = this.loadGoogleClient();
+    writePrivate(this.googleClientFile, {
+      clientId: client.clientId.trim(),
+      clientSecret: client.clientSecret || previous.clientSecret,
+    });
   }
 
   loadSecrets(): BotSecrets {
@@ -120,6 +203,20 @@ function readJson(file: string): unknown {
   } catch {
     return null;
   }
+}
+
+export function readYoutubeTokens(value: unknown): YoutubeBotTokens | null {
+  const row = asRecord(value);
+  if (!row || typeof row.accessToken !== "string" || typeof row.refreshToken !== "string") return null;
+  return {
+    clientId: typeof row.clientId === "string" ? row.clientId : "",
+    accessToken: row.accessToken,
+    refreshToken: row.refreshToken,
+    expiresAt: typeof row.expiresAt === "number" ? row.expiresAt : 0,
+    scopes: Array.isArray(row.scopes) ? row.scopes.filter((item): item is string => typeof item === "string") : [],
+    channelId: typeof row.channelId === "string" ? row.channelId : "",
+    title: typeof row.title === "string" ? row.title : "",
+  };
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

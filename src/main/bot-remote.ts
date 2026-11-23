@@ -52,6 +52,30 @@ export class RemoteBot {
     return this.send("GET", "/api/export");
   }
 
+  youtubeLogin(): Promise<BotSnapshot> {
+    return this.send("POST", "/api/youtube/login");
+  }
+
+  youtubeLogout(): Promise<BotSnapshot> {
+    return this.send("POST", "/api/youtube/logout");
+  }
+
+  youtubeCancel(): Promise<BotSnapshot> {
+    return this.send("POST", "/api/youtube/cancel");
+  }
+
+  saveAccounts(body: unknown): Promise<BotSnapshot> {
+    return this.send("POST", "/api/accounts", body);
+  }
+
+  saveGoogleClient(body: unknown): Promise<BotSnapshot> {
+    return this.send("POST", "/api/google-client", body);
+  }
+
+  importYoutubeTokens(body: unknown): Promise<BotSnapshot> {
+    return this.send("POST", "/api/import/youtube-tokens", body);
+  }
+
   private async send(method: string, pathname: string, body?: unknown): Promise<BotSnapshot> {
     let response: Response;
     try {

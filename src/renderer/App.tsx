@@ -28,7 +28,7 @@ export function App() {
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.5.2");
+  const [version, setVersion] = useState("0.6.0");
   const [banner, setBanner] = useState(true);
 
   useEffect(() => {
@@ -275,7 +275,13 @@ export function App() {
         <div className="workspace">
           <section className="chat-column">
             <ChatFeed messages={messages} />
-            <Composer channel={shownChannel} canSend={auth.loggedIn} onSend={(text) => window.rascal!.sendChat(text)} />
+            <Composer
+              channel={shownChannel}
+              canSendTwitch={auth.loggedIn}
+              canSendYoutube={status.youtube.canSend === true}
+              youtubeAccount={status.youtube.sendAccount ?? null}
+              onSend={(text, destinations) => window.rascal!.sendChat(text, destinations)}
+            />
           </section>
         </div>
       )}

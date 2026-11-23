@@ -2,6 +2,7 @@ import path from "node:path";
 import { brand } from "../../shared/brand";
 import { startBot, type BotHandle } from "../../../packages/bot/src/index.ts";
 import { loadBotLink } from "../bot-link";
+import { youtubeDesk } from "../youtube/desk";
 import type { AppContext, StageModule } from "./types";
 
 let handle: BotHandle | null = null;
@@ -14,17 +15,30 @@ export function getBot(): BotHandle | null {
 export async function startEmbeddedBot(ctx: AppContext): Promise<void> {
   if (handle) return;
   const settings = ctx.settings.load();
+  const dir = path.dirname(ctx.settings.file);
+  const desk = youtubeDesk(dir);
   handle = await startBot({
-    dir: path.dirname(ctx.settings.file),
+    dir,
     clientId: () => ctx.settings.load().twitchClientId,
+    bridge: {
+      loadTwitch: () => {
+        const tokens = ctx.tokens.current;
+        return tokens ? { ...tokens } : null;
+      },
+      saveTwitch: (tokens) => ctx.tokens.save(tokens),
+      loadYoutube: () => desk.current(),
+      saveYoutube: (tokens) => desk.replace(tokens),
+    },
     log: (level, message, extra) => {
       if (level === "error") ctx.log.error(message, extra);
       else ctx.log.info(message, extra);
     },
+    onAccountsChanged: () => ctx.youtubeAuthChanged?.(),
   });
   handle.service.setIdentity({
     channelLogin: settings.twitchChannel,
     broadcasterId: ctx.auth.state().userId ?? "",
+    youtubeChannelId: settings.youtubeChannelId,
   });
 }
 

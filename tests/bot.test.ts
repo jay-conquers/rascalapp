@@ -36,6 +36,7 @@ describe("bot commands, filters, and variables", () => {
           level: "everyone",
           aliases: [],
           count: 3,
+          platforms: "twitch",
         },
       ],
     });
@@ -67,6 +68,7 @@ describe("bot commands, filters, and variables", () => {
           level: "mod",
           aliases: [],
           count: 0,
+          platforms: "twitch",
         },
       ],
     });

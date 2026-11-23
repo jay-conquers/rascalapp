@@ -25,6 +25,9 @@ build/icon.icns
 !.env.example
 tokens.json
 bot-tokens.json
+bot-youtube-tokens.json
+youtube-tokens.json
+google-client.json
 bot-secrets.json
 bot-link.json
 settings.json

@@ -163,6 +163,36 @@ export async function startHttp(service: BotService, options: { host: string; po
       sendJson(res, 200, service.snapshot(port));
       return;
     }
+    if (method === "POST" && url.pathname === "/api/import/youtube-tokens") {
+      service.importYoutubeTokens(body);
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
+    if (method === "POST" && url.pathname === "/api/youtube/login") {
+      await service.startYoutubeLogin();
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
+    if (method === "POST" && url.pathname === "/api/youtube/logout") {
+      service.logoutYoutube();
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
+    if (method === "POST" && url.pathname === "/api/youtube/cancel") {
+      service.cancelYoutubeLogin();
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
+    if (method === "POST" && url.pathname === "/api/accounts") {
+      service.setAccounts(body);
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
+    if (method === "POST" && url.pathname === "/api/google-client") {
+      service.saveGoogleClient(body);
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
     sendJson(res, 404, { error: "Not found" });
   }
 

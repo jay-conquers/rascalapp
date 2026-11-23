@@ -173,10 +173,10 @@ function registerAppProtocol(): void {
 
 function registerIpc(runtime: Runtime): void {
   ipcMain.handle("app:snapshot", () => runtime.snapshot());
-  ipcMain.handle("app:send-chat", (_event, text: unknown) =>
+  ipcMain.handle("app:send-chat", (_event, text: unknown, destinations: unknown) =>
     guard(() => {
       if (typeof text !== "string") throw new Error("Message must be text.");
-      return runtime.sendChat(text);
+      return runtime.sendChat(text, asDestinations(destinations));
     }),
   );
   ipcMain.handle("app:search-categories", (_event, query: unknown) =>
@@ -283,6 +283,15 @@ function registerIpc(runtime: Runtime): void {
   ipcMain.handle("app:bot-link", () => guard(() => runtime.botLink()));
   ipcMain.handle("app:bot-link-save", (_event, patch: unknown) => guard(() => runtime.saveBotLink(patch)));
   ipcMain.handle("app:bot-export", () => guard(() => runtime.botExport()));
+  ipcMain.handle("app:bot-youtube-login", () => guard(() => runtime.botYoutubeLogin()));
+  ipcMain.handle("app:bot-youtube-logout", () => guard(() => runtime.botYoutubeLogout()));
+  ipcMain.handle("app:bot-youtube-cancel", () => guard(() => runtime.botYoutubeCancel()));
+  ipcMain.handle("app:bot-accounts", (_event, patch: unknown) => guard(() => runtime.botSaveAccounts(patch)));
+  ipcMain.handle("app:bot-google-client", (_event, patch: unknown) => guard(() => runtime.botSaveGoogleClient(patch)));
+  ipcMain.handle("app:youtube-desk", () => guard(() => runtime.youtubeDeskState()));
+  ipcMain.handle("app:youtube-connect", () => guard(() => runtime.youtubeConnect()));
+  ipcMain.handle("app:youtube-cancel", () => guard(() => runtime.youtubeCancel()));
+  ipcMain.handle("app:youtube-logout", () => guard(() => runtime.youtubeLogout()));
   ipcMain.handle("app:pick-media", (_event, kind: unknown) =>
     guard(async () => {
       const video = kind !== "sound";
@@ -349,6 +358,15 @@ function asMapping(value: unknown): RedeemMapping {
     enabled: row.enabled !== false,
     placement: normalizePlacement(row.placement),
   };
+}
+
+function asDestinations(value: unknown): { twitch?: boolean; youtube?: boolean } | undefined {
+  const row = asRecord(value);
+  if (!row) return undefined;
+  const destinations: { twitch?: boolean; youtube?: boolean } = {};
+  if (typeof row.twitch === "boolean") destinations.twitch = row.twitch;
+  if (typeof row.youtube === "boolean") destinations.youtube = row.youtube;
+  return destinations;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
