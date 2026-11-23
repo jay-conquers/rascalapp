@@ -57,7 +57,7 @@ export function Composer({
             }
           }}
         />
-        <button type="submit" disabled={!canSend || sending || !text.trim()}>
+        <button className="primary" type="submit" disabled={!canSend || sending || !text.trim()}>
           {sending ? "Sending" : "Send"}
         </button>
       </div>

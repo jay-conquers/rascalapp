@@ -9,7 +9,7 @@ import { Composer } from "./components/Composer";
 import { LoginDialog } from "./components/LoginDialog";
 import { RedeemsView } from "./components/RedeemsView";
 import { SettingsView } from "./components/SettingsView";
-import { StreamPanel } from "./components/StreamPanel";
+import { StreamInfoView } from "./components/StreamInfoView";
 import { TtsView } from "./components/TtsView";
 import { BotView } from "./components/BotView";
 import { brand } from "../shared/brand";
@@ -24,11 +24,11 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [stream, setStream] = useState<StreamInfo | null>(null);
   const [login, setLogin] = useState<LoginPrompt | null>(null);
-  const [view, setView] = useState<"desk" | "settings" | "redeems" | "chat" | "tts" | "bot">("desk");
+  const [view, setView] = useState<"desk" | "settings" | "redeems" | "stream" | "chat" | "tts" | "bot">("desk");
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.5.0");
+  const [version, setVersion] = useState("0.5.1");
   const [banner, setBanner] = useState(true);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function App() {
       setBridgeError(true);
       return;
     }
-    const ember = window.rascal;
+    const bridge = window.rascal;
     let seq = 0;
     let live = false;
     const queued: AppEvent[] = [];
@@ -59,14 +59,14 @@ export function App() {
       else if (event.type === "redeems") setRedeems(event.redeems);
       else if (event.type === "toast") setToast({ tone: event.tone, text: event.text });
     };
-    const unsubscribe = ember.onEvent((event) => {
+    const unsubscribe = bridge.onEvent((event) => {
       if (!live) queued.push(event);
       else if (event.seq > seq) {
         seq = event.seq;
         apply(event);
       }
     });
-    void ember
+    void bridge
       .getSnapshot()
       .then((snap) => {
         seq = snap.seq;
@@ -181,6 +181,13 @@ export function App() {
           </button>
           <button
             type="button"
+            className={view === "stream" ? "text-button on" : "text-button"}
+            onClick={() => setView((current) => (current === "stream" ? "desk" : "stream"))}
+          >
+            Stream info
+          </button>
+          <button
+            type="button"
             className={view === "chat" ? "text-button on" : "text-button"}
             onClick={() => setView((current) => (current === "chat" ? "desk" : "chat"))}
           >
@@ -233,6 +240,19 @@ export function App() {
         <TtsView />
       ) : view === "bot" ? (
         <BotView />
+      ) : view === "stream" ? (
+        <StreamInfoView
+          auth={auth}
+          stream={stream}
+          chatChannel={shownChannel}
+          onSearch={searchCategories}
+          onSave={async (update) => {
+            const next = await window.rascal!.updateStream(update);
+            setStream(next);
+          }}
+          onLogin={() => void loginFlow()}
+          onOpenSettings={() => setView("settings")}
+        />
       ) : view === "redeems" && redeems ? (
         <RedeemsView state={redeems} onLogin={() => void loginFlow()} />
       ) : view === "settings" ? (
@@ -257,18 +277,6 @@ export function App() {
             <ChatFeed messages={messages} />
             <Composer channel={shownChannel} canSend={auth.loggedIn} onSend={(text) => window.rascal!.sendChat(text)} />
           </section>
-          <StreamPanel
-            auth={auth}
-            stream={stream}
-            chatChannel={shownChannel}
-            onSearch={searchCategories}
-            onSave={async (update) => {
-              const next = await window.rascal!.updateStream(update);
-              setStream(next);
-            }}
-            onLogin={() => void loginFlow()}
-            onOpenSettings={() => setView("settings")}
-          />
         </div>
       )}
 

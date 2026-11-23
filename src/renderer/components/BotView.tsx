@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { brand } from "../../shared/brand";
+import { CheckRow } from "./CheckRow";
 import type { BotSnapshot } from "../../shared/api";
 
 const EMPTY: BotSnapshot = {
@@ -252,30 +253,24 @@ export function BotView() {
 
       <section className="bot-card">
         <h3>Filters</h3>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={state.filters.links.enabled}
-            onChange={(event) => void run(() => window.rascal!.botSaveFilters({ links: { enabled: event.target.checked, action: "delete", timeoutSec: 30 } }))}
-          />
+        <CheckRow
+          checked={state.filters.links.enabled}
+          onChange={(enabled) => void run(() => window.rascal!.botSaveFilters({ links: { enabled, action: "delete", timeoutSec: 30 } }))}
+        >
           Delete links unless a mod used !permit
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={state.filters.caps.enabled}
-            onChange={(event) => void run(() => window.rascal!.botSaveFilters({ caps: { ...state.filters.caps, enabled: event.target.checked } }))}
-          />
+        </CheckRow>
+        <CheckRow
+          checked={state.filters.caps.enabled}
+          onChange={(enabled) => void run(() => window.rascal!.botSaveFilters({ caps: { ...state.filters.caps, enabled } }))}
+        >
           Caps limit ({state.filters.caps.maxPercent}% after {state.filters.caps.minLength} letters)
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={state.filters.symbols.enabled}
-            onChange={(event) => void run(() => window.rascal!.botSaveFilters({ symbols: { ...state.filters.symbols, enabled: event.target.checked } }))}
-          />
+        </CheckRow>
+        <CheckRow
+          checked={state.filters.symbols.enabled}
+          onChange={(enabled) => void run(() => window.rascal!.botSaveFilters({ symbols: { ...state.filters.symbols, enabled } }))}
+        >
           Symbol spam limit
-        </label>
+        </CheckRow>
         <label>
           Blacklist, one per line: word, delete|timeout|ban, seconds
           <textarea value={words} onChange={(event) => setWords(event.target.value)} />

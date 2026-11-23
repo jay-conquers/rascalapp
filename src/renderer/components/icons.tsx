@@ -2,13 +2,27 @@ import type { SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;
 
+/** Keep this drawing in sync with build/icon.svg. The PNG icons are rendered from that file. */
 export function RascalMark(props: IconProps) {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true" {...props}>
-      <path
-        fill="currentColor"
-        d="M16 3c1.2 4.2-.4 6.4-2.2 8.2C11.6 13.4 10 15.4 10 18.2 10 22.4 12.8 26 16.6 26c3.5 0 6.4-2.8 6.4-6.6 0-2.2-.8-3.8-2.1-5.4-.4 1.6-1.4 2.6-2.6 2.6-1.6 0-2.4-1.3-2.2-3.1C16.4 10.6 17.2 7.2 16 3z"
-      />
+      <circle cx="16" cy="16" r="16" fill="#2B2B2B" />
+      <path d="M21.4 25.2C25.6 27.2 29.4 24.2 27.8 20.4C26.6 17.6 23.6 18 24.4 20.6C25 22.6 22.8 23.6 21.2 22.6" fill="none" stroke="#C48A4A" strokeWidth="3.15" strokeLinecap="round" />
+      <path d="M21.4 25.2C25.6 27.2 29.4 24.2 27.8 20.4C26.6 17.6 23.6 18 24.4 20.6C25 22.6 22.8 23.6 21.2 22.6" fill="none" stroke="#5A3A22" strokeWidth="3.15" strokeLinecap="butt" strokeDasharray="1.7 2.15" />
+      <path d="M11 16.6C8.2 19.2 8.4 25 11.6 27.8C14.8 30.4 22.2 30.2 25.2 27C28 23.8 27.4 18.2 23.6 16C20 18.6 14.4 18.6 11 16.6Z" fill="#C48A4A" />
+      <ellipse cx="14.8" cy="16.6" rx="4.4" ry="3.5" fill="#C48A4A" />
+      <path d="M16.2 18.4C19.2 17.5 22.6 17.9 25.2 19.4" fill="none" stroke="#5A3A22" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M15.2 21.4C18.8 20.3 23 20.8 25.6 22.4" fill="none" stroke="#5A3A22" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M14.6 24.3C18.2 23.3 22.6 23.8 25 25.3" fill="none" stroke="#5A3A22" strokeWidth="1.55" strokeLinecap="round" />
+      <ellipse cx="13.4" cy="24.8" rx="2.7" ry="3.1" fill="#F3E3C8" />
+      <path d="M6.6 12.4L4.8 5.4L11.4 10.2Z" fill="#C48A4A" />
+      <path d="M11.2 9.4L14.2 4.2L16.6 11.2Z" fill="#C48A4A" />
+      <circle cx="11" cy="13.6" r="5.05" fill="#C48A4A" />
+      <path d="M7.2 11.2L6.2 7.4L10.6 10.2Z" fill="#E7C9A4" />
+      <path d="M12 9.4L14 6.2L15.4 10.8Z" fill="#E7C9A4" />
+      <ellipse cx="9.3" cy="15.1" rx="2.85" ry="2.15" fill="#F3E3C8" />
+      <path d="M7.2 12.8Q9.1 11.3 10.9 12.7" fill="none" stroke="#4A2F1C" strokeWidth="1.15" strokeLinecap="round" />
+      <path d="M10.6 12.3Q12.4 10.9 14.1 12.3" fill="none" stroke="#4A2F1C" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
   );
 }

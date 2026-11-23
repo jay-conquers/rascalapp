@@ -1,8 +1,64 @@
-import { useEffect, useState } from "react";
-import type { AuthState, CategoryHit, StreamInfo } from "../../shared/types";
+import { useEffect, useState, type ReactNode } from "react";
+import { streamInfoPlatforms } from "../../shared/stream-platforms";
 import { TWITCH_TITLE_MAX } from "../../shared/defaults";
+import type { AuthState, CategoryHit, StreamInfo } from "../../shared/types";
 
-export function StreamPanel({
+export function StreamInfoView({
+  auth,
+  stream,
+  chatChannel,
+  onSave,
+  onSearch,
+  onLogin,
+  onOpenSettings,
+}: {
+  auth: AuthState;
+  stream: StreamInfo | null;
+  chatChannel: string;
+  onSave: (update: { title: string; gameId: string; tags: string[] }) => Promise<void>;
+  onSearch: (query: string) => Promise<CategoryHit[]>;
+  onLogin: () => void;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <section className="stream-page" data-testid="stream-info">
+      <div className="stream-page-inner">
+        <header className="panel-head">
+          <div>
+            <h2>Stream info</h2>
+            <p className="form-note">Title, category, and tags. Each platform has its own section.</p>
+          </div>
+        </header>
+        {streamInfoPlatforms.map((platform) => (
+          <PlatformSection key={platform.id} id={platform.id} title={platform.title}>
+            {platform.id === "twitch" ? (
+              <TwitchStreamSection
+                auth={auth}
+                stream={stream}
+                chatChannel={chatChannel}
+                onSave={onSave}
+                onSearch={onSearch}
+                onLogin={onLogin}
+                onOpenSettings={onOpenSettings}
+              />
+            ) : null}
+          </PlatformSection>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PlatformSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section className="platform-section" data-platform={id} aria-label={title}>
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function TwitchStreamSection({
   auth,
   stream,
   chatChannel,
@@ -91,14 +147,12 @@ export function StreamPanel({
   const mismatch = auth.loggedIn && auth.login && auth.login.toLowerCase() !== chatChannel;
 
   return (
-    <aside className="stream" data-testid="stream-panel">
-      <header className="panel-head">
-        <h2>Stream info</h2>
+    <div data-testid="stream-panel">
+      <div className="panel-head">
         <span className={stream?.live ? "live-pill on" : "live-pill"}>
           {stream?.live ? `Live${stream.viewerCount !== null ? ` · ${stream.viewerCount}` : ""}` : "Offline"}
         </span>
-      </header>
-
+      </div>
       {!auth.loggedIn ? (
         <div className="panel-lock">
           <p>Title, category, and tags need a Twitch login. Reading chat does not.</p>
@@ -230,6 +284,6 @@ export function StreamPanel({
           </div>
         </form>
       )}
-    </aside>
+    </div>
   );
 }
