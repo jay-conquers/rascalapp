@@ -19,9 +19,9 @@ A fresh install has no channel filled in. Twitch chat follows the channel in Set
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.5.0.AppImage
+chmod +x Rascal-0.5.1.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.5.0.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.5.1.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -57,7 +57,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. The image is `release/Rascal-0.5.0.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. The image is `release/Rascal-0.5.1.AppImage`.
 
 `npm run dev` starts Vite and Electron against the unpacked source. `npm test` does not contact Twitch or YouTube.
 

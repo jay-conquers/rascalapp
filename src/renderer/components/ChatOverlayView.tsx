@@ -13,6 +13,8 @@ import {
   type ChatOverlayStyle,
 } from "../../shared/chat-overlay";
 import type { ChatMessage } from "../../shared/types";
+import { CheckRow } from "./CheckRow";
+import { ColorField } from "./ColorField";
 import { TwitchMark, YouTubeMark } from "./icons";
 
 const SAMPLES: ChatMessage[] = [
@@ -47,7 +49,7 @@ const SAMPLES: ChatMessage[] = [
     channel: "examplechannel",
     username: "owner",
     displayName: "Owner",
-    color: "#ff8a4a",
+    color: "#7dcea0",
     badges: [],
     segments: [{ type: "text", text: "YouTube owner, mod, and member badges show here too." }],
     plainText: "YouTube owner, mod, and member badges show here too.",
@@ -260,24 +262,14 @@ export function ChatOverlayView({
             Font size ({draft.fontSize}px)
             <input type="range" min={12} max={72} value={draft.fontSize} onChange={(event) => edit({ fontSize: Number(event.target.value) })} />
           </label>
-          <div className="custom-offset">
-            <label>
-              Text
-              <input type="color" value={draft.textColor} onChange={(event) => edit({ textColor: event.target.value })} />
-            </label>
-            <label>
-              Name
-              <input type="color" value={draft.nameColor} onChange={(event) => edit({ nameColor: event.target.value })} />
-            </label>
-            <label>
-              Pill
-              <input type="color" value={draft.backgroundColor} onChange={(event) => edit({ backgroundColor: event.target.value })} />
-            </label>
+          <div className="color-row">
+            <ColorField label="Text" value={draft.textColor} onChange={(textColor) => edit({ textColor })} />
+            <ColorField label="Name" value={draft.nameColor} onChange={(nameColor) => edit({ nameColor })} />
+            <ColorField label="Pill" value={draft.backgroundColor} onChange={(backgroundColor) => edit({ backgroundColor })} />
           </div>
-          <label className="check">
-            <input type="checkbox" checked={draft.useAuthorColor} onChange={(event) => edit({ useAuthorColor: event.target.checked })} />
+          <CheckRow checked={draft.useAuthorColor} onChange={(useAuthorColor) => edit({ useAuthorColor })}>
             Use each chatter's own name color
-          </label>
+          </CheckRow>
           <label>
             Background
             <select value={draft.background} onChange={(event) => edit({ background: event.target.value === "none" ? "none" : "pill" })}>
@@ -295,21 +287,21 @@ export function ChatOverlayView({
               onChange={(event) => edit({ backgroundOpacity: Number(event.target.value) / 100 })}
             />
           </label>
-          <label className="check">
-            <input type="checkbox" checked={draft.outline} onChange={(event) => edit({ outline: event.target.checked })} />
+          <CheckRow checked={draft.outline} onChange={(outline) => edit({ outline })}>
             Text outline
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={draft.shadow} onChange={(event) => edit({ shadow: event.target.checked })} />
+          </CheckRow>
+          <CheckRow checked={draft.shadow} onChange={(shadow) => edit({ shadow })}>
             Text shadow
-          </label>
-          <div className="custom-offset">
+          </CheckRow>
+          <div className="field-pair">
             <label>
-              Max messages
+              <span>Max messages</span>
+              <span className="field-help">Shown at once</span>
               <input type="number" min={1} max={40} value={draft.maxMessages} onChange={(event) => edit({ maxMessages: Number(event.target.value) })} />
             </label>
             <label>
-              Lifetime (seconds, 0 stays)
+              <span>Lifetime</span>
+              <span className="field-help">Seconds. 0 stays.</span>
               <input type="number" min={0} max={600} value={draft.lifetimeSeconds} onChange={(event) => edit({ lifetimeSeconds: Number(event.target.value) })} />
             </label>
           </div>
@@ -328,18 +320,15 @@ export function ChatOverlayView({
             </select>
           </label>
           <ChatBoxControls box={draft.box} onChange={(box) => edit({ box })} />
-          <label className="check">
-            <input type="checkbox" checked={draft.showPlatformIcons} onChange={(event) => edit({ showPlatformIcons: event.target.checked })} />
+          <CheckRow checked={draft.showPlatformIcons} onChange={(showPlatformIcons) => edit({ showPlatformIcons })}>
             Platform icons
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={draft.showBadges} onChange={(event) => edit({ showBadges: event.target.checked })} />
+          </CheckRow>
+          <CheckRow checked={draft.showBadges} onChange={(showBadges) => edit({ showBadges })}>
             Badges
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={draft.hideCommands} onChange={(event) => edit({ hideCommands: event.target.checked })} />
+          </CheckRow>
+          <CheckRow checked={draft.hideCommands} onChange={(hideCommands) => edit({ hideCommands })}>
             Hide messages starting with !
-          </label>
+          </CheckRow>
           <label>
             Hidden users, one per line
             <textarea

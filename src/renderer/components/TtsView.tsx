@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CheckRow } from "./CheckRow";
 import { brand } from "../../shared/brand";
 import type { TtsPanel } from "../../shared/tts";
 
@@ -99,15 +100,13 @@ export function TtsView() {
         </button>
       </form>
 
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={panel.shortcuts.enabled}
-          disabled={busy}
-          onChange={(event) => void run(() => window.rascal!.saveTtsSettings({ shortcuts: event.target.checked }))}
-        />
+      <CheckRow
+        checked={panel.shortcuts.enabled}
+        disabled={busy}
+        onChange={(shortcuts) => void run(() => window.rascal!.saveTtsSettings({ shortcuts }))}
+      >
         Global shortcuts
-      </label>
+      </CheckRow>
       <p className="form-note">{panel.shortcuts.detail}</p>
 
       {down || !state ? (

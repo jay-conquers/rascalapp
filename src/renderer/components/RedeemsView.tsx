@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { brand } from "../../shared/brand";
+import { CheckRow } from "./CheckRow";
 import {
   DEFAULT_VIDEO_PLACEMENT,
   PLACEMENT_PRESETS,
@@ -79,25 +80,28 @@ export function RedeemsView({
         {state.queue.pending.length > 0 ? ` · ${state.queue.pending.length} waiting` : ""}
       </p>
       <div className="redeem-grid">
-        <ul className="reward-list">
-          {state.rewards.length === 0 && <li className="count">No rewards loaded yet.</li>}
-          {state.rewards.map((item) => (
-            <li key={item.id || item.title}>
-              <button
-                type="button"
-                className={reward?.id === item.id ? "reward on" : "reward"}
-                onClick={() => setSelected(item.id)}
-              >
-                <strong>{item.title}</strong>
-                <span>
-                  {item.cost > 0 ? `${item.cost} pts` : "Not on Twitch yet"}
-                  {item.manageable ? ` · ${brand.displayName}` : ""}
-                  {item.mapping.action !== "none" ? ` · ${item.mapping.action}` : ""}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="reward-column">
+          <CreateReward canManage={state.canManage} />
+          <ul className="reward-list">
+            {state.rewards.length === 0 && <li className="count">No rewards loaded yet.</li>}
+            {state.rewards.map((item) => (
+              <li key={item.id || item.title}>
+                <button
+                  type="button"
+                  className={reward?.id === item.id ? "reward on" : "reward"}
+                  onClick={() => setSelected(item.id)}
+                >
+                  <strong>{item.title}</strong>
+                  <span>
+                    {item.cost > 0 ? `${item.cost} pts` : "Not on Twitch yet"}
+                    {item.manageable ? ` · ${brand.displayName}` : ""}
+                    {item.mapping.action !== "none" ? ` · ${item.mapping.action}` : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
         {reward ? (
           <RewardEditor
             key={reward.id || reward.title}
@@ -111,7 +115,6 @@ export function RedeemsView({
           <p className="count">Rewards show up here after you log in, or after a Firebot import.</p>
         )}
       </div>
-      <CreateReward canManage={state.canManage} />
     </section>
   );
 }
@@ -220,14 +223,9 @@ function RewardEditor({
           }}
         />
       </label>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={mapping.enabled}
-          onChange={(event) => setMapping({ ...mapping, enabled: event.target.checked })}
-        />
+      <CheckRow checked={mapping.enabled} onChange={(enabled) => setMapping({ ...mapping, enabled })}>
         Enabled
-      </label>
+      </CheckRow>
       <div className="form-actions">
         <button className="primary" type="submit">
           Save mapping
@@ -259,10 +257,9 @@ function RewardEditor({
             Cost
             <input value={cost} inputMode="numeric" onChange={(event) => setCost(event.target.value.replace(/[^\d]/g, ""))} />
           </label>
-          <label className="check">
-            <input type="checkbox" checked={twitchEnabled} onChange={(event) => setTwitchEnabled(event.target.checked)} />
+          <CheckRow checked={twitchEnabled} onChange={setTwitchEnabled}>
             Enabled on Twitch
-          </label>
+          </CheckRow>
           <button
             type="button"
             className="primary"
@@ -405,13 +402,24 @@ function CreateReward({ canManage }: { canManage: boolean }) {
       }}
     >
       <h3>New {brand.displayName} reward</h3>
-      <div className="file-row">
-        <input value={title} placeholder="Reward name" maxLength={45} onChange={(event) => setTitle(event.target.value)} />
-        <input value={cost} inputMode="numeric" onChange={(event) => setCost(event.target.value.replace(/[^\d]/g, ""))} />
-        <button className="primary" type="submit">
-          Create
-        </button>
+      <div className="create-reward-fields">
+        <label>
+          Reward name
+          <input value={title} placeholder="Reward name" maxLength={45} onChange={(event) => setTitle(event.target.value)} />
+        </label>
+        <label>
+          Cost
+          <input
+            value={cost}
+            inputMode="numeric"
+            aria-label="Point cost"
+            onChange={(event) => setCost(event.target.value.replace(/[^\d]/g, ""))}
+          />
+        </label>
       </div>
+      <button className="primary" type="submit">
+        Create
+      </button>
     </form>
   );
 }

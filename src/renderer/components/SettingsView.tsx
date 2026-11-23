@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { brand } from "../../shared/brand";
+import { CheckRow } from "./CheckRow";
 import type { AuthState, ConnectionStatus, Settings } from "../../shared/types";
 
 const SCOPE_REASONS = [
@@ -155,10 +156,9 @@ export function SettingsView({
                 : "Overlay server is not listening"}
             </span>
           </label>
-          <label className="check">
-            <input type="checkbox" checked={autoImport} onChange={(event) => setAutoImport(event.target.checked)} />
+          <CheckRow checked={autoImport} onChange={setAutoImport}>
             Import Firebot reward files on startup
-          </label>
+          </CheckRow>
           {error && <p className="form-error">{error}</p>}
           <div className="form-actions">
             <button className="primary" type="submit" disabled={busy}>

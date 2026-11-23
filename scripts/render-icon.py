@@ -1,87 +1,353 @@
 #!/usr/bin/env python3
-"""Draw Ember's launcher icon. Stdlib only, so the AppImage build can regenerate it."""
+"""Rasterize build/icon.svg into the PNG sizes electron-builder expects.
+
+Stdlib only. The SVG is the source; this flattens its circles, ellipses, and
+paths (M/L/H/V/C/Q/Z) and paints them with supersampling.
+"""
 
 import math
+import re
+import shutil
 import struct
+import sys
+import xml.etree.ElementTree as ET
 import zlib
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SVG_PATH = ROOT / "build" / "icon.svg"
+ICON_DIR = ROOT / "build" / "icons"
+TOKEN = re.compile(r"[MmLlHhVvCcQqSsTtAaZz]|[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?")
 
 
 def clamp(value: float) -> int:
     return max(0, min(255, int(round(value))))
 
 
-def mix(a, b, t):
-    return tuple(a[i] + (b[i] - a[i]) * t for i in range(4))
+def local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
 
 
-def inside_round_rect(u, v, radius):
-    # u,v in 0..1. Keep a margin so the rounded tile sits inside the canvas.
-    m = 0.06
-    x = min(max(u, m), 1 - m)
-    y = min(max(v, m), 1 - m)
-    dx = abs(u - 0.5) - (0.5 - m - radius)
-    dy = abs(v - 0.5) - (0.5 - m - radius)
-    outside = (max(dx, 0) ** 2 + max(dy, 0) ** 2) ** 0.5
-    return outside <= radius and m <= u <= 1 - m and m <= v <= 1 - m
+def parse_color(value: str | None):
+    if not value or value.strip() in {"none", "transparent"}:
+        return None
+    raw = value.strip()
+    if not raw.startswith("#"):
+        raise SystemExit(f"unsupported color {value}")
+    hex_color = raw[1:]
+    if len(hex_color) == 3:
+        hex_color = "".join(ch * 2 for ch in hex_color)
+    if len(hex_color) != 6:
+        raise SystemExit(f"unsupported color {value}")
+    return tuple(int(hex_color[i : i + 2], 16) / 255 for i in (0, 2, 4)) + (1.0,)
 
 
-def flame(u, v, scale, drop):
-    """Teardrop that is pointed on top and rounded on the bottom."""
-    top = 0.18 + drop
-    bottom = 0.84
-    if v < top or v > bottom:
+def flatten_cubic(p0, p1, p2, p3, steps=8):
+    points = []
+    for step in range(1, steps + 1):
+        t = step / steps
+        u = 1 - t
+        points.append((
+            u ** 3 * p0[0] + 3 * u ** 2 * t * p1[0] + 3 * u * t ** 2 * p2[0] + t ** 3 * p3[0],
+            u ** 3 * p0[1] + 3 * u ** 2 * t * p1[1] + 3 * u * t ** 2 * p2[1] + t ** 3 * p3[1],
+        ))
+    return points
+
+
+def flatten_quad(p0, p1, p2, steps=8):
+    points = []
+    for step in range(1, steps + 1):
+        t = step / steps
+        u = 1 - t
+        points.append((
+            u ** 2 * p0[0] + 2 * u * t * p1[0] + t ** 2 * p2[0],
+            u ** 2 * p0[1] + 2 * u * t * p1[1] + t ** 2 * p2[1],
+        ))
+    return points
+
+
+def path_contours(d: str):
+    tokens = TOKEN.findall(d)
+    index = 0
+    cx = cy = 0.0
+    sx = sy = 0.0
+    command = ""
+    contours = []
+    current = []
+
+    def start_contour(x, y):
+        nonlocal current, sx, sy, cx, cy
+        if current:
+            contours.append(current)
+        current = [(x, y)]
+        sx, sy = x, y
+        cx, cy = x, y
+
+    while index < len(tokens):
+        token = tokens[index]
+        if token.isalpha():
+            command = token
+            index += 1
+            if command in "Zz" and current:
+                current.append((sx, sy))
+                contours.append(current)
+                current = []
+                cx, cy = sx, sy
+            continue
+        relative = command.islower()
+        cmd = command.upper()
+        if cmd == "M":
+            x, y = float(tokens[index]), float(tokens[index + 1])
+            index += 2
+            if relative:
+                x += cx
+                y += cy
+            start_contour(x, y)
+            command = "l" if relative else "L"
+        elif cmd == "L":
+            x, y = float(tokens[index]), float(tokens[index + 1])
+            index += 2
+            if relative:
+                x += cx
+                y += cy
+            current.append((x, y))
+            cx, cy = x, y
+        elif cmd == "H":
+            x = float(tokens[index]) + (cx if relative else 0)
+            index += 1
+            current.append((x, cy))
+            cx = x
+        elif cmd == "V":
+            y = float(tokens[index]) + (cy if relative else 0)
+            index += 1
+            current.append((cx, y))
+            cy = y
+        elif cmd == "C":
+            x1, y1, x2, y2, x, y = (float(tokens[index + i]) for i in range(6))
+            index += 6
+            if relative:
+                x1 += cx
+                y1 += cy
+                x2 += cx
+                y2 += cy
+                x += cx
+                y += cy
+            current.extend(flatten_cubic((cx, cy), (x1, y1), (x2, y2), (x, y)))
+            cx, cy = x, y
+        elif cmd == "Q":
+            x1, y1, x, y = (float(tokens[index + i]) for i in range(4))
+            index += 4
+            if relative:
+                x1 += cx
+                y1 += cy
+                x += cx
+                y += cy
+            current.extend(flatten_quad((cx, cy), (x1, y1), (x, y)))
+            cx, cy = x, y
+        else:
+            raise SystemExit(f"unsupported path command {command}")
+    if current:
+        contours.append(current)
+    return contours
+
+
+def even_odd(x, y, contours) -> bool:
+    inside = False
+    for points in contours:
+        count = len(points)
+        j = count - 1
+        for i in range(count):
+            xi, yi = points[i]
+            xj, yj = points[j]
+            if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi + 0.0) + xi):
+                inside = not inside
+            j = i
+    return inside
+
+
+def segment_hit(x, y, x1, y1, x2, y2, radius, cap) -> bool:
+    dx = x2 - x1
+    dy = y2 - y1
+    length_sq = dx * dx + dy * dy
+    if length_sq == 0:
+        return math.hypot(x - x1, y - y1) <= radius
+    t = ((x - x1) * dx + (y - y1) * dy) / length_sq
+    if cap == "butt" and (t < 0 or t > 1):
         return False
-    t = (v - top) / (bottom - top)
-    grow = 1 - (1 - t) ** 1.55
-    width = scale * (0.02 + 0.40 * grow)
-    if t > 0.78:
-        base = (t - 0.78) / 0.22
-        width *= math.sqrt(max(0.0, 1 - base * base))
-    cx = 0.51 + 0.045 * math.sin((t - 0.05) * 3.4)
-    if abs(u - cx) > width * 0.5:
-        return False
-    # A bite out of the lower-left side so the silhouette reads as a flame.
-    if scale > 0.7 and ellipse(u, v, 0.30, 0.66, 0.11, 0.18):
-        return False
-    return True
+    t_clamped = min(1.0, max(0.0, t))
+    qx = x1 + t_clamped * dx
+    qy = y1 + t_clamped * dy
+    return math.hypot(x - qx, y - qy) <= radius
 
 
-def ellipse(u, v, cx, cy, rx, ry):
-    return ((u - cx) / rx) ** 2 + ((v - cy) / ry) ** 2 <= 1
+def stroke_segments(contours, width, cap, dash):
+    radius = width / 2
+    segments = []
+    pattern = None
+    if dash:
+        lengths = [float(part) for part in re.split(r"[\s,]+", dash.strip()) if part]
+        if lengths:
+            pattern = lengths
+    for points in contours:
+        if len(points) < 2:
+            continue
+        distance = 0.0
+        for start, end in zip(points, points[1:]):
+            length = math.hypot(end[0] - start[0], end[1] - start[1])
+            if length == 0:
+                continue
+            if pattern is None:
+                segments.append((start, end, radius, cap))
+            else:
+                cursor = 0.0
+                while cursor < length - 1e-6:
+                    cycle = sum(pattern) or length
+                    pos = (distance + cursor) % cycle
+                    walked = 0.0
+                    on = True
+                    span = pattern[0]
+                    for index, part in enumerate(pattern):
+                        if pos < walked + part:
+                            on = index % 2 == 0
+                            span = walked + part - pos
+                            break
+                        walked += part
+                    step = min(span, length - cursor)
+                    if on and step > 0:
+                        a = cursor / length
+                        b = (cursor + step) / length
+                        p1 = (start[0] + (end[0] - start[0]) * a, start[1] + (end[1] - start[1]) * a)
+                        p2 = (start[0] + (end[0] - start[0]) * b, start[1] + (end[1] - start[1]) * b)
+                        segments.append((p1, p2, radius, cap))
+                    cursor += step
+            distance += length
+    return segments
 
 
-def scene(u, v):
-    if not inside_round_rect(u, v, 0.20):
-        return (0, 0, 0, 0)
-    bg = mix((54, 26, 16, 255), (14, 9, 8, 255), v * 0.85)
-    if flame(u, v, 1.0, 0.0):
-        color = (255, 78, 28, 255)
-        if flame(u, v, 0.62, 0.08):
-            color = (255, 154, 48, 255)
-        if flame(u, v, 0.30, 0.16):
-            color = (255, 228, 156, 255)
-        return color
-    return bg
+class Shape:
+    def __init__(self, color, bounds, hit):
+        self.color = color
+        self.bounds = bounds
+        self.hit = hit
 
 
-def render(size: int):
-    samples = 4
+def bounds_of(points, pad=0):
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return (min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad)
+
+
+def add_fill(shapes, contours, color):
+    if color is None or not contours:
+        return
+    points = [point for contour in contours for point in contour]
+    box = bounds_of(points)
+
+    def hit(x, y):
+        return even_odd(x, y, contours)
+
+    shapes.append(Shape(color, box, hit))
+
+
+def add_stroke(shapes, contours, color, width, cap, dash):
+    if color is None or width <= 0:
+        return
+    segments = stroke_segments(contours, width, cap, dash)
+    if not segments:
+        return
+    points = [point for start, end, _radius, _cap in segments for point in (start, end)]
+    box = bounds_of(points, pad=width)
+
+    def hit(x, y):
+        return any(segment_hit(x, y, start[0], start[1], end[0], end[1], radius, cap_name) for start, end, radius, cap_name in segments)
+
+    shapes.append(Shape(color, box, hit))
+
+
+def ellipse_contours(cx, cy, rx, ry, steps=48):
+    points = []
+    for step in range(steps):
+        angle = (step / steps) * math.tau
+        points.append((cx + math.cos(angle) * rx, cy + math.sin(angle) * ry))
+    points.append(points[0])
+    return [points]
+
+
+def load_shapes(path: Path):
+    tree = ET.parse(path)
+    root = tree.getroot()
+    view = root.attrib.get("viewBox", "0 0 32 32").split()
+    vb_x, vb_y, vb_w, vb_h = (float(part) for part in view)
+    shapes = []
+    for element in root.iter():
+        kind = local(element.tag)
+        if kind == "circle":
+            cx = float(element.attrib.get("cx", "0"))
+            cy = float(element.attrib.get("cy", "0"))
+            r = float(element.attrib.get("r", "0"))
+            add_fill(shapes, ellipse_contours(cx, cy, r, r), parse_color(element.attrib.get("fill")))
+        elif kind == "ellipse":
+            cx = float(element.attrib.get("cx", "0"))
+            cy = float(element.attrib.get("cy", "0"))
+            rx = float(element.attrib.get("rx", "0"))
+            ry = float(element.attrib.get("ry", "0"))
+            add_fill(shapes, ellipse_contours(cx, cy, rx, ry), parse_color(element.attrib.get("fill")))
+        elif kind == "path":
+            contours = path_contours(element.attrib.get("d", ""))
+            add_fill(shapes, contours, parse_color(element.attrib.get("fill")))
+            cap = element.attrib.get("stroke-linecap", "butt")
+            add_stroke(
+                shapes,
+                contours,
+                parse_color(element.attrib.get("stroke")),
+                float(element.attrib.get("stroke-width", "1")),
+                cap,
+                element.attrib.get("stroke-dasharray"),
+            )
+    return (vb_x, vb_y, vb_w, vb_h), shapes
+
+
+def composite(dst, src):
+    sr, sg, sb, sa = src
+    dr, dg, db, da = dst
+    out_a = sa + da * (1 - sa)
+    if out_a <= 0:
+        return (0.0, 0.0, 0.0, 0.0)
+    return (
+        (sr * sa + dr * da * (1 - sa)) / out_a,
+        (sg * sa + dg * da * (1 - sa)) / out_a,
+        (sb * sa + db * da * (1 - sa)) / out_a,
+        out_a,
+    )
+
+
+def render(size: int, view, shapes, samples: int) -> bytes:
+    vb_x, vb_y, vb_w, vb_h = view
     buf = bytearray(size * size * 4)
     for y in range(size):
         for x in range(size):
             acc = [0.0, 0.0, 0.0, 0.0]
             for sy in range(samples):
                 for sx in range(samples):
-                    u = (x + (sx + 0.5) / samples) / size
-                    v = (y + (sy + 0.5) / samples) / size
-                    pixel = scene(u, v)
-                    for i in range(4):
-                        acc[i] += pixel[i]
+                    px = vb_x + ((x + (sx + 0.5) / samples) / size) * vb_w
+                    py = vb_y + ((y + (sy + 0.5) / samples) / size) * vb_h
+                    color = (0.0, 0.0, 0.0, 0.0)
+                    for shape in shapes:
+                        left, top, right, bottom = shape.bounds
+                        if px < left or px > right or py < top or py > bottom:
+                            continue
+                        if shape.hit(px, py):
+                            color = composite(color, shape.color)
+                    for channel in range(4):
+                        acc[channel] += color[channel]
             offset = (y * size + x) * 4
             scale = samples * samples
-            for i in range(4):
-                buf[offset + i] = clamp(acc[i] / scale)
+            alpha = acc[3] / scale
+            if alpha <= 0:
+                continue
+            for channel in range(3):
+                buf[offset + channel] = clamp((acc[channel] / scale) * 255)
+            buf[offset + 3] = clamp(alpha * 255)
     return bytes(buf)
 
 
@@ -97,12 +363,57 @@ def write_png(path: Path, size: int, rgba: bytes) -> None:
     path.write_bytes(png)
 
 
+def samples_for(size: int) -> int:
+    if size <= 32:
+        return 6
+    if size <= 64:
+        return 4
+    if size <= 128:
+        return 3
+    return 2
+
+
+def probe(size: int, view, shapes) -> None:
+    rgba = render(size, view, shapes, 2)
+    import json
+
+    def pixel(x, y):
+        index = (y * size + x) * 4
+        return list(rgba[index : index + 4])
+
+    print(json.dumps({
+        "center": pixel(size // 2, size // 2),
+        "corner": pixel(0, 0),
+        "mid": pixel(size // 2, size // 3),
+    }))
+
+
 def main() -> None:
-    root = Path(__file__).resolve().parents[1] / "build" / "icons"
-    root.mkdir(parents=True, exist_ok=True)
+    view, shapes = load_shapes(SVG_PATH)
+    args = sys.argv[1:]
+    if "--probe" in args:
+        size = int(args[args.index("--size") + 1]) if "--size" in args else 32
+        probe(size, view, shapes)
+        return
+    if "--size" in args:
+        size = int(args[args.index("--size") + 1])
+        out = Path(args[args.index("--out") + 1]) if "--out" in args else ICON_DIR / f"{size}x{size}.png"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        write_png(out, size, render(size, view, shapes, samples_for(size)))
+        print(out)
+        return
+    ICON_DIR.mkdir(parents=True, exist_ok=True)
+    rendered = {}
     for size in (16, 32, 48, 64, 128, 256, 512):
-        write_png(root / f"{size}x{size}.png", size, render(size))
-        print(root / f"{size}x{size}.png")
+        rgba = render(size, view, shapes, samples_for(size))
+        rendered[size] = rgba
+        destination = ICON_DIR / f"{size}x{size}.png"
+        write_png(destination, size, rgba)
+        print(destination)
+    packaging = ROOT / "packaging" / "rascal.png"
+    write_png(packaging, 256, rendered[256])
+    print(packaging)
+    shutil.copyfile(ICON_DIR / "256x256.png", ROOT / "build" / "icon.png")
 
 
 if __name__ == "__main__":
