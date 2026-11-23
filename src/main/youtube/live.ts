@@ -1,9 +1,11 @@
+import { readBrandEnv } from "../../shared/brand";
 import {
   browserUserAgent,
   YOUTUBE_CLIENT_VERSION_FALLBACK,
   YOUTUBE_WEB_API_KEY_FALLBACK,
 } from "../../shared/defaults";
 import { detectLiveFromHtml, parseLiveChatResponse, readLiveChatPage } from "../../shared/parsers/youtube";
+import { nextYoutubeiPressure, rememberChatIds, youtubeiPollTargetMs, youtubeiWaitMs } from "../../shared/platform/youtubei";
 import { redactError } from "../../shared/redact";
 import type { ChatMessage } from "../../shared/types";
 import type { Logger } from "../logger";
@@ -26,6 +28,9 @@ export class YoutubeLive {
   private generation = 0;
   private abort = new AbortController();
   private channelId: string;
+  private readerFailures = 0;
+  private readonly seen = new Set<string>();
+  private readonly pollMs: number;
 
   constructor(
     private readonly deps: {
@@ -34,11 +39,15 @@ export class YoutubeLive {
       onDelete: (id: string) => void;
       onDeleteAuthor: (authorId: string) => void;
       onStatus: (status: { state: "idle" | "connecting" | "offline" | "live" | "reconnecting" | "error"; detail: string; videoId?: string; title?: string }) => void;
+      onHealth?: (health: { ok: boolean; consecutiveFailures: number }) => void;
       log: Logger;
       fetchImpl?: typeof fetch;
+      /** Page-reader gap. Defaults to 1.5s and never below 1s. `RASCAL_YOUTUBE_POLL_MS` overrides it. */
+      pollMs?: number;
     },
   ) {
     this.channelId = deps.channelId;
+    this.pollMs = youtubeiPollTargetMs(deps.pollMs, readBrandEnv("YOUTUBE_POLL_MS"));
   }
 
   start(): void {
@@ -94,6 +103,7 @@ export class YoutubeLive {
         const wait = Math.min(60_000, backoff);
         backoff = Math.min(60_000, backoff * 2);
         const message = redactError(err);
+        this.noteReader(false);
         this.deps.log.error("youtube chat interrupted", { message });
         this.deps.onStatus({ state: "reconnecting", detail: message });
         try {
@@ -107,47 +117,77 @@ export class YoutubeLive {
 
   private async poll(session: ChatSession, signal: AbortSignal): Promise<boolean> {
     let token = session.token;
-    let timeoutMs = session.timeoutMs;
+    let suggested = session.timeoutMs;
+    let pressure = 0;
     while (!this.stopped && !signal.aborted) {
-      await sleep(timeoutMs, signal);
-      const response = await this.fetcher(
-        `https://www.youtube.com/youtubei/v1/live_chat/get_live_chat?prettyPrint=false&key=${encodeURIComponent(session.apiKey)}`,
-        {
-          method: "POST",
-          signal,
-          headers: {
-            ...pageHeaders(),
-            "Content-Type": "application/json",
-            Origin: "https://www.youtube.com",
-            Referer: `https://www.youtube.com/live_chat?v=${encodeURIComponent(session.videoId)}`,
-            "X-YouTube-Client-Name": "1",
-            "X-YouTube-Client-Version": session.clientVersion,
-          },
-          body: JSON.stringify({
-            context: {
-              client: {
-                clientName: "WEB",
-                clientVersion: session.clientVersion,
-                hl: "en",
-                gl: "US",
-              },
+      let response: Response;
+      try {
+        response = await this.fetcher(
+          `https://www.youtube.com/youtubei/v1/live_chat/get_live_chat?prettyPrint=false&key=${encodeURIComponent(session.apiKey)}`,
+          {
+            method: "POST",
+            signal,
+            headers: {
+              ...pageHeaders(),
+              "Content-Type": "application/json",
+              Origin: "https://www.youtube.com",
+              Referer: `https://www.youtube.com/live_chat?v=${encodeURIComponent(session.videoId)}`,
+              "X-YouTube-Client-Name": "1",
+              "X-YouTube-Client-Version": session.clientVersion,
             },
-            continuation: token,
-          }),
-        },
-      );
-      if (!response.ok) throw new Error(`YouTube chat returned HTTP ${response.status}.`);
+            body: JSON.stringify({
+              context: {
+                client: {
+                  clientName: "WEB",
+                  clientVersion: session.clientVersion,
+                  hl: "en",
+                  gl: "US",
+                },
+              },
+              continuation: token,
+            }),
+          },
+        );
+      } catch (err) {
+        if (this.stopped || isAbort(err)) return false;
+        pressure = nextYoutubeiPressure(pressure, "error");
+        this.noteReader(false);
+        await sleep(youtubeiWaitMs({ targetMs: this.pollMs, suggestedMs: suggested, pressure }), signal);
+        continue;
+      }
+      if (response.status === 429 || !response.ok) {
+        pressure = nextYoutubeiPressure(pressure, response.status === 429 ? "rate-limit" : "error");
+        this.noteReader(false);
+        await sleep(youtubeiWaitMs({ targetMs: this.pollMs, suggestedMs: suggested, pressure }), signal);
+        continue;
+      }
       const parsed = parseLiveChatResponse(await response.json());
+      const fresh = new Set(rememberChatIds(this.seen, parsed.messages.map((message) => message.id)));
       for (const message of parsed.messages) {
+        if (!fresh.has(message.id)) continue;
         this.deps.onMessage({ ...message, channel: this.channelId });
       }
       for (const id of parsed.deletedIds) this.deps.onDelete(id);
       for (const authorId of parsed.deletedAuthorIds) this.deps.onDeleteAuthor(authorId);
+      this.noteReader(true);
+      pressure = nextYoutubeiPressure(pressure, "ok");
       if (parsed.ended || !parsed.continuation) return true;
       token = parsed.continuation.token;
-      timeoutMs = parsed.continuation.timeoutMs;
+      suggested = parsed.continuation.timeoutMs;
+      await sleep(youtubeiWaitMs({ targetMs: this.pollMs, suggestedMs: suggested, pressure }), signal);
     }
     return false;
+  }
+
+  private noteReader(ok: boolean): void {
+    if (ok) {
+      if (this.readerFailures === 0) return;
+      this.readerFailures = 0;
+      this.deps.onHealth?.({ ok: true, consecutiveFailures: 0 });
+      return;
+    }
+    this.readerFailures += 1;
+    this.deps.onHealth?.({ ok: false, consecutiveFailures: this.readerFailures });
   }
 
   private get fetcher(): typeof fetch {

@@ -120,6 +120,7 @@ describe("command dispatch across platforms", () => {
     expect(loaded.timers[0]?.platforms).toBe("twitch");
     expect(loaded.filters.platforms).toBe("twitch");
     expect(loaded.accounts).toEqual({ twitch: "bot", youtube: "bot" });
+    expect(loaded.youtubeApiPoll).toBe(false);
   });
 
   it("does not let a YouTube cooldown block the same command on Twitch", () => {
@@ -133,6 +134,7 @@ describe("command dispatch across platforms", () => {
 
 describe("youtube polling backoff", () => {
   it("waits for pollingIntervalMillis, stretches on errors, and pauses when quota is gone", () => {
+    expect(nextPollDelayMs({ pollingIntervalMillis: 5000, consecutiveErrors: 0, quotaExceeded: false, unitsRemaining: 10_000 })).toBe(5000);
     expect(nextPollDelayMs({ pollingIntervalMillis: 8000, consecutiveErrors: 0, quotaExceeded: false, unitsRemaining: 10_000 })).toBe(8000);
     expect(nextPollDelayMs({ pollingIntervalMillis: 100, consecutiveErrors: 0, quotaExceeded: false, unitsRemaining: 10_000 })).toBe(1000);
     expect(nextPollDelayMs({ pollingIntervalMillis: 5000, consecutiveErrors: 2, quotaExceeded: false, unitsRemaining: 10_000 })).toBe(20_000);

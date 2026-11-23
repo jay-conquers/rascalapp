@@ -1,5 +1,53 @@
 import type { ChatRole, NormalizedBadge, NormalizedChatMessage, NormalizedChatUser } from "./types.ts";
 
+/** Desk chat line from the page reader. The id and author channel id are the ones the Data API delete and ban calls use. */
+export function normalizeYoutubeReaderMessage(message: {
+  id: string;
+  authorId?: string;
+  username: string;
+  displayName: string;
+  plainText: string;
+  timestamp: number;
+  badges?: readonly { kind: string }[];
+  channel?: string;
+}): NormalizedChatMessage | null {
+  const body = message.plainText.trim();
+  const messageId = message.id.trim();
+  if (!messageId || !body) return null;
+  const displayName = message.displayName.trim() || message.username.trim() || "YouTube";
+  const userId = message.authorId?.trim() || "";
+  const roles: ChatRole[] = ["everyone"];
+  const badges: NormalizedBadge[] = [];
+  for (const badge of message.badges ?? []) {
+    if (badge.kind === "member" && !roles.includes("sub")) {
+      roles.push("sub");
+      badges.push({ id: "member", label: "Member" });
+    }
+    if (badge.kind === "mod" && !roles.includes("mod")) {
+      roles.push("mod");
+      badges.push({ id: "moderator", label: "Moderator" });
+    }
+    if ((badge.kind === "owner" || badge.kind === "broadcaster") && !roles.includes("broadcaster")) {
+      roles.push("broadcaster");
+      badges.push({ id: "owner", label: "Owner" });
+    }
+  }
+  return {
+    platform: "youtube",
+    messageId,
+    channelId: message.channel?.trim() || "",
+    text: body,
+    publishedAt: message.timestamp,
+    user: {
+      id: userId,
+      login: loginFromName(displayName) || userId,
+      displayName,
+      roles,
+      badges,
+    },
+  };
+}
+
 const ROLE_BADGES: { role: ChatRole; id: string; label: string }[] = [
   { role: "broadcaster", id: "broadcaster", label: "Broadcaster" },
   { role: "mod", id: "moderator", label: "Moderator" },

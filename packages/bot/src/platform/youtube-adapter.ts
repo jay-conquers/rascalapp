@@ -1,5 +1,9 @@
+import { YoutubeLive } from "../../../../src/main/youtube/live.ts";
+import { Logger } from "../../../../src/main/logger.ts";
+import { normalizeYoutubeReaderMessage } from "../../../../src/shared/platform/normalize.ts";
 import { isChatClosedError, isQuotaError, YoutubeDataApi } from "../../../../src/shared/platform/youtube-api.ts";
-import { sharedQuotaMeter, YoutubeQuotaMeter } from "../../../../src/shared/platform/youtube-quota.ts";
+import { sharedQuotaMeter, YoutubeQuotaMeter, type QuotaSnapshot } from "../../../../src/shared/platform/youtube-quota.ts";
+import { describeYoutubeQuota, shouldUseYoutubeApiPoll } from "../../../../src/shared/platform/youtubei.ts";
 import type { ChatPlatform, NormalizedChatMessage, PlatformCapabilities, PlatformLiveStatus } from "../../../../src/shared/platform/types.ts";
 import { isAbort, sleep } from "../../../../src/main/sleep.ts";
 
@@ -18,16 +22,23 @@ export class YoutubeChatPlatform implements ChatPlatform {
   private readonly listeners = new Set<(message: NormalizedChatMessage) => void>();
   private readonly users = new Map<string, string>();
   private readonly bans = new Map<string, string>();
+  private readonly seen = new Set<string>();
   private readonly meter: YoutubeQuotaMeter;
   private readonly api: YoutubeDataApi;
   private abort = new AbortController();
   private generation = 0;
-  private running = false;
+  private apiRunning = false;
   private liveChatId = "";
+  private videoId = "";
   private pageToken = "";
   private primed = false;
   private title = "";
-  private status: PlatformLiveStatus = { connected: false, live: false, detail: "YouTube bot is idle." };
+  private live = false;
+  private readerFailures = 0;
+  private autoFallback = false;
+  private replies = 0;
+  private own: YoutubeLive | null = null;
+  private status = "Waiting for YouTube chat from the page reader.";
 
   constructor(
     private readonly deps: {
@@ -38,6 +49,9 @@ export class YoutubeChatPlatform implements ChatPlatform {
       discoverVideo: (channelId: string, signal: AbortSignal) => Promise<{ videoId: string; title: string } | null>;
       log: (level: "info" | "error", message: string, extra?: Record<string, string>) => void;
       meter?: YoutubeQuotaMeter;
+      /** Desk already runs the page reader. A headless bot starts its own. */
+      ownReader?: boolean;
+      optIn?: () => boolean;
     },
   ) {
     this.meter = deps.meter ?? sharedQuotaMeter();
@@ -48,34 +62,92 @@ export class YoutubeChatPlatform implements ChatPlatform {
     return this.meter;
   }
 
+  quotaView(): QuotaSnapshot {
+    const snap = this.meter.snapshot();
+    const apiPoll = this.pollingApi();
+    return {
+      ...snap,
+      pollingIntervalMillis: apiPoll ? snap.pollingIntervalMillis : null,
+      detail: describeYoutubeQuota({
+        apiPoll,
+        fallback: this.autoFallback && !this.optIn(),
+        replies: this.replies,
+        usedUnits: snap.usedUnits,
+      }),
+    };
+  }
+
   liveStatus(): PlatformLiveStatus {
-    return { ...this.status, title: this.title || undefined, liveChatId: this.liveChatId || undefined };
+    return {
+      connected: true,
+      live: this.live,
+      detail: this.status,
+      title: this.title || undefined,
+      liveChatId: this.liveChatId || undefined,
+    };
+  }
+
+  /** Page-reader lines. Message id and author channel id are kept for delete and ban. */
+  ingest(message: NormalizedChatMessage): void {
+    if (!this.rememberSeen(message.messageId)) return;
+    this.remember(message);
+    this.live = true;
+    if (!this.pollingApi()) this.status = this.readerStatus();
+    for (const listener of this.listeners) listener(message);
+  }
+
+  setLive(input: { live: boolean; title?: string; videoId?: string }): void {
+    this.live = input.live;
+    if (input.title) this.title = input.title;
+    if (input.videoId && input.videoId !== this.videoId) {
+      this.videoId = input.videoId;
+      this.liveChatId = "";
+    }
+    if (!this.pollingApi()) this.status = this.readerStatus();
+  }
+
+  setOptIn(enabled: boolean): void {
+    if (enabled) void this.startApiPoll();
+    else if (!this.autoFallback) void this.stopApiPoll();
+    if (!this.pollingApi()) this.status = this.readerStatus();
+  }
+
+  noteReader(ok: boolean): void {
+    if (ok) {
+      this.readerFailures = 0;
+      if (this.autoFallback) {
+        this.autoFallback = false;
+        if (!this.optIn()) void this.stopApiPoll();
+      }
+      if (!this.pollingApi()) this.status = this.readerStatus();
+      return;
+    }
+    this.readerFailures += 1;
+    if (shouldUseYoutubeApiPoll({ optIn: false, consecutiveReaderFailures: this.readerFailures })) {
+      this.autoFallback = true;
+      this.status = "The page reader failed, so the bot is polling the Data API until chat recovers.";
+      void this.startApiPoll();
+    }
   }
 
   async connect(): Promise<void> {
-    if (!this.deps.hasToken()) {
-      this.status = { connected: false, live: false, detail: "Connect a YouTube account to run the bot there." };
-      return;
-    }
-    if (this.running) return;
-    this.running = true;
-    this.abort = new AbortController();
-    void this.loop(++this.generation, this.abort.signal);
+    if (this.deps.ownReader) this.startOwnReader();
+    if (this.optIn()) await this.startApiPoll();
+    else this.status = this.readerStatus();
   }
 
   async disconnect(): Promise<void> {
-    this.running = false;
-    this.generation += 1;
-    this.abort.abort();
-    this.liveChatId = "";
-    this.pageToken = "";
-    this.primed = false;
-    this.status = { connected: false, live: false, detail: "YouTube bot is idle." };
+    this.own?.stop();
+    this.own = null;
+    await this.stopApiPoll();
+    this.live = false;
+    this.status = "YouTube bot is idle.";
   }
 
   async sendMessage(text: string): Promise<void> {
     const liveChatId = await this.ensureChat();
     await this.api.insertMessage(liveChatId, text);
+    this.replies += 1;
   }
 
   async deleteMessage(messageId: string): Promise<void> {
@@ -113,33 +185,84 @@ export class YoutubeChatPlatform implements ChatPlatform {
     return () => this.listeners.delete(listener);
   }
 
+  private optIn(): boolean {
+    return this.deps.optIn?.() === true;
+  }
+
+  private pollingApi(): boolean {
+    return this.apiRunning && (this.optIn() || this.autoFallback);
+  }
+
+  private readerStatus(): string {
+    if (!this.deps.hasToken()) return "Reading YouTube chat from the page. Connect an account to reply, delete, or ban.";
+    if (!this.live) return "Waiting for YouTube chat from the page reader.";
+    return this.title ? `Reading ${this.title} from the page.` : "Reading YouTube chat from the page.";
+  }
+
+  private startOwnReader(): void {
+    if (this.own) return;
+    const channelId = this.deps.channelId().trim();
+    if (!channelId) return;
+    const reader = new YoutubeLive({
+      channelId,
+      onMessage: (message) => {
+        const normalized = normalizeYoutubeReaderMessage(message);
+        if (normalized) this.ingest(normalized);
+      },
+      onDelete: () => undefined,
+      onDeleteAuthor: () => undefined,
+      onStatus: (status) => {
+        this.setLive({ live: status.state === "live", title: status.title, videoId: status.videoId });
+      },
+      onHealth: (health) => this.noteReader(health.ok),
+      log: new Logger(null),
+      fetchImpl: this.deps.fetchImpl,
+    });
+    this.own = reader;
+    reader.start();
+  }
+
+  private async startApiPoll(): Promise<void> {
+    if (this.apiRunning || !this.deps.hasToken()) return;
+    this.apiRunning = true;
+    this.abort = new AbortController();
+    void this.loop(++this.generation, this.abort.signal);
+  }
+
+  private async stopApiPoll(): Promise<void> {
+    this.apiRunning = false;
+    this.generation += 1;
+    this.abort.abort();
+    this.pageToken = "";
+    this.primed = false;
+  }
+
   private async loop(generation: number, signal: AbortSignal): Promise<void> {
-    while (this.running && generation === this.generation && !signal.aborted) {
+    while (this.apiRunning && generation === this.generation && !signal.aborted) {
       try {
         if (!this.liveChatId) {
           const found = await this.findChat(signal);
           if (!found) {
-            this.status = { connected: true, live: false, detail: "No active YouTube broadcast." };
+            this.status = "No active YouTube broadcast for the Data API poll.";
             await sleep(this.meter.delay(), signal);
             continue;
           }
           this.liveChatId = found.liveChatId;
+          this.videoId = found.videoId;
           this.title = found.title;
           this.pageToken = "";
           this.primed = false;
-          this.meter.success(this.meter.pollingIntervalMillis);
-          this.status = { connected: true, live: true, detail: found.title || "Live", title: found.title, liveChatId: found.liveChatId };
-          this.deps.log("info", "youtube bot attached", { videoId: found.videoId });
+          this.live = true;
         }
         const page = await this.api.listMessages(this.liveChatId, this.pageToken);
         this.meter.success(page.pollingIntervalMillis);
         if (this.primed) {
-          for (const message of page.messages) this.remember(message);
-          for (const message of page.messages) {
-            for (const listener of this.listeners) listener(message);
-          }
+          for (const message of page.messages) this.ingest(message);
         } else {
-          for (const message of page.messages) this.remember(message);
+          for (const message of page.messages) {
+            this.rememberSeen(message.messageId);
+            this.remember(message);
+          }
           this.primed = true;
         }
         if (page.nextPageToken) this.pageToken = page.nextPageToken;
@@ -147,35 +270,21 @@ export class YoutubeChatPlatform implements ChatPlatform {
           this.liveChatId = "";
           this.pageToken = "";
           this.primed = false;
-          this.status = { connected: true, live: false, detail: "YouTube chat ended. Watching for the next broadcast." };
-        } else {
-          this.status = {
-            connected: true,
-            live: true,
-            detail: this.title || "Live",
-            title: this.title,
-            liveChatId: this.liveChatId,
-          };
+          this.live = false;
+          this.status = "YouTube chat ended. The Data API poll is watching for the next broadcast.";
         }
         await sleep(this.meter.delay(), signal);
       } catch (err) {
-        if (!this.running || generation !== this.generation || isAbort(err)) return;
-        const quota = isQuotaError(err);
-        this.meter.fail(quota);
+        if (!this.apiRunning || generation !== this.generation || isAbort(err)) return;
+        this.meter.fail(isQuotaError(err));
         if (isChatClosedError(err)) {
           this.liveChatId = "";
           this.pageToken = "";
           this.primed = false;
         }
         const message = err instanceof Error ? err.message : "YouTube chat failed.";
-        this.deps.log("error", "youtube bot poll failed", { message });
-        this.status = {
-          connected: true,
-          live: Boolean(this.liveChatId),
-          detail: message,
-          title: this.title || undefined,
-          liveChatId: this.liveChatId || undefined,
-        };
+        this.deps.log("error", "youtube api poll failed", { message });
+        this.status = message;
         try {
           await sleep(this.meter.delay(), signal);
         } catch {
@@ -188,13 +297,11 @@ export class YoutubeChatPlatform implements ChatPlatform {
   private async findChat(signal: AbortSignal): Promise<{ videoId: string; title: string; liveChatId: string } | null> {
     const own = await this.api.listActiveBroadcast();
     if (own) return own;
-    const channelId = this.deps.channelId().trim();
-    if (!channelId) return null;
-    const video = await this.deps.discoverVideo(channelId, signal);
-    if (!video) return null;
-    const chat = await this.api.liveChatForVideo(video.videoId);
+    const videoId = this.videoId || (await this.deps.discoverVideo(this.deps.channelId(), signal))?.videoId || "";
+    if (!videoId) return null;
+    const chat = await this.api.liveChatForVideo(videoId);
     if (!chat) return null;
-    return { videoId: video.videoId, title: chat.title || video.title, liveChatId: chat.liveChatId };
+    return { videoId, title: chat.title || this.title, liveChatId: chat.liveChatId };
   }
 
   private async ensureChat(): Promise<string> {
@@ -202,14 +309,25 @@ export class YoutubeChatPlatform implements ChatPlatform {
     const found = await this.findChat(this.abort.signal);
     if (!found) throw new Error("YouTube is not live, so the bot cannot post yet.");
     this.liveChatId = found.liveChatId;
-    this.title = found.title;
-    this.status = { connected: true, live: true, detail: found.title || "Live", title: found.title, liveChatId: found.liveChatId };
+    this.videoId = found.videoId;
+    this.title = found.title || this.title;
+    this.live = true;
     return found.liveChatId;
   }
 
+  private rememberSeen(id: string): boolean {
+    if (!id || this.seen.has(id)) return false;
+    this.seen.add(id);
+    if (this.seen.size > 2_000) {
+      const oldest = this.seen.values().next().value;
+      if (typeof oldest === "string") this.seen.delete(oldest);
+    }
+    return true;
+  }
+
   private remember(message: NormalizedChatMessage): void {
-    this.users.set(message.user.login.toLowerCase(), message.user.id);
-    this.users.set(message.user.displayName.trim().toLowerCase(), message.user.id);
-    this.users.set(message.user.id.toLowerCase(), message.user.id);
+    if (message.user.login) this.users.set(message.user.login.toLowerCase(), message.user.id);
+    if (message.user.displayName) this.users.set(message.user.displayName.trim().toLowerCase(), message.user.id);
+    if (message.user.id) this.users.set(message.user.id.toLowerCase(), message.user.id);
   }
 }

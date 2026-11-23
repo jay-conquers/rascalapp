@@ -69,6 +69,8 @@ export interface BotFile {
   bindHost: string;
   publicUrl: string;
   accounts: BotAccounts;
+  /** Spend Data API quota to poll live chat. Off unless the page reader keeps failing. */
+  youtubeApiPoll: boolean;
   commands: BotCommand[];
   timers: BotTimer[];
   filters: BotFilters;
@@ -162,6 +164,7 @@ export function defaultBotFile(): BotFile {
     broadcasterId: "",
     youtubeChannelId: "",
     accounts: defaultAccounts(),
+    youtubeApiPoll: false,
     portalPort: DEFAULT_PORTAL_PORT,
     bindHost: "127.0.0.1",
     publicUrl: "",
@@ -182,6 +185,7 @@ export function normalizeBotFile(value: unknown): BotFile {
     broadcasterId: digits(row.broadcasterId),
     youtubeChannelId: youtubeChannelId(row.youtubeChannelId),
     accounts: normalizeAccounts(row.accounts),
+    youtubeApiPoll: row.youtubeApiPoll === true,
     portalPort: clampInt(row.portalPort, 1024, 65535, base.portalPort),
     bindHost: row.bindHost === "0.0.0.0" ? "0.0.0.0" : "127.0.0.1",
     publicUrl: typeof row.publicUrl === "string" ? row.publicUrl.trim().slice(0, 200) : "",

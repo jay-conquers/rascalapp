@@ -37,6 +37,7 @@ import { BadgeCatalog } from "./twitch/badges";
 import { Helix } from "./twitch/helix";
 import { TwitchIrc } from "./twitch/irc";
 import { TwitchAuth } from "./twitch/oauth";
+import { normalizeYoutubeReaderMessage } from "../shared/platform/normalize";
 import { YoutubeLive } from "./youtube/live";
 import { youtubeDesk, type YoutubeDesk, type YoutubeDeskState } from "./youtube/desk";
 
@@ -128,13 +129,24 @@ export class Runtime {
     });
     this.youtube = new YoutubeLive({
       channelId: settings.youtubeChannelId,
-      onMessage: (message) => this.bus.push(message),
+      onMessage: (message) => {
+        this.bus.push(message);
+        if (message.platform !== "youtube") return;
+        const normalized = normalizeYoutubeReaderMessage(message);
+        if (normalized) getBot()?.service.ingestYoutube(normalized);
+      },
       onDelete: (id) => this.bus.delete(id),
       onDeleteAuthor: (authorId) => this.bus.clearAuthor(authorId),
+      onHealth: (health) => getBot()?.service.noteYoutubeReader(health.ok),
       onStatus: (youtube) => {
         const desk = this.youtubeSend.state();
         this.status = { ...this.status, youtube: { ...youtube, canSend: desk.connected, sendAccount: desk.account } };
         this.emit({ type: "status", status: this.status });
+        getBot()?.service.setYoutubeLive({
+          live: youtube.state === "live",
+          title: youtube.title,
+          videoId: youtube.videoId,
+        });
       },
       log: this.log,
       fetchImpl: deps.fetchImpl,

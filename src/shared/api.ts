@@ -67,7 +67,7 @@ export interface RascalApi {
   botYoutubeLogin(): Promise<BotSnapshot>;
   botYoutubeLogout(): Promise<BotSnapshot>;
   botYoutubeCancel(): Promise<BotSnapshot>;
-  botSaveAccounts(patch: { twitch?: "channel" | "bot"; youtube?: "channel" | "bot" }): Promise<BotSnapshot>;
+  botSaveAccounts(patch: { twitch?: "channel" | "bot"; youtube?: "channel" | "bot"; youtubeApiPoll?: boolean }): Promise<BotSnapshot>;
   botSaveGoogleClient(patch: { clientId?: string; clientSecret?: string }): Promise<BotSnapshot>;
   youtubeDeskState(): Promise<YoutubeDeskState>;
   youtubeConnect(): Promise<YoutubeDeskState>;

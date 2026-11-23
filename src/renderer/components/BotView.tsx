@@ -34,6 +34,7 @@ const EMPTY: BotSnapshot = {
   googleClientId: "",
   googleClientSecretSet: false,
   googleClientFromEnv: false,
+  youtubeApiPoll: false,
 };
 
 const EMPTY_DESK: YoutubeDeskState = {
@@ -238,6 +239,14 @@ export function BotView() {
         >
           Save Google client
         </button>
+        <CheckRow
+          checked={state.youtubeApiPoll}
+          disabled={busy}
+          onChange={(enabled) => void run(() => window.rascal!.botSaveAccounts({ youtubeApiPoll: enabled }))}
+        >
+          Also poll live chat with the Data API
+        </CheckRow>
+        <p className="form-note">Leave this off. The page reader does not use quota. A 5-hour Data API poll at 5 seconds spends more than the daily quota. It turns on by itself only if the page reader fails three times in a row.</p>
         <QuotaMeter quota={youtube?.quota ?? null} />
       </PlatformCard>
 

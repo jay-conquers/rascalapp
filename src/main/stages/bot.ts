@@ -34,6 +34,7 @@ export async function startEmbeddedBot(ctx: AppContext): Promise<void> {
       else ctx.log.info(message, extra);
     },
     onAccountsChanged: () => ctx.youtubeAuthChanged?.(),
+    youtubeReader: "external",
   });
   handle.service.setIdentity({
     channelLogin: settings.twitchChannel,

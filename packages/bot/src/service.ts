@@ -81,6 +81,7 @@ export interface BotSnapshot {
   googleClientId: string;
   googleClientSecretSet: boolean;
   googleClientFromEnv: boolean;
+  youtubeApiPoll: boolean;
 }
 
 export interface AskJeevesHook {
@@ -127,6 +128,8 @@ export class BotService {
       fetchImpl?: typeof fetch;
       log: (level: "info" | "error", message: string, extra?: Record<string, string>) => void;
       onAccountsChanged?: () => void;
+      /** Embedded desk already reads YouTube. Headless mode reads for itself. */
+      youtubeReader?: "external" | "own";
     },
   ) {
     this.file = store.loadConfig();
@@ -160,6 +163,8 @@ export class BotService {
         return live ? { videoId: live.videoId, title: live.title } : null;
       },
       log: (level, message, extra) => this.deps.log(level, message, extra),
+      ownReader: this.deps.youtubeReader !== "external",
+      optIn: () => this.file.youtubeApiPoll,
     });
     this.registry.register(this.twitch);
     this.registry.register(this.youtube);
@@ -269,6 +274,7 @@ export class BotService {
       googleClientId: client.clientId,
       googleClientSecretSet: client.clientSecret.length > 0,
       googleClientFromEnv: Boolean(readBrandEnv("GOOGLE_CLIENT_ID")),
+      youtubeApiPoll: this.file.youtubeApiPoll,
     };
   }
 
@@ -286,13 +292,27 @@ export class BotService {
     if (previousChannel !== this.file.youtubeChannelId) void this.reconnectYoutube();
   }
 
-  setAccounts(patch: { twitch?: unknown; youtube?: unknown }): void {
+  setAccounts(patch: { twitch?: unknown; youtube?: unknown; youtubeApiPoll?: unknown }): void {
     const twitch = patch.twitch === "channel" ? "channel" : patch.twitch === "bot" ? "bot" : this.file.accounts.twitch;
     const youtube = patch.youtube === "channel" ? "channel" : patch.youtube === "bot" ? "bot" : this.file.accounts.youtube;
-    this.file = this.store.saveConfig({ ...this.file, accounts: { twitch, youtube } });
+    const youtubeApiPoll = typeof patch.youtubeApiPoll === "boolean" ? patch.youtubeApiPoll : this.file.youtubeApiPoll;
+    this.file = this.store.saveConfig({ ...this.file, accounts: { twitch, youtube }, youtubeApiPoll });
+    this.youtube.setOptIn(youtubeApiPoll);
     this.statusOverride = null;
-    void this.connect();
-    void this.reconnectYoutube();
+    if (patch.twitch !== undefined) void this.connect();
+    if (patch.youtube !== undefined) void this.reconnectYoutube();
+  }
+
+  ingestYoutube(message: NormalizedChatMessage): void {
+    this.youtube.ingest(message);
+  }
+
+  noteYoutubeReader(ok: boolean): void {
+    this.youtube.noteReader(ok);
+  }
+
+  setYoutubeLive(input: { live: boolean; title?: string; videoId?: string }): void {
+    this.youtube.setLive(input);
   }
 
   saveGoogleClient(input: unknown): void {
@@ -499,10 +519,6 @@ export class BotService {
 
   async connectYoutube(): Promise<void> {
     if (this.stopped) return;
-    if (!this.youtubeSession()) {
-      if (!this.youtubeNote) this.youtubeNote = "Connect a YouTube account to run the bot there.";
-      return;
-    }
     this.youtubeNote = "";
     await this.youtube.connect();
   }
@@ -797,7 +813,7 @@ export class BotService {
         accountMode: this.file.accounts.youtube,
         separateAccount: this.youtubeTokens ? this.youtubeTokens.title || this.youtubeTokens.channelId : null,
         capabilities: this.youtube.capabilities,
-        quota: this.youtube.quota().snapshot(),
+        quota: this.youtube.quotaView(),
       },
     ];
   }

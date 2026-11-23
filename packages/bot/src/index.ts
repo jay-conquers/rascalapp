@@ -24,6 +24,7 @@ export async function startBot(options: {
   log?: (level: "info" | "error", message: string, extra?: Record<string, string>) => void;
   bridge?: ChannelTokenBridge;
   onAccountsChanged?: () => void;
+  youtubeReader?: "external" | "own";
 }): Promise<BotHandle> {
   const store = new BotStore(options.dir);
   const file = store.loadConfig();
@@ -34,6 +35,7 @@ export async function startBot(options: {
     fetchImpl: options.fetchImpl,
     log: options.log ?? (() => {}),
     onAccountsChanged: options.onAccountsChanged,
+    youtubeReader: options.youtubeReader,
   });
   if (options.bridge) service.setChannelTokenBridge(options.bridge);
   let httpServer: Awaited<ReturnType<typeof startHttp>> | null = null;

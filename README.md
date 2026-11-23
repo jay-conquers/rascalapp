@@ -63,31 +63,28 @@ YouTube chat in the desk still arrives through the public live chat page. Sendin
 9. On each command and timer, check Twitch, YouTube, or both. The filter card has the same checks. Anything saved before this version stays on Twitch.
 10. On the chat screen, check **YouTube** before sending. YouTube live chat stops at 200 characters. Twitch still stops at 500. Checking both sends to both.
 
-The bot finds the live chat with `liveBroadcasts.list` for the signed-in account (`mine=true`, active broadcasts) and reads `snippet.liveChatId`. A moderator account does not own the broadcast, so that call comes back empty. Rascal then uses the same public live-page check the desk already uses to learn the video id, and `videos.list` `liveStreamingDetails.activeLiveChatId` to get the chat id. Polling follows `pollingIntervalMillis` from `liveChatMessages.list`, slows down after errors, and pauses when Google reports the daily quota is spent. The Bot tab shows a session estimate of units used.
+Incoming YouTube chat, for the desk and for the bot, comes from the public live chat page (`youtubei` `get_live_chat`). That does not spend Data API quota. The message id and the author channel id from that page are the ones delete and ban use. The Data API is used when someone sends, deletes, times out, or bans, and once to learn the `liveChatId`. A checkbox on the Bot tab can also poll `liveChatMessages.list`. It is off unless the page reader fails three times in a row, and it turns off again when the page reader recovers.
+
+The page asks Rascal to wait, often about 5 seconds, before the next chat fetch. Rascal asks about every 1.5 seconds instead (never faster than 1 second). `RASCAL_YOUTUBE_POLL_MS` changes that target. A 429 or another error stretches the wait toward YouTube's suggested timeout, and healthy polls ease it back down. Repeated copies of the same message id are dropped. The Data API poll, when it is on, still waits for `pollingIntervalMillis` and does not use this 1.5 second pace.
+
+The bot finds `liveChatId` with `liveBroadcasts.list` (`mine=true`, active) when it needs to post or moderate. A moderator account does not own the broadcast, so that call can come back empty. Rascal then uses the video id the page reader already has, and `videos.list` `liveStreamingDetails.activeLiveChatId`.
 
 #### Quota
 
-Google's default project quota is **10,000 units per day**, shared by these calls, and it resets at midnight Pacific time. Costs below are from [Google's quota calculator](https://developers.google.com/youtube/v3/determine_quota_cost) as published in November 2026. The numbers in Rascal live in `src/shared/platform/youtube-quota.ts`.
+Google's default project quota is **10,000 units per day** and it resets at midnight Pacific time. Costs below are from [Google's quota calculator](https://developers.google.com/youtube/v3/determine_quota_cost) as published in November 2026. The numbers in Rascal live in `src/shared/platform/youtube-quota.ts`.
 
 | Call | Units |
 |---|---|
-| `liveChatMessages.list` (one poll) | 5 |
+| `liveChatMessages.list` (one Data API poll) | 5 |
 | `liveChatMessages.insert` (one sent message) | 20 |
 | `liveChatMessages.delete` | 20 |
 | `liveChatBans.insert` (timeout or ban) | 200 |
 | `liveChatBans.delete` (lift a ban) | 200 |
 | `liveBroadcasts.list`, `videos.list`, `channels.list` | 1 each |
 
-If the whole 10,000 units are spent on one kind of call:
+A normal 5-hour stream does not poll `liveChatMessages.list`. Reading chat is free. One lookup for the live chat id is 1 unit. Each bot reply or typed send is 20. Thirty replies in those 5 hours is about **601 units** (1 + 30 × 20). The same 5 hours polled on the Data API every 5 seconds is 3,600 polls × 5 = **18,000 units** before replies, or about **18,601** once those 30 replies are included. That is more than the daily quota. The Data API poll stays off.
 
-- **2,000 polls** a day (10,000 / 5).
-- **500 sent messages** a day (10,000 / 20). That includes bot replies and messages typed on the chat screen.
-- **500 deletes** a day.
-- **50 bans, timeouts, or unbans** a day (10,000 / 200).
-
-YouTube often asks for the next poll in about 5 seconds. At that interval, 2,000 polls cover 10,000 seconds, which is **2 hours 46 minutes** of continuous polling, and that spends the entire daily quota before any sends or bans. A longer `pollingIntervalMillis` stretches the same 2,000 polls over more of the stream. Rascal never polls faster than the interval Google returns (and never faster than one second). After an error it waits longer, up to 5 minutes. When the session estimate gets low it stretches the wait toward 30 or 60 seconds. A `quotaExceeded` response pauses polling for 15 minutes and the Bot tab says the quota is used up. The estimate is for this run of Rascal. Google's own counter is the one that enforces the limit, and a restart does not reset it.
-
-Sending one message costs the same as four polls. One ban costs the same as forty polls. A stream that also deletes or bans needs a higher quota in Google Cloud, or a shorter show, if the default 10,000 units is not enough.
+If the whole 10,000 units were spent on one kind of call, that would be 2,000 polls, 500 sent messages, 500 deletes, or 50 bans. The Bot tab shows the session estimate and the 5-hour figure.
 
 ## Build from source
 
