@@ -101,7 +101,7 @@ export function SettingsView({
       <div className="settings-inner">
         <header>
           <h2>Settings</h2>
-          <p>{brand.displayName} {version}. Tokens stay in ~/.config/{brand.configDirName}/ and are never shown here.</p>
+          <p>{brand.displayName} {version}. Tokens stay in the config folder for this account and are never shown here.</p>
         </header>
 
         <form

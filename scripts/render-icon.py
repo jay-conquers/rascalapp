@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Rasterize build/icon.svg into the PNG sizes electron-builder expects.
+"""Rasterize build/icon.svg into the PNG sizes electron-builder expects, plus ICO and ICNS.
 
 Stdlib only. The SVG is the source; this flattens its circles, ellipses, and
-paths (M/L/H/V/C/Q/Z) and paints them with supersampling.
+paths (M/L/H/V/C/Q/Z) and paints them with supersampling. Windows and macOS
+icons are packed from those PNGs.
 """
 
 import math
@@ -373,6 +374,43 @@ def samples_for(size: int) -> int:
     return 2
 
 
+def write_ico(path: Path, pngs: list[tuple[int, bytes]]) -> None:
+    count = len(pngs)
+    header = struct.pack("<HHH", 0, 1, count)
+    offset = 6 + 16 * count
+    entries = b""
+    blobs = b""
+    for size, data in pngs:
+        width = 0 if size >= 256 else size
+        height = 0 if size >= 256 else size
+        entries += struct.pack("<BBBBHHII", width, height, 0, 0, 1, 32, len(data), offset)
+        offset += len(data)
+        blobs += data
+    path.write_bytes(header + entries + blobs)
+
+
+def write_icns(path: Path, pngs: dict[int, bytes]) -> None:
+    kinds = [
+        (16, b"icp4"),
+        (32, b"icp5"),
+        (32, b"ic11"),
+        (64, b"icp6"),
+        (64, b"ic12"),
+        (128, b"ic07"),
+        (256, b"ic08"),
+        (256, b"ic13"),
+        (512, b"ic09"),
+        (512, b"ic14"),
+    ]
+    chunks = b""
+    for size, tag in kinds:
+        data = pngs.get(size)
+        if data is None:
+            continue
+        chunks += tag + struct.pack(">I", len(data) + 8) + data
+    path.write_bytes(b"icns" + struct.pack(">I", len(chunks) + 8) + chunks)
+
+
 def probe(size: int, view, shapes) -> None:
     rgba = render(size, view, shapes, 2)
     import json
@@ -414,6 +452,13 @@ def main() -> None:
     write_png(packaging, 256, rendered[256])
     print(packaging)
     shutil.copyfile(ICON_DIR / "256x256.png", ROOT / "build" / "icon.png")
+    encoded = {size: (ICON_DIR / f"{size}x{size}.png").read_bytes() for size in rendered}
+    ico = ROOT / "build" / "icon.ico"
+    icns = ROOT / "build" / "icon.icns"
+    write_ico(ico, [(size, encoded[size]) for size in (16, 32, 48, 64, 128, 256) if size in encoded])
+    write_icns(icns, encoded)
+    print(ico)
+    print(icns)
 
 
 if __name__ == "__main__":

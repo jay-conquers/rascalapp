@@ -1,5 +1,4 @@
-import path from "node:path";
-import { brand } from "../../shared/brand";
+import { defaultAssetFolder, type PathHost } from "../../shared/paths";
 import { clampVolume, normalizePlacement, type RedeemMapping } from "../../shared/redeems";
 import { readJson, writePrivateJson } from "../private-file";
 
@@ -8,8 +7,9 @@ export interface RedeemFile {
   mappings: RedeemMapping[];
 }
 
-export function defaultSoundFolder(home: string): string {
-  return path.join(home, "Streaming", brand.soundFolderName, "Sounds");
+/** Default only. A non-empty `soundFolder` already stored in the file is kept by `loadRedeemFile`. */
+export function defaultSoundFolder(host?: PathHost): string {
+  return defaultAssetFolder(host);
 }
 
 export function loadRedeemFile(file: string, soundFolder: string): RedeemFile {

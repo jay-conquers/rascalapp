@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { brand } from "../shared/brand";
 import { redact } from "../shared/redact";
+import { chmodPrivate } from "../shared/private-mode";
 import { ensurePrivateDir } from "./private-file";
 
 export class Logger {
@@ -12,7 +13,7 @@ export class Logger {
       try {
         ensurePrivateDir(path.dirname(file));
         fs.closeSync(fs.openSync(file, "a", 0o600));
-        fs.chmodSync(file, 0o600);
+        chmodPrivate(file, 0o600);
       } catch {
         this.file = null;
       }

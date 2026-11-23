@@ -1,12 +1,10 @@
 import { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, net, protocol, session, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import os from "node:os";
 import { brand, readBrandEnv } from "../shared/brand";
+import { configDir, configHome, currentPathHost, fileUrl, usePathHost, type PathHost } from "../shared/paths";
 import { assertAllowedExternal } from "./browser";
 import { migrateLegacyConfig } from "./migrate-config";
-import { configDir } from "./paths";
 import { Runtime } from "./runtime";
 import { setChatShortcutHooks } from "./stages/chat";
 import { redactError } from "../shared/redact";
@@ -30,11 +28,14 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-app.commandLine.appendSwitch("ozone-platform-hint", "auto");
-app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations");
+// Wayland hints are Linux-only. Other platforms ignore ozone, but they should not inherit them.
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+  app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations");
+  app.setDesktopName(brand.desktopFile);
+}
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
 app.setName(brand.displayName);
-app.setDesktopName(brand.desktopFile);
 
 let win: BrowserWindow | null = null;
 
@@ -64,10 +65,11 @@ async function boot(): Promise<void> {
       });
     });
   }
-  const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
-  const migrations = migrateLegacyConfig(configHome);
+  const host = electronPathHost();
+  usePathHost(host);
+  const migrations = migrateLegacyConfig(configHome(host));
   const runtime = new Runtime({
-    dir: configDir(),
+    dir: configDir(host),
     version: readVersion(),
     openExternal: async (url) => {
       await shell.openExternal(assertAllowedExternal(url));
@@ -165,7 +167,7 @@ function registerAppProtocol(): void {
     if (filePath !== root && !filePath.startsWith(root + path.sep)) {
       return new Response("Not found", { status: 404 });
     }
-    return net.fetch(pathToFileURL(filePath).toString());
+    return net.fetch(fileUrl(filePath));
   });
 }
 
@@ -397,6 +399,36 @@ function wireChatShortcuts(): void {
       globalShortcut.unregister(pauseAccel);
     },
   });
+}
+
+function electronPathHost(): PathHost {
+  const base = currentPathHost();
+  const read = (name: "home" | "appData" | "documents" | "music" | "temp"): string | undefined => {
+    try {
+      return app.getPath(name);
+    } catch {
+      return undefined;
+    }
+  };
+  // Linux config and the Streaming asset default stay on os.homedir() and XDG_CONFIG_HOME.
+  // Electron's appData is recorded for callers, and is not substituted into those paths.
+  if (process.platform === "linux") {
+    return {
+      ...base,
+      appData: read("appData"),
+      documents: read("documents"),
+      music: read("music"),
+      temp: read("temp"),
+    };
+  }
+  return {
+    ...base,
+    homedir: read("home") || base.homedir,
+    appData: read("appData"),
+    documents: read("documents"),
+    music: read("music"),
+    temp: read("temp"),
+  };
 }
 
 function iconPath(): string {

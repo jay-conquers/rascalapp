@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
@@ -21,6 +20,7 @@ import type { TwitchReward } from "../twitch/helix";
 import { EventSubClient } from "./eventsub";
 import { buildAlertsPage, overlayHelloMessage } from "./overlay-page";
 import { AlertQueue, type AlertJob } from "./queue";
+import { firebotRewardsFile } from "../../shared/paths";
 import { defaultSoundFolder, loadRedeemFile, normalizeMapping, saveRedeemFile, type RedeemFile } from "./store";
 
 const REWARD_ID = /^[A-Za-z0-9_-]{1,80}$/;
@@ -45,7 +45,7 @@ export class RedeemEngine {
   constructor(private readonly ctx: AppContext) {
     this.overlay = buildAlertsPage(ctx.version);
     this.file = path.join(path.dirname(ctx.settings.file), "redeems.json");
-    this.data = loadRedeemFile(this.file, defaultSoundFolder(os.homedir()));
+    this.data = loadRedeemFile(this.file, defaultSoundFolder());
     this.eventsub = new EventSubClient({
       subscribe: async (sessionId) => {
         const user = this.user();
@@ -569,16 +569,7 @@ export class RedeemEngine {
 }
 
 export function firebotRewardsPath(): string {
-  const home = os.homedir();
-  if (process.platform === "win32") {
-    const base = process.env.APPDATA || path.join(home, "AppData", "Roaming");
-    return path.join(base, "Firebot", "v5", "profiles", "Main", "channel-rewards.json");
-  }
-  if (process.platform === "darwin") {
-    return path.join(home, "Library", "Application Support", "Firebot", "v5", "profiles", "Main", "channel-rewards.json");
-  }
-  const config = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
-  return path.join(config, "Firebot", "v5", "profiles", "Main", "channel-rewards.json");
+  return firebotRewardsFile();
 }
 
 function mediaKind(filePath: string, action: "video" | "sound"): "video" | "audio" | "image" {

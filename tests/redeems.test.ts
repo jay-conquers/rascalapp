@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { alertStallMs, DEFAULT_VIDEO_PLACEMENT, importFirebotRewards, mergeImported, normalizePlacement, placementBox } from "../src/shared/redeems";
 import { normalizeMapping } from "../src/main/redeems/store";
 import { parseEventSubFrame } from "../src/main/redeems/eventsub";
 import { AlertQueue } from "../src/main/redeems/queue";
-import { loadRedeemFile, saveRedeemFile } from "../src/main/redeems/store";
+import { defaultSoundFolder, loadRedeemFile, saveRedeemFile } from "../src/main/redeems/store";
+import { defaultAssetFolder, type PathHost } from "../src/shared/paths";
 import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -167,6 +168,27 @@ describe("redeem file", () => {
     const loaded = loadRedeemFile(file, "/fallback");
     expect(loaded.mappings[0]).toMatchObject({ title: "Rip", volume: 70, maxDurationMs: 4000, filePath: "" });
     expect(loaded.soundFolder).toContain("Rascal-Assets");
+  });
+
+  it("keeps a saved sound folder and only uses the platform default when none is stored", () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "rascal-sounds-"));
+    const file = path.join(dir, "redeems.json");
+    const saved = path.join("D:", "Clips", "custom");
+    saveRedeemFile(file, {
+      soundFolder: saved,
+      mappings: [{ rewardId: "a", title: "Keep", action: "sound", filePath: "", volume: 10, maxDurationMs: null, enabled: true }],
+    });
+    const linux: PathHost = { platform: "linux", homedir: path.join("/home", "tester"), env: {} };
+    expect(loadRedeemFile(file, defaultSoundFolder(linux)).soundFolder).toBe(saved);
+    writeFileSync(file, JSON.stringify({ mappings: [] }));
+    const win: PathHost = {
+      platform: "win32",
+      homedir: path.join("/Users", "tester"),
+      env: {},
+      music: path.join("/Users", "tester", "Music"),
+    };
+    expect(loadRedeemFile(file, defaultAssetFolder(win)).soundFolder).toBe(defaultAssetFolder(win));
+    expect(loadRedeemFile(file, defaultAssetFolder(linux)).soundFolder).not.toBe(saved);
   });
 });
 

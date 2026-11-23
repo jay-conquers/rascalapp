@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { Logger } from "../src/main/logger";
 import { TokenStore } from "../src/main/tokens";
 import { TwitchAuth } from "../src/main/twitch/oauth";
+import { expectPrivateMode } from "./expect-mode";
 
 describe("twitch device login", () => {
   it("polls until approval, stores a 0600 token, and never logs the token", async () => {
@@ -74,7 +75,7 @@ describe("twitch device login", () => {
     expect(calls[0]?.body).toContain("channel%3Amanage%3Abroadcast");
     expect(tokens.current?.login).toBe("examplechannel");
     expect(tokens.current?.accessToken).toBe("access-TESTTOKEN");
-    expect(fs.statSync(tokens.file).mode & 0o777).toBe(0o600);
+    expectPrivateMode(tokens.file, 0o600);
     expect(auth.state().missingScopes).toEqual([]);
     const logged = log.lines.join("\n");
     expect(logged).not.toContain("access-TESTTOKEN");

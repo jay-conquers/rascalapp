@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
+import { chmodPrivate } from "../../../src/shared/private-mode.ts";
 import { defaultBotFile, normalizeBotFile, type BotFile } from "./model.ts";
 
 export interface BotTokens {
@@ -98,11 +99,8 @@ function randomKey(): string {
 
 function writePrivate(file: string, value: unknown): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  try {
-    fs.chmodSync(path.dirname(file), 0o700);
-  } catch {
-    // Windows may ignore the mode. The file mode below is what matters on Unix.
-  }
+  // 0700/0600 on POSIX. Windows skips chmod; the profile ACL is the control.
+  chmodPrivate(path.dirname(file), 0o700);
   const tmp = `${file}.${process.pid}.tmp`;
   const fd = fs.openSync(tmp, "w", 0o600);
   try {
@@ -111,9 +109,9 @@ function writePrivate(file: string, value: unknown): void {
   } finally {
     fs.closeSync(fd);
   }
-  fs.chmodSync(tmp, 0o600);
+  chmodPrivate(tmp, 0o600);
   fs.renameSync(tmp, file);
-  fs.chmodSync(file, 0o600);
+  chmodPrivate(file, 0o600);
 }
 
 function readJson(file: string): unknown {

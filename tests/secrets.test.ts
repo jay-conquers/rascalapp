@@ -9,6 +9,7 @@ import { writePrivateJson } from "../src/main/private-file";
 import { mergeSettings, SettingsStore } from "../src/main/settings";
 import { TokenStore } from "../src/main/tokens";
 import { DEFAULT_SETTINGS } from "../src/main/settings";
+import { expectPrivateMode } from "./expect-mode";
 
 describe("secret handling", () => {
   it("redacts oauth material and leaves ordinary text alone", () => {
@@ -26,8 +27,8 @@ describe("secret handling", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ember-secret-"));
     const settings = new SettingsStore(dir);
     settings.update({ twitchClientId: "abc1234567890xyz" });
-    expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
-    expect(fs.statSync(settings.file).mode & 0o777).toBe(0o600);
+    expectPrivateMode(dir, 0o700);
+    expectPrivateMode(settings.file, 0o600);
 
     const tokens = new TokenStore(dir);
     tokens.save({
@@ -39,7 +40,7 @@ describe("secret handling", () => {
       userId: "1",
       login: "examplechannel",
     });
-    expect(fs.statSync(tokens.file).mode & 0o777).toBe(0o600);
+    expectPrivateMode(tokens.file, 0o600);
     expect(tokens.current?.login).toBe("examplechannel");
     tokens.clear();
     expect(fs.existsSync(tokens.file)).toBe(false);
@@ -48,13 +49,18 @@ describe("secret handling", () => {
     log.info("session ready", { note: "oauth:should-not-leak" });
     const logText = fs.readFileSync(path.join(dir, "logs", "rascal.log"), "utf8");
     expect(logText).not.toContain("should-not-leak");
-    expect(fs.statSync(path.join(dir, "logs", "rascal.log")).mode & 0o777).toBe(0o600);
+    expectPrivateMode(path.join(dir, "logs", "rascal.log"), 0o600);
   });
 
   it("tightens a token file that was left group-readable", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ember-mode-"));
     const file = path.join(dir, "tokens.json");
     writePrivateJson(file, { accessToken: "x" });
+    if (process.platform === "win32") {
+      expect(() => new TokenStore(dir)).not.toThrow();
+      expect(fs.existsSync(file)).toBe(true);
+      return;
+    }
     fs.chmodSync(file, 0o640);
     new TokenStore(dir);
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);

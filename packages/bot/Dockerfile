@@ -2,7 +2,7 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /src
 RUN npm install -g esbuild@0.28.2
 COPY packages/bot /src/packages/bot
-COPY src/shared/brand.ts /src/src/shared/brand.ts
+COPY src/shared /src/src/shared
 RUN esbuild packages/bot/src/cli.ts --bundle --platform=node --target=node22 --format=cjs --outfile=/src/bot.cjs
 
 FROM node:22-bookworm-slim
