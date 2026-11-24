@@ -89,6 +89,7 @@ describe("chat alert", () => {
     expect(mergeChatAlert(loaded.chatAlert, { soundPath: "https://evil.example/beep.wav" }).soundPath).toBe("");
     expect(isSafeSoundPath("https://cdn.example/beep.wav")).toBe(false);
     expect(isSafeSoundPath("/home/jay/beep.wav")).toBe(true);
+    expect(isSafeSoundPath("C:\\sounds\\beep.wav")).toBe(true);
   });
 
   it("builds a wav chime and rejects a file that is not audio", () => {

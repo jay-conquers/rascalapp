@@ -69,10 +69,10 @@ export function mergeChatAlert(current: ChatAlertSettings | undefined, patch: un
 export function isSafeSoundPath(value: string): boolean {
   const text = value.trim();
   if (!text || text.length > 500 || text.includes("\0")) return false;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return false;
-  if (text.includes("..") || text.includes("//")) return false;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) return false;
+  if (text.includes("..")) return false;
   if (!/\.(wav|mp3|ogg|flac|m4a|aac)$/i.test(text)) return false;
-  return text.startsWith("/") || /^[A-Za-z]:\\/.test(text);
+  return text.startsWith("/") || /^[A-Za-z]:[\\/]/.test(text);
 }
 
 /** First bytes of a local audio file. Remote payloads never reach this. */
