@@ -1,4 +1,5 @@
 import type { FeedToggles, NoticeKind } from "./feed-toggles";
+import type { SendTargets } from "./send-targets";
 
 export type { FeedToggles, NoticeKind } from "./feed-toggles";
 
@@ -108,6 +109,8 @@ export interface Settings {
   autoImportFirebot: boolean;
   /** Emote providers and per-notice visibility. Missing keys stay on. */
   feed: FeedToggles;
+  /** Chat-box platforms. A new install is Twitch only. Offline does not clear these. */
+  sendTargets: SendTargets;
   windowBounds?: { x: number; y: number; width: number; height: number };
 }
 

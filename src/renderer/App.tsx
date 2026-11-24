@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatOverlayFile } from "../shared/chat-overlay";
 import { defaultChatOverlayFile } from "../shared/chat-overlay";
 import type { RedeemSnapshot } from "../shared/redeems";
@@ -14,6 +14,7 @@ import { StreamInfoView } from "./components/StreamInfoView";
 import { TtsView } from "./components/TtsView";
 import { BotView } from "./components/BotView";
 import { brand } from "../shared/brand";
+import { twitchLink, youtubeLink, type SendTargets } from "../shared/send-targets";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
 
 export function App() {
@@ -32,6 +33,7 @@ export function App() {
   const [version, setVersion] = useState("0.8.0");
   const [modLog, setModLog] = useState<ModAction[]>([]);
   const [modOpen, setModOpen] = useState(false);
+  const sendSeq = useRef(0);
   const [banner, setBanner] = useState(true);
 
   useEffect(() => {
@@ -116,6 +118,19 @@ export function App() {
     if (!window.rascal) return Promise.reject(new Error(`${brand.displayName} is still starting.`));
     return window.rascal.searchCategories(query);
   }, []);
+
+  async function saveSendTargets(next: SendTargets): Promise<void> {
+    const seq = ++sendSeq.current;
+    setSettings((current) => (current ? { ...current, sendTargets: next } : current));
+    try {
+      const saved = await window.rascal!.updateSettings({ sendTargets: next });
+      if (seq !== sendSeq.current) return;
+      setSettings(saved);
+    } catch (err) {
+      if (seq !== sendSeq.current) return;
+      setToast({ tone: "error", text: err instanceof Error ? err.message : "Could not save where chat is sent." });
+    }
+  }
 
   async function loginFlow(): Promise<void> {
     if (!window.rascal) return;
@@ -290,7 +305,10 @@ export function App() {
             </div>
             <Composer
               channel={shownChannel}
-              canSendTwitch={auth.loggedIn}
+              targets={settings.sendTargets}
+              onTargets={(next) => void saveSendTargets(next)}
+              twitch={twitchLink(status.twitch, auth.loggedIn)}
+              youtube={youtubeLink(status.youtube)}
               canSendYoutube={status.youtube.canSend === true}
               youtubeAccount={status.youtube.sendAccount ?? null}
               sendHint={status.youtube.sendHint}

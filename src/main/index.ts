@@ -342,6 +342,7 @@ function asSettingsPatch(value: unknown): SettingsPatch {
   if (typeof row.alwaysOnTop === "boolean") patch.alwaysOnTop = row.alwaysOnTop;
   if (typeof row.autoImportFirebot === "boolean") patch.autoImportFirebot = row.autoImportFirebot;
   if (row.feed && typeof row.feed === "object") patch.feed = row.feed as SettingsPatch["feed"];
+  if (row.sendTargets && typeof row.sendTargets === "object") patch.sendTargets = row.sendTargets as SettingsPatch["sendTargets"];
   return patch;
 }
 

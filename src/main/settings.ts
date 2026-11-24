@@ -5,6 +5,7 @@ import {
   DEFAULT_YOUTUBE_CHANNEL_ID,
 } from "../shared/defaults";
 import { defaultFeed, mergeFeed } from "../shared/feed-toggles";
+import { defaultSendTargets, mergeSendTargets } from "../shared/send-targets";
 import type { Settings } from "../shared/types";
 import { readJson, tightenFile, writePrivateJson } from "./private-file";
 
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alwaysOnTop: false,
   autoImportFirebot: true,
   feed: defaultFeed(),
+  sendTargets: defaultSendTargets(),
 };
 
 export class SettingsStore {
@@ -56,6 +58,7 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
     autoImportFirebot:
       patch.autoImportFirebot !== undefined ? Boolean(patch.autoImportFirebot) : current.autoImportFirebot,
     feed: mergeFeed(current.feed ?? defaultFeed(), patch.feed),
+    sendTargets: mergeSendTargets(current.sendTargets, patch.sendTargets),
     windowBounds: patch.windowBounds !== undefined ? patch.windowBounds : current.windowBounds,
   };
   if (next.twitchClientId && !/^[a-zA-Z0-9]{10,80}$/.test(next.twitchClientId)) {

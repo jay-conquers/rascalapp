@@ -280,21 +280,26 @@ export class Runtime {
     const twitch = destinations ? destinations.twitch === true : true;
     const youtube = destinations?.youtube === true;
     if (!twitch && !youtube) throw new Error("Pick Twitch or YouTube.");
-    if (twitch && message.length > TWITCH_MESSAGE_MAX) throw new Error("Twitch messages stop at 500 characters.");
-    if (youtube && message.length > 200) throw new Error("YouTube live chat stops at 200 characters.");
+    const youtubeLive = this.status.youtube.state === "live" && this.status.youtube.canSend === true && Boolean(this.status.youtube.videoId);
+    const sendYoutube = youtube && youtubeLive;
+    const sendTwitch = twitch && this.auth.state().loggedIn;
+    if (!sendTwitch && !sendYoutube) return;
+    if (sendTwitch && message.length > TWITCH_MESSAGE_MAX) throw new Error("Twitch messages stop at 500 characters.");
+    if (sendYoutube && message.length > 200) throw new Error("YouTube live chat stops at 200 characters.");
     if (Date.now() - this.lastSend < 800) throw new Error("Wait a moment before sending another message.");
-    if (twitch) {
+    if (sendTwitch) {
       const user = this.requireUser();
       const channel = this.settings.load().twitchChannel || user.login;
       const broadcasterId = user.login.toLowerCase() === channel ? user.userId : await this.helix.getUserId(channel);
       await this.helix.sendChat(broadcasterId, user.userId, message);
     }
-    if (youtube) {
+    if (sendYoutube) {
       try {
         await this.youtubeSend.send(message, this.status.youtube.videoId);
       } catch (err) {
         const detail = err instanceof Error ? err.message : "YouTube did not accept that message.";
-        if (twitch) throw new Error(`Sent on Twitch. ${detail}`);
+        if (/not live/i.test(detail)) return;
+        if (sendTwitch) throw new Error(`Sent on Twitch. ${detail}`);
         throw err;
       }
     }

@@ -36,7 +36,7 @@ describe("youtube send checkbox", () => {
     expect(youtubeSendStatus({ clientId: "app.apps.googleusercontent.com", account: "Example", scopes: [] }).canSend).toBe(true);
   });
 
-  it("keeps the chat box disabled until the desk has a force-ssl account", () => {
+  it("keeps the YouTube check available until the desk has a force-ssl account", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-yt-send-"));
     const desk = youtubeDesk(dir);
     const blocked = desk.sendReadiness();
@@ -45,8 +45,9 @@ describe("youtube send checkbox", () => {
     expect(desk.state().connected).toBe(false);
     const source = fs.readFileSync(new URL("../src/renderer/components/Composer.tsx", import.meta.url), "utf8");
     expect(source).toContain("sendHint");
-    expect(source).toContain("disabled={!canSendYoutube}");
+    expect(source).toContain("checked={targets.youtube}");
+    expect(source).not.toContain("disabled={!canSendYoutube}");
     expect(source).toContain("Open Settings");
-    expect(source).not.toContain("canSendYoutube && toYoutube || toYoutube");
+    expect(source).toContain("plan.deliver");
   });
 });

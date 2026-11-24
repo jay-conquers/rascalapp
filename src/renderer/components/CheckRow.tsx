@@ -5,16 +5,19 @@ export function CheckRow({
   checked,
   onChange,
   disabled,
+  id,
   children,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  id?: string;
   children: ReactNode;
 }) {
   return (
-    <label className="check-row">
+    <label className="check-row" htmlFor={id}>
       <input
+        id={id}
         type="checkbox"
         checked={checked}
         disabled={disabled}

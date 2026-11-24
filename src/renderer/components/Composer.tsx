@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { TWITCH_MESSAGE_MAX } from "../../shared/defaults";
+import { planSend, type PlatformLink, type SendTargets } from "../../shared/send-targets";
 import { CheckRow } from "./CheckRow";
 
 const YOUTUBE_MESSAGE_MAX = 200;
 
 export function Composer({
   channel,
-  canSendTwitch,
+  targets,
+  onTargets,
+  twitch,
+  youtube,
   canSendYoutube,
   youtubeAccount,
   sendHint,
@@ -15,7 +19,10 @@ export function Composer({
   onSend,
 }: {
   channel: string;
-  canSendTwitch: boolean;
+  targets: SendTargets;
+  onTargets: (next: SendTargets) => void;
+  twitch: PlatformLink;
+  youtube: PlatformLink;
   canSendYoutube: boolean;
   youtubeAccount: string | null;
   sendHint?: string;
@@ -26,20 +33,18 @@ export function Composer({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toTwitch, setToTwitch] = useState(true);
-  const [toYoutube, setToYoutube] = useState(false);
-  const sendTwitch = toTwitch && canSendTwitch;
-  const sendYoutube = toYoutube && canSendYoutube;
-  const canSend = sendTwitch || sendYoutube;
-  const limit = sendYoutube ? YOUTUBE_MESSAGE_MAX : TWITCH_MESSAGE_MAX;
+  const plan = planSend(targets, { twitch, youtube });
+  const canDeliver = plan.deliver.twitch || plan.deliver.youtube;
+  const limit = targets.youtube ? YOUTUBE_MESSAGE_MAX : TWITCH_MESSAGE_MAX;
   const remaining = limit - text.length;
 
   async function submit(): Promise<void> {
-    if (!canSend || sending || !text.trim()) return;
+    if (sending || !text.trim()) return;
+    if (!canDeliver) return;
     setSending(true);
     setError(null);
     try {
-      await onSend(text, { twitch: sendTwitch, youtube: sendYoutube });
+      await onSend(text, plan.deliver);
       setText("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send that message.");
@@ -48,15 +53,17 @@ export function Composer({
     }
   }
 
-  const placeholder = canSend
-    ? sendYoutube && !sendTwitch
+  const placeholder = canDeliver
+    ? plan.deliver.youtube && !plan.deliver.twitch
       ? "Message YouTube chat"
       : channel
         ? `Message #${channel}`
         : "Message"
-    : canSendYoutube
-      ? "Choose YouTube to send without Twitch"
-      : "Log in with Twitch to send chat";
+    : plan.offline.youtube
+      ? "YouTube is offline. The check stays on."
+      : canSendYoutube
+        ? "Choose a platform to send"
+        : "Log in with Twitch to send chat";
 
   return (
     <form
@@ -67,18 +74,20 @@ export function Composer({
       }}
     >
       <div className="composer-targets">
-        <CheckRow checked={toTwitch} disabled={!canSendTwitch} onChange={setToTwitch}>
+        <CheckRow id="send-twitch" checked={targets.twitch} onChange={(checked) => onTargets({ ...targets, twitch: checked })}>
           {channel ? `Twitch as ${channel}` : "Twitch"}
+          {plan.offline.twitch ? <em className="offline-note">offline</em> : null}
         </CheckRow>
-        <CheckRow checked={toYoutube && canSendYoutube} disabled={!canSendYoutube} onChange={setToYoutube}>
+        <CheckRow id="send-youtube" checked={targets.youtube} onChange={(checked) => onTargets({ ...targets, youtube: checked })}>
           {youtubeAccount ? `YouTube as ${youtubeAccount}` : "YouTube"}
+          {plan.offline.youtube ? <em className="offline-note">offline</em> : null}
         </CheckRow>
       </div>
       {!canSendYoutube ? (
         <div className="form-note youtube-send-hint" data-testid="youtube-send-hint">
           <p>
             {sendHint ||
-              "YouTube sending isn't set up, so this box stays off. Reading chat still works without Google: put the channel ID in Settings. To send, open the Bot tab, save a Google OAuth client, and connect an account. That login asks for youtube.force-ssl."}
+              "YouTube sending isn't set up yet. The check stays as you left it, and messages skip YouTube until then. Reading chat still works without Google: put the channel ID in Settings. To send, open the Bot tab, save a Google OAuth client, and connect an account. That login asks for youtube.force-ssl."}
           </p>
           <div className="tts-actions">
             {onOpenBot ? (
@@ -101,7 +110,7 @@ export function Composer({
           rows={1}
           value={text}
           maxLength={Math.max(limit, text.length)}
-          disabled={!canSend || sending}
+          disabled={sending}
           placeholder={placeholder}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
@@ -111,12 +120,12 @@ export function Composer({
             }
           }}
         />
-        <button className="primary" type="submit" disabled={!canSend || sending || !text.trim() || remaining < 0}>
+        <button className="primary" type="submit" disabled={sending || !text.trim() || remaining < 0 || !canDeliver}>
           {sending ? "Sending" : "Send"}
         </button>
       </div>
       <div className="composer-meta">
-        {error ? <span className="form-error">{error}</span> : <span>{sendYoutube ? "YouTube live chat stops at 200 characters." : "Twitch messages stop at 500 characters."}</span>}
+        {error ? <span className="form-error">{error}</span> : <span>{targets.youtube ? "YouTube live chat stops at 200 characters." : "Twitch messages stop at 500 characters."}</span>}
         {text.length > limit - 40 && <span className={remaining < 0 ? "form-error" : ""}>{remaining}</span>}
       </div>
     </form>
