@@ -1,4 +1,5 @@
 import { colorForName } from "../emote-url";
+import { twitchEmoteUrl } from "../twitch-emotes";
 import type { NoticeKind } from "../feed-toggles";
 import type { ChatBadge, ChatMessage, Segment } from "../types";
 
@@ -266,7 +267,7 @@ export function segmentsFromEmotes(text: string, emoteTag: string | undefined): 
       const colon = piece.indexOf(":");
       if (colon === -1) continue;
       const id = piece.slice(0, colon);
-      if (!/^\d+$/.test(id)) continue;
+      if (!twitchEmoteUrl(id)) continue;
       for (const span of piece.slice(colon + 1).split(",")) {
         const [rawStart, rawEnd] = span.split("-");
         const start = Number(rawStart);
@@ -288,7 +289,7 @@ export function segmentsFromEmotes(text: string, emoteTag: string | undefined): 
     segments.push({
       type: "emote",
       text: name,
-      url: `https://static-cdn.jtvnw.net/emoticons/v2/${range.id}/default/dark/2.0`,
+      url: twitchEmoteUrl(range.id) ?? "",
       source: "twitch",
     });
     cursor = range.end + 1;

@@ -171,6 +171,7 @@ export type WithoutSeq<T> = T extends unknown ? Omit<T, "seq"> : never;
 
 export type AppEvent =
   | { seq: number; type: "chat"; message: ChatMessage }
+  | { seq: number; type: "chat-replace"; message: ChatMessage }
   | { seq: number; type: "chat-delete"; id: string }
   | { seq: number; type: "chat-clear"; platform: Platform; username?: string }
   | { seq: number; type: "status"; status: ConnectionStatus }

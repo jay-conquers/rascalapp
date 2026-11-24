@@ -7,6 +7,7 @@ export class ChatBus {
   private onMessage: (message: ChatMessage) => void = () => {};
   private onDelete: (id: string) => void = () => {};
   private onClear: (platform: Platform, username?: string) => void = () => {};
+  private onReplace: (message: ChatMessage) => void = () => {};
   private extras = new Set<{
     onMessage: (message: ChatMessage) => void;
     onDelete: (id: string) => void;
@@ -17,10 +18,12 @@ export class ChatBus {
     onMessage: (message: ChatMessage) => void;
     onDelete: (id: string) => void;
     onClear: (platform: Platform, username?: string) => void;
+    onReplace?: (message: ChatMessage) => void;
   }): void {
     this.onMessage = handlers.onMessage;
     this.onDelete = handlers.onDelete;
     this.onClear = handlers.onClear;
+    this.onReplace = handlers.onReplace ?? (() => {});
   }
 
   /** Extra listeners for stages. The desk handler registered with setHandlers still runs. */
@@ -47,6 +50,15 @@ export class ChatBus {
       for (const old of removed) this.seen.delete(old.id);
     }
     this.onMessage(message);
+    for (const extra of this.extras) extra.onMessage(message);
+  }
+
+  /** Swap a line in place. Used when a richer emote copy of the same notice arrives. */
+  replace(id: string, message: ChatMessage): void {
+    const index = this.messages.findIndex((item) => item.id === id);
+    if (index < 0) return;
+    this.messages[index] = message;
+    this.onReplace(message);
     for (const extra of this.extras) extra.onMessage(message);
   }
 

@@ -88,6 +88,27 @@ export function noticeEnabled(feed: FeedToggles, kind: NoticeKind): boolean {
 /** Notices that can arrive both from anonymous IRC and from EventSub. */
 const DUAL_NOTICE = new Set<NoticeKind>(["sub", "resub", "subgift", "raid", "watch-streak", "mod-anniversary"]);
 
+export function emoteCount(message: ChatMessage): number {
+  return message.segments.reduce((count, segment) => count + (segment.type === "emote" ? 1 : 0), 0);
+}
+
+/**
+ * IRC and EventSub can describe the same notice. Keep the copy that actually
+ * has emote images when the other one arrived as plain text.
+ */
+export function placeNotice(
+  messages: readonly ChatMessage[],
+  incoming: ChatMessage,
+): { action: "add"; message: ChatMessage } | { action: "drop" } | { action: "replace"; id: string; message: ChatMessage } {
+  const key = noticeDedupeKey(incoming);
+  const existing = messages.find((item) => item.id === incoming.id || (key !== null && noticeDedupeKey(item) === key));
+  if (!existing) return { action: "add", message: incoming };
+  if (emoteCount(incoming) > emoteCount(existing)) {
+    return { action: "replace", id: existing.id, message: { ...existing, segments: incoming.segments } };
+  }
+  return { action: "drop" };
+}
+
 export function noticeDedupeKey(message: ChatMessage): string | null {
   if (!message.noticeKind || !DUAL_NOTICE.has(message.noticeKind)) return null;
   const who = (message.authorId || message.username || "").toLowerCase();

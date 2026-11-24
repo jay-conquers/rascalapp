@@ -1,7 +1,8 @@
 import path from "node:path";
 import { brand } from "../shared/brand";
 import { TWITCH_MESSAGE_MAX } from "../shared/defaults";
-import { noticeDedupeKey, noticeEnabled } from "../shared/feed-toggles";
+import { noticeDedupeKey, noticeEnabled, placeNotice } from "../shared/feed-toggles";
+import { indexChannelEmotes } from "../shared/twitch-emotes";
 import { redactError } from "../shared/redact";
 import type { SettingsPatch } from "../shared/api";
 import type { RedeemMapping } from "../shared/redeems";
@@ -69,6 +70,7 @@ export class Runtime {
   private readonly modLog: ModAction[] = [];
   private readonly noticeKeys = new Set<string>();
   private scopeNoted = false;
+  private roomId: string | null = null;
   private lastSend = 0;
   private sender: ((event: AppEvent) => void) | null = null;
   private hooks: { alwaysOnTop?: (value: boolean) => void } = {};
@@ -108,6 +110,7 @@ export class Runtime {
         this.scopeNoted = false;
         if (this.auth.state().loggedIn) {
           void this.badges.loadGlobal();
+          if (this.roomId) void this.loadTwitchEmotes(this.roomId);
           this.notices.start();
           this.notices.retarget();
           void this.refreshViewers();
@@ -140,8 +143,10 @@ export class Runtime {
       onClearUser: (username) => this.bus.clearUser("twitch", username),
       onClearAll: () => this.bus.clearPlatform("twitch"),
       onRoomId: (roomId) => {
+        this.roomId = roomId;
         void this.emotes.loadChannel(roomId);
         void this.badges.loadChannel(roomId);
+        void this.loadTwitchEmotes(roomId);
       },
       onStatus: (state, detail) => {
         this.status = { ...this.status, twitch: { state, detail } };
@@ -201,6 +206,9 @@ export class Runtime {
       onClear: (platform, username) => {
         this.emit({ type: "chat-clear", platform, username });
         this.server.broadcast({ type: "chat-clear", platform, username });
+      },
+      onReplace: (message) => {
+        this.emit({ type: "chat-replace", message });
       },
     });
   }
@@ -741,19 +749,33 @@ export class Runtime {
   private acceptChat(message: ChatMessage): void {
     const feed = this.settings.load().feed;
     if (message.noticeKind && !noticeEnabled(feed, message.noticeKind)) return;
-    const key = noticeDedupeKey(message);
+    const placed = placeNotice(this.bus.messages, message);
+    if (placed.action === "drop") return;
+    for (const segment of placed.message.segments) {
+      if (segment.type === "emote") this.emoteImages.prefetch(segment.url);
+    }
+    if (placed.action === "replace") {
+      this.bus.replace(placed.id, placed.message);
+      return;
+    }
+    const key = noticeDedupeKey(placed.message);
     if (key) {
-      if (this.noticeKeys.has(key)) return;
       this.noticeKeys.add(key);
       if (this.noticeKeys.size > 500) {
         const first = this.noticeKeys.values().next().value;
         if (first) this.noticeKeys.delete(first);
       }
     }
-    for (const segment of message.segments) {
-      if (segment.type === "emote") this.emoteImages.prefetch(segment.url);
+    this.bus.push(placed.message);
+  }
+
+  private async loadTwitchEmotes(broadcasterId: string): Promise<void> {
+    if (!this.auth.state().loggedIn) return;
+    try {
+      this.emotes.setTwitch(indexChannelEmotes(await this.helix.getChannelEmotes(broadcasterId)));
+    } catch (err) {
+      this.log.error("channel emotes failed", { message: redactError(err) });
     }
-    this.bus.push(message);
   }
 
   private pushMod(action: ModAction): void {

@@ -11,6 +11,7 @@ export class EmoteCatalog {
   private flags: EmoteFlags = { ...ALL_ON };
   private globals: ThirdPartyPayloads = {};
   private channel: ThirdPartyPayloads = {};
+  private twitch: ReadonlyMap<string, WordEmote> = new Map();
   private roomId: string | null = null;
   private timer: NodeJS.Timeout | null = null;
 
@@ -27,6 +28,11 @@ export class EmoteCatalog {
     if (!turnedOn) return;
     void this.loadGlobals();
     if (this.roomId) void this.loadChannelNow();
+  }
+
+  setTwitch(emotes: ReadonlyMap<string, WordEmote>): void {
+    this.twitch = emotes;
+    this.reindex();
   }
 
   async loadGlobals(): Promise<void> {
@@ -82,7 +88,9 @@ export class EmoteCatalog {
       payloads.sevenTvGlobal = this.globals.sevenTvGlobal;
       payloads.sevenTvUser = this.channel.sevenTvUser;
     }
-    this.map = indexThirdParty(payloads);
+    const map = indexThirdParty(payloads);
+    for (const [name, emote] of this.twitch) map.set(name, emote);
+    this.map = map;
     this.deps.log.info("emote catalog updated", { count: this.map.size });
   }
 

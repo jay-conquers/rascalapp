@@ -47,6 +47,9 @@ export function App() {
     const queued: AppEvent[] = [];
     const apply = (event: AppEvent) => {
       if (event.type === "chat") setMessages((current) => [...current, event.message].slice(-500));
+      else if (event.type === "chat-replace") {
+        setMessages((current) => current.map((message) => (message.id === event.message.id ? event.message : message)));
+      }
       else if (event.type === "mod-log") setModLog((current) => [...current, event.action].slice(-300));
       else if (event.type === "mod-log-clear") setModLog([]);
       else if (event.type === "chat-delete") {

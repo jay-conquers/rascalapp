@@ -2,14 +2,9 @@ import { clipPlain } from "../plain";
 import type { NoticeKind } from "../feed-toggles";
 import type { ChatMessage, ModAction, ModActionKind, Segment } from "../types";
 import { colorForName } from "../emote-url";
+import { twitchEmoteUrl } from "../twitch-emotes";
 
-const EMOTE_ID = /^[A-Za-z0-9]{1,40}$/;
-
-/** Twitch emote CDN. The id is the one IRC positions and EventSub fragments both carry. */
-export function twitchEmoteUrl(id: string): string | null {
-  if (!EMOTE_ID.test(id)) return null;
-  return `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0`;
-}
+export { twitchEmoteUrl } from "../twitch-emotes";
 
 /**
  * EventSub `message.fragments`. Channel, sub, follower, and global emotes all use the fragment emote id.

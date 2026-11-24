@@ -81,6 +81,12 @@ export class Helix {
     return this.request("GET", "/chat/badges/global");
   }
 
+  /** Broadcaster emotes: follower, subscriber, and the channel's own prefix set. */
+  getChannelEmotes(broadcasterId: string): Promise<unknown> {
+    if (!/^\d+$/.test(broadcasterId)) return Promise.resolve({ data: [] });
+    return this.request("GET", `/chat/emotes?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
+  }
+
   getChannelBadges(broadcasterId: string): Promise<unknown> {
     if (!/^\d+$/.test(broadcasterId)) return Promise.resolve({ data: [] });
     return this.request("GET", `/chat/badges?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
