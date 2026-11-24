@@ -10,7 +10,7 @@ const api: RascalApi = {
     ipcRenderer.on("app:event", wrapped);
     return () => ipcRenderer.removeListener("app:event", wrapped);
   },
-  sendChat: (text) => ipcRenderer.invoke("app:send-chat", text),
+  sendChat: (text, destinations) => ipcRenderer.invoke("app:send-chat", text, destinations),
   searchCategories: (query) => ipcRenderer.invoke("app:search-categories", query),
   updateStream: (update) => ipcRenderer.invoke("app:update-stream", update),
   updateSettings: (patch) => ipcRenderer.invoke("app:update-settings", patch),
@@ -48,6 +48,15 @@ const api: RascalApi = {
   botLink: () => ipcRenderer.invoke("app:bot-link"),
   saveBotLink: (patch) => ipcRenderer.invoke("app:bot-link-save", patch),
   botExport: () => ipcRenderer.invoke("app:bot-export"),
+  botYoutubeLogin: () => ipcRenderer.invoke("app:bot-youtube-login"),
+  botYoutubeLogout: () => ipcRenderer.invoke("app:bot-youtube-logout"),
+  botYoutubeCancel: () => ipcRenderer.invoke("app:bot-youtube-cancel"),
+  botSaveAccounts: (patch) => ipcRenderer.invoke("app:bot-accounts", patch),
+  botSaveGoogleClient: (patch) => ipcRenderer.invoke("app:bot-google-client", patch),
+  youtubeDeskState: () => ipcRenderer.invoke("app:youtube-desk"),
+  youtubeConnect: () => ipcRenderer.invoke("app:youtube-connect"),
+  youtubeCancel: () => ipcRenderer.invoke("app:youtube-cancel"),
+  youtubeLogout: () => ipcRenderer.invoke("app:youtube-logout"),
 };
 
 contextBridge.exposeInMainWorld(brand.slug, api);

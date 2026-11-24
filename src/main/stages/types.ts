@@ -22,6 +22,8 @@ export interface AppContext {
   emit: (event: WithoutSeq<AppEvent>) => void;
   version: string;
   badgeImage: (badge: ChatBadge) => string | null;
+  /** Lets the bot tell the desk that a YouTube account changed. */
+  youtubeAuthChanged?: () => void;
 }
 
 export interface StageModule {

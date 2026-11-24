@@ -1,9 +1,9 @@
-import { BotService, type BotSnapshot } from "./service.ts";
+import { BotService, type BotSnapshot, type ChannelTokenBridge } from "./service.ts";
 import { startHttp } from "./http.ts";
 import { BotStore } from "./store.ts";
 
-export type { BotSnapshot, BotLoginPrompt } from "./service.ts";
-export type { BotCommand, BotTimer, BotFilters, ModLogEntry } from "./model.ts";
+export type { BotSnapshot, BotLoginPrompt, PlatformSection } from "./service.ts";
+export type { BotCommand, BotTimer, BotFilters, ModLogEntry, BotAccountMode } from "./model.ts";
 export { decideChat, expandTemplate, levelAllows, dueTimers, portalBase, validateBotServerUrl } from "./model.ts";
 export { importStreamElements, channelIdFromJwt } from "./se.ts";
 export { parseChatFrame, chatSubscription } from "./twitch.ts";
@@ -22,6 +22,9 @@ export async function startBot(options: {
   clientId: () => string;
   fetchImpl?: typeof fetch;
   log?: (level: "info" | "error", message: string, extra?: Record<string, string>) => void;
+  bridge?: ChannelTokenBridge;
+  onAccountsChanged?: () => void;
+  youtubeReader?: "external" | "own";
 }): Promise<BotHandle> {
   const store = new BotStore(options.dir);
   const file = store.loadConfig();
@@ -31,7 +34,10 @@ export async function startBot(options: {
     clientId: options.clientId,
     fetchImpl: options.fetchImpl,
     log: options.log ?? (() => {}),
+    onAccountsChanged: options.onAccountsChanged,
+    youtubeReader: options.youtubeReader,
   });
+  if (options.bridge) service.setChannelTokenBridge(options.bridge);
   let httpServer: Awaited<ReturnType<typeof startHttp>> | null = null;
   let lastError: unknown;
   for (let offset = 0; offset < 10; offset += 1) {
@@ -44,7 +50,10 @@ export async function startBot(options: {
     }
   }
   if (!httpServer) throw lastError instanceof Error ? lastError : new Error("Could not bind the bot portal.");
-  if (store.loadTokens()) await service.connect();
+  if (store.loadTokens() || service.snapshot(0).platforms.some((platform) => platform.id === "twitch" && platform.accountMode === "channel" && platform.account)) {
+    await service.connect();
+  }
+  await service.connectYoutube();
   return {
     service,
     port: httpServer.port,

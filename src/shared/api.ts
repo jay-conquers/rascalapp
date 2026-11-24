@@ -2,6 +2,7 @@ import type { ChatOverlayFile, ChatOverlayStyle } from "./chat-overlay";
 import type { RedeemMapping, RedeemSnapshot } from "./redeems";
 export type { BotSnapshot } from "../../packages/bot/src/index";
 import type { BotSnapshot } from "../../packages/bot/src/index";
+import type { YoutubeDeskState } from "../main/youtube/desk";
 import type { TtsPanel } from "./tts";
 import type {
   AppEvent,
@@ -25,7 +26,7 @@ export interface SettingsPatch {
 export interface RascalApi {
   getSnapshot(): Promise<AppSnapshot>;
   onEvent(listener: (event: AppEvent) => void): () => void;
-  sendChat(text: string): Promise<void>;
+  sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean }): Promise<void>;
   searchCategories(query: string): Promise<CategoryHit[]>;
   updateStream(update: StreamUpdate): Promise<StreamInfo>;
   updateSettings(patch: SettingsPatch): Promise<Settings>;
@@ -63,4 +64,13 @@ export interface RascalApi {
   botLink(): Promise<{ mode: "embedded" | "server"; serverUrl: string; tokenSet: boolean }>;
   saveBotLink(patch: { mode: "embedded" | "server"; serverUrl: string; adminToken?: string }): Promise<{ mode: "embedded" | "server"; serverUrl: string; tokenSet: boolean }>;
   botExport(): Promise<unknown>;
+  botYoutubeLogin(): Promise<BotSnapshot>;
+  botYoutubeLogout(): Promise<BotSnapshot>;
+  botYoutubeCancel(): Promise<BotSnapshot>;
+  botSaveAccounts(patch: { twitch?: "channel" | "bot"; youtube?: "channel" | "bot"; youtubeApiPoll?: boolean }): Promise<BotSnapshot>;
+  botSaveGoogleClient(patch: { clientId?: string; clientSecret?: string }): Promise<BotSnapshot>;
+  youtubeDeskState(): Promise<YoutubeDeskState>;
+  youtubeConnect(): Promise<YoutubeDeskState>;
+  youtubeCancel(): Promise<YoutubeDeskState>;
+  youtubeLogout(): Promise<YoutubeDeskState>;
 }

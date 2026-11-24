@@ -38,6 +38,7 @@ function mapCommand(value: unknown): BotCommand | null {
     level: mapLevel(row.accessLevel),
     aliases,
     count: numberOr(row.count, 0),
+    platforms: "twitch",
   };
 }
 
@@ -58,6 +59,7 @@ function mapTimer(value: unknown): BotTimer | null {
     minChatLines: numberOr(row.chatLines, 0),
     linesSince: 0,
     lastFiredAt: 0,
+    platforms: "twitch",
   };
 }
 

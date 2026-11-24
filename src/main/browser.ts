@@ -4,6 +4,10 @@ const ALLOWED_EXTERNAL = [
   /^https:\/\/dev\.twitch\.tv\/docs\/authentication(?:[/?#]|$)/,
   /^http:\/\/127\.0\.0\.1:\d+\/portal\/?$/,
   /^http:\/\/localhost:\d+\/portal\/?$/,
+  /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth(?:[?#]|$)/,
+  /^https:\/\/console\.cloud\.google\.com\/apis\/credentials(?:[/?#]|$)/,
+  /^https:\/\/console\.cloud\.google\.com\/apis\/library\/youtube\.googleapis\.com(?:[/?#]|$)/,
+  /^https:\/\/console\.cloud\.google\.com\/apis\/api\/youtube\.googleapis\.com(?:[/?#]|$)/,
 ];
 
 export function assertAllowedExternal(url: string): string {
