@@ -40,7 +40,7 @@ export class RemoteBot {
     return this.send("POST", "/api/filters", body);
   }
 
-  importSe(jwt: string): Promise<BotSnapshot> {
+  importSe(jwt = ""): Promise<BotSnapshot> {
     return this.send("POST", "/api/import/streamelements", { jwt });
   }
 

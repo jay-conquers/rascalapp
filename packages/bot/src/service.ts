@@ -463,8 +463,10 @@ export class BotService {
     });
   }
 
-  async importSe(jwt: string): Promise<void> {
-    const token = jwt.trim();
+  async importSe(jwt?: string): Promise<void> {
+    const typed = typeof jwt === "string" ? jwt.trim() : "";
+    const token = typed || this.secrets.seJwt.trim();
+    if (!token) throw new Error("Paste a StreamElements JWT. None is stored yet.");
     if (token.split(".").length < 3) throw new Error("That does not look like a StreamElements JWT.");
     const fetchImpl = this.fetchImpl();
     let channel = channelIdFromJwt(token);

@@ -140,7 +140,8 @@ export async function startHttp(service: BotService, options: { host: string; po
       return;
     }
     if (method === "POST" && url.pathname === "/api/import/streamelements") {
-      await service.importSe(text(body.jwt));
+      // An empty or missing jwt reuses the one already stored. A new value replaces it after a successful import.
+      await service.importSe(text(body.jwt).trim());
       sendJson(res, 200, service.snapshot(port));
       return;
     }

@@ -473,7 +473,7 @@ export class Runtime {
     return this.botOps().saveFilters(input);
   }
 
-  botImportSe(jwt: string): Promise<BotSnapshot> {
+  botImportSe(jwt = ""): Promise<BotSnapshot> {
     return this.botOps().importSe(jwt);
   }
 

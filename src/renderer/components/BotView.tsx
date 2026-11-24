@@ -391,9 +391,10 @@ export function BotView() {
           StreamElements JWT
           <input type="password" value={jwt} autoComplete="off" onChange={(event) => setJwt(event.target.value)} placeholder={state.seJwtSet ? "A JWT is already stored" : "Paste the channel JWT"} />
         </label>
-        <button type="button" className="primary" disabled={busy || !jwt.trim()} onClick={() => void run(() => window.rascal!.botImportSe(jwt)).then(() => setJwt(""))}>
+        <button type="button" className="primary" disabled={busy || (!jwt.trim() && !state.seJwtSet)} onClick={() => void run(() => window.rascal!.botImportSe(jwt)).then(() => setJwt(""))}>
           Import commands and timers
         </button>
+        <p className="form-note">{state.seJwtSet ? "Leave the field blank to import again with the stored JWT. Pasting a new one replaces it." : "The JWT is stored on this computer and is not shown again."}</p>
         <label>
           JSON import
           <textarea value={jsonText} onChange={(event) => setJsonText(event.target.value)} placeholder='{"commands":[{"name":"so","response":"Go see {touser}"}]}' />

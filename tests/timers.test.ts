@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { startHttp } from "../packages/bot/src/http";
 import { TwitchChatPlatform } from "../packages/bot/src/platform/twitch-adapter";
 import { BotService } from "../packages/bot/src/service";
 import { BotStore } from "../packages/bot/src/store";
@@ -228,4 +229,69 @@ describe("streamelements import", () => {
     expectPrivateMode(store.secretFile, 0o600);
     expect(channelIdFromJwt(jwt)).toBe("a".repeat(24));
   });
+
+  it("reuses the stored jwt when the import is empty and replaces it when a new one is pasted", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-se-again-"));
+    const store = new BotStore(dir);
+    const secret = "jwt-TESTSECRET-not-real";
+    const replacement = "jwt-REPLACEMENT-not-real";
+    const first = fakeJwt("a".repeat(24), secret);
+    const second = fakeJwt("b".repeat(24), replacement);
+    const logs: string[] = [];
+    const authorizations: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      authorizations.push(new Headers(init?.headers).get("authorization") ?? "");
+      const url = String(input);
+      if (url.includes("/bot/commands/")) return Response.json(fixture.commands);
+      if (url.includes("/bot/timers/")) return Response.json(fixture.timers);
+      return Response.json([], { status: 404 });
+    };
+    const service = new BotService(store, {
+      clientId: () => "client",
+      fetchImpl,
+      log: (_level, message, extra) => logs.push(`${message} ${JSON.stringify(extra ?? {})}`),
+    });
+    await expect(service.importSe("")).rejects.toThrow(/None is stored yet/);
+    await expect(service.importSe("   ")).rejects.toThrow(/None is stored yet/);
+    await service.importSe(first);
+    logs.length = 0;
+    authorizations.length = 0;
+    await service.importSe("");
+    await service.importSe(undefined);
+    expect(authorizations.some((value) => value.endsWith(secret) && !value.includes(replacement))).toBe(true);
+    expect(logs.join("\n")).not.toContain(secret);
+    expect(logs.join("\n")).not.toContain(first);
+    await service.importSe(`  ${second}  `);
+    const secrets = fs.readFileSync(store.secretFile, "utf8");
+    expect(secrets).toContain(replacement);
+    expect(secrets).not.toContain(secret);
+    expect(logs.join("\n")).not.toContain(replacement);
+    expectPrivateMode(store.secretFile, 0o600);
+
+    const httpServer = await startHttp(service, { host: "127.0.0.1", port: 0, clientId: () => "client", fetchImpl });
+    try {
+      const post = (body: unknown) =>
+        fetch(`http://127.0.0.1:${httpServer.port}/api/import/streamelements`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${service.apiKey()}`, "Content-Type": "application/json" },
+          body: body === undefined ? "{}" : JSON.stringify(body),
+        });
+      authorizations.length = 0;
+      const missing = await post(undefined);
+      expect(missing.ok).toBe(true);
+      const blank = await post({ jwt: "  " });
+      expect(blank.ok).toBe(true);
+      const text = await (await post({ jwt: "" })).text();
+      expect(text).not.toContain(replacement);
+      expect(text).not.toContain(secret);
+      expect(authorizations.some((value) => value.endsWith(replacement))).toBe(true);
+    } finally {
+      await httpServer.close();
+    }
+  });
 });
+
+function fakeJwt(channel: string, signature: string): string {
+  const payload = Buffer.from(JSON.stringify({ channel })).toString("base64url");
+  return `header.${payload}.${signature}`;
+}
