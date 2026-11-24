@@ -15,8 +15,10 @@ import type { QuotaSnapshot } from "../../../src/shared/platform/youtube-quota.t
 import type { PlatformCapabilities } from "../../../src/shared/platform/types.ts";
 import { detectLive } from "../../../src/main/youtube/live.ts";
 import {
+  activePhase,
+  advanceTimer,
+  countTimerLine,
   decideChat,
-  dueTimers,
   emptyMemory,
   expandTemplate,
   normalizeBotFile,
@@ -24,6 +26,8 @@ import {
   normalizeCommand,
   normalizeFilters,
   normalizeTimer,
+  timerIsDue,
+  timerMessage,
   type BotAccountMode,
   type BotCommand,
   type BotDecision,
@@ -33,6 +37,7 @@ import {
   type ChannelFacts,
   type ChatLine,
   type ModLogEntry,
+  type TimerPhase,
 } from "./model.ts";
 import { TwitchChatPlatform } from "./platform/twitch-adapter.ts";
 import { YoutubeChatPlatform } from "./platform/youtube-adapter.ts";
@@ -112,7 +117,7 @@ export class BotService {
   private youtubeNote = "";
   private stopped = false;
   private facts: ChannelFacts = { ...EMPTY_FACTS };
-  private factsAt = 0;
+  private streamLiveAt = 0;
   private followCache = new Map<string, { at: number; text: string }>();
   private askJeeves: AskJeevesHook | null = null;
   private bridge: ChannelTokenBridge | null = null;
@@ -311,7 +316,7 @@ export class BotService {
     this.youtube.noteReader(ok);
   }
 
-  setYoutubeLive(input: { live: boolean; title?: string; videoId?: string }): void {
+  setYoutubeLive(input: { live: boolean; known?: boolean; title?: string; videoId?: string }): void {
     this.youtube.setLive(input);
   }
 
@@ -406,19 +411,32 @@ export class BotService {
     this.file = this.store.saveConfig({ ...this.file, commands: this.file.commands.filter((item) => item.id !== id) });
   }
 
-  saveTimer(input: unknown): void {
+  saveTimer(input: unknown, now = Date.now()): void {
     const timer = normalizeTimer(input);
-    if (!timer) throw new Error("That timer needs a name and a message.");
-    const index = this.file.timers.findIndex((item) => item.id === timer.id);
-    const timers = [...this.file.timers];
+    if (!timer) throw new Error("That timer needs a name and at least one message.");
     const row = asRecord(input);
+    const explicitId = typeof row?.id === "string" && row.id.trim() ? timer.id : "";
+    const timers = [...this.file.timers];
+    let index = explicitId ? timers.findIndex((item) => item.id === explicitId) : -1;
+    if (index < 0 && !explicitId) index = timers.findIndex((item) => item.name.toLowerCase() === timer.name.toLowerCase());
     if (index >= 0) {
       const previous = timers[index];
+      if (!previous) return;
+      const messagesChanged = previous.messages.join("\n") !== timer.messages.join("\n");
+      const liveTimingChanged = previous.intervalSec !== timer.intervalSec || previous.minChatLines !== timer.minChatLines || previous.mode !== timer.mode;
+      const offlineTimingChanged =
+        previous.offlineIntervalSec !== timer.offlineIntervalSec || previous.offlineMinChatLines !== timer.offlineMinChatLines || previous.mode !== timer.mode;
+      const messageIndex = messagesChanged ? 0 : Math.min(previous.messageIndex, Math.max(0, timer.messages.length - 1));
       timers[index] = {
         ...timer,
-        linesSince: previous?.linesSince ?? 0,
-        lastFiredAt: previous?.lastFiredAt ?? 0,
-        platforms: row && "platforms" in row ? timer.platforms : previous?.platforms ?? timer.platforms,
+        id: previous.id,
+        messageIndex,
+        message: timer.messages[messageIndex] ?? timer.message,
+        linesSince: liveTimingChanged ? 0 : previous.linesSince,
+        lastFiredAt: liveTimingChanged ? now : previous.lastFiredAt,
+        offlineLinesSince: offlineTimingChanged ? 0 : previous.offlineLinesSince,
+        offlineLastFiredAt: offlineTimingChanged ? now : previous.offlineLastFiredAt,
+        platforms: row && "platforms" in row ? timer.platforms : previous.platforms,
       };
     } else timers.push(timer);
     this.file = this.store.saveConfig({ ...this.file, timers });
@@ -445,8 +463,10 @@ export class BotService {
     });
   }
 
-  async importSe(jwt: string): Promise<void> {
-    const token = jwt.trim();
+  async importSe(jwt?: string): Promise<void> {
+    const typed = typeof jwt === "string" ? jwt.trim() : "";
+    const token = typed || this.secrets.seJwt.trim();
+    if (!token) throw new Error("Paste a StreamElements JWT. None is stored yet.");
     if (token.split(".").length < 3) throw new Error("That does not look like a StreamElements JWT.");
     const fetchImpl = this.fetchImpl();
     let channel = channelIdFromJwt(token);
@@ -480,27 +500,46 @@ export class BotService {
   }
 
   async tick(): Promise<void> {
+    if (this.stopped) return;
     const now = Date.now();
-    const due = dueTimers(this.file, now);
-    if (due.length === 0) return;
-    for (const timer of due) {
-      const text = expandTemplate(timer.message, { user: "chat", touser: "", count: "0", randomPool: "", facts: await this.channelFacts("twitch", "") });
+    const facts = await this.channelFacts("twitch", "");
+    let changed = false;
+    const timers = [...this.file.timers];
+    for (let index = 0; index < timers.length; index += 1) {
+      let timer = timers[index];
+      if (!timer) continue;
+      const buckets = new Map<TimerPhase, ChatPlatform[]>();
       for (const platform of this.registry.list()) {
         if (!targetsPlatform(timer.platforms, platform.id)) continue;
-        const live = platform.liveStatus();
         if (platform.id === "twitch" && !this.activeTwitch()) continue;
-        if (platform.id === "youtube" && !live.live) continue;
-        try {
-          await platform.sendMessage(text);
-        } catch (err) {
-          this.pushLog({ t: now, action: "error", user: "", text: safeError(err), by: platform.id });
-        }
+        const live = this.liveFlag(platform);
+        if (platform.id === "youtube" && live !== true) continue;
+        const phase = activePhase(timer, live);
+        if (!phase || !timerIsDue(timer, now, phase)) continue;
+        const list = buckets.get(phase) ?? [];
+        list.push(platform);
+        buckets.set(phase, list);
       }
-      timer.lastFiredAt = now;
-      timer.linesSince = 0;
-      this.pushLog({ t: now, action: "timer", user: "", text: timer.name, by: "bot" });
+      for (const phase of ["live", "offline"] as const) {
+        const targets = buckets.get(phase);
+        if (!targets || targets.length === 0) continue;
+        const text = expandTemplate(timerMessage(timer), { user: "chat", touser: "", count: "0", randomPool: "", facts });
+        if (!text.trim()) continue;
+        for (const platform of targets) {
+          try {
+            await platform.sendMessage(text);
+          } catch (err) {
+            this.pushLog({ t: now, action: "error", user: "", text: safeError(err), by: platform.id });
+          }
+        }
+        timer = advanceTimer(timer, now, phase);
+        changed = true;
+        this.pushLog({ t: now, action: "timer", user: "", text: `${timer.name} (${phase})`, by: "bot" });
+      }
+      timers[index] = timer;
     }
-    this.file = this.store.saveConfig(this.file);
+    if (!changed) return;
+    this.file = this.store.saveConfig({ ...this.file, timers });
   }
 
   stop(): void {
@@ -623,9 +662,8 @@ export class BotService {
       this.file = this.store.saveConfig(this.file);
     }
     if (decision.chatLine) {
-      for (const timer of this.file.timers) {
-        if (targetsPlatform(timer.platforms, message.platform)) timer.linesSince += 1;
-      }
+      const live = this.liveFlag(platform);
+      this.file.timers = this.file.timers.map((timer) => (targetsPlatform(timer.platforms, message.platform) ? countTimerLine(timer, live) : timer));
     }
     if (decision.log) this.pushLog({ t: Date.now(), ...decision.log });
     await this.execute(platform, decision, line);
@@ -681,16 +719,8 @@ export class BotService {
       const live = this.youtube.liveStatus();
       return { title: live.title ?? "", game: "", uptime: live.live ? "live" : "offline", followage: "" };
     }
+    await this.refreshStreamLive();
     if (!this.activeTwitch() || !this.file.broadcasterId) return { ...EMPTY_FACTS, followage: "" };
-    if (Date.now() - this.factsAt > 60_000) {
-      try {
-        const channel = await this.helix.channel(this.file.broadcasterId);
-        this.facts = { title: channel.title, game: channel.game, uptime: channel.startedAt ? age(channel.startedAt) : "offline", followage: "" };
-        this.factsAt = Date.now();
-      } catch (err) {
-        this.deps.log("error", "channel facts failed", { message: safeError(err) });
-      }
-    }
     let followage = "";
     if (userId) {
       const cached = this.followCache.get(userId);
@@ -705,6 +735,27 @@ export class BotService {
       }
     }
     return { ...this.facts, followage };
+  }
+
+  /** Helix `/streams` says whether the Twitch channel is actually live. Chat being connected is not enough. */
+  private async refreshStreamLive(): Promise<void> {
+    if (!this.activeTwitch() || !this.file.broadcasterId) return;
+    if (Date.now() - this.streamLiveAt < 30_000 && this.twitch.liveStatus().liveKnown !== false) return;
+    try {
+      const channel = await this.helix.channel(this.file.broadcasterId);
+      const live = Boolean(channel.startedAt);
+      this.twitch.setStreamLive(live);
+      this.facts = { title: channel.title, game: channel.game, uptime: live ? age(channel.startedAt) : "offline", followage: this.facts.followage };
+      this.streamLiveAt = Date.now();
+    } catch (err) {
+      this.deps.log("error", "stream status failed", { message: safeError(err) });
+    }
+  }
+
+  private liveFlag(platform: ChatPlatform): boolean | null {
+    const status = platform.liveStatus();
+    if (status.liveKnown === false) return null;
+    return status.live;
   }
 
   private async accessToken(): Promise<string> {

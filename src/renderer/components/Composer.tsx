@@ -9,12 +9,18 @@ export function Composer({
   canSendTwitch,
   canSendYoutube,
   youtubeAccount,
+  sendHint,
+  onOpenSettings,
+  onOpenBot,
   onSend,
 }: {
   channel: string;
   canSendTwitch: boolean;
   canSendYoutube: boolean;
   youtubeAccount: string | null;
+  sendHint?: string;
+  onOpenSettings?: () => void;
+  onOpenBot?: () => void;
   onSend: (text: string, destinations: { twitch: boolean; youtube: boolean }) => Promise<void>;
 }) {
   const [text, setText] = useState("");
@@ -64,10 +70,30 @@ export function Composer({
         <CheckRow checked={toTwitch} disabled={!canSendTwitch} onChange={setToTwitch}>
           {channel ? `Twitch as ${channel}` : "Twitch"}
         </CheckRow>
-        <CheckRow checked={toYoutube} disabled={!canSendYoutube} onChange={setToYoutube}>
+        <CheckRow checked={toYoutube && canSendYoutube} disabled={!canSendYoutube} onChange={setToYoutube}>
           {youtubeAccount ? `YouTube as ${youtubeAccount}` : "YouTube"}
         </CheckRow>
       </div>
+      {!canSendYoutube ? (
+        <div className="form-note youtube-send-hint" data-testid="youtube-send-hint">
+          <p>
+            {sendHint ||
+              "YouTube sending isn't set up, so this box stays off. Reading chat still works without Google: put the channel ID in Settings. To send, open the Bot tab, save a Google OAuth client, and connect an account. That login asks for youtube.force-ssl."}
+          </p>
+          <div className="tts-actions">
+            {onOpenBot ? (
+              <button type="button" className="ghost" onClick={onOpenBot}>
+                Open Bot
+              </button>
+            ) : null}
+            {onOpenSettings ? (
+              <button type="button" className="ghost" onClick={onOpenSettings}>
+                Open Settings
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div className="composer-row">
         <textarea
           id="composer"

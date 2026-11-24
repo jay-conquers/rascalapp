@@ -28,7 +28,7 @@ export function App() {
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.6.0");
+  const [version, setVersion] = useState("0.7.0");
   const [banner, setBanner] = useState(true);
 
   useEffect(() => {
@@ -280,6 +280,9 @@ export function App() {
               canSendTwitch={auth.loggedIn}
               canSendYoutube={status.youtube.canSend === true}
               youtubeAccount={status.youtube.sendAccount ?? null}
+              sendHint={status.youtube.sendHint}
+              onOpenSettings={() => setView("settings")}
+              onOpenBot={() => setView("bot")}
               onSend={(text, destinations) => window.rascal!.sendChat(text, destinations)}
             />
           </section>

@@ -69,7 +69,7 @@ export class Runtime {
     openExternal?: (url: string) => Promise<void>;
     fetchImpl?: typeof fetch;
   }) {
-    this.version = deps.version ?? "0.6.0";
+    this.version = deps.version ?? "0.7.0";
     this.log = new Logger(path.join(deps.dir, "logs", brand.logFile));
     this.youtubeSend = youtubeDesk(deps.dir, { log: this.log, fetchImpl: deps.fetchImpl });
     this.youtubeSend.setOnChange(() => this.publishYoutubeSend());
@@ -140,10 +140,12 @@ export class Runtime {
       onHealth: (health) => getBot()?.service.noteYoutubeReader(health.ok),
       onStatus: (youtube) => {
         const desk = this.youtubeSend.state();
-        this.status = { ...this.status, youtube: { ...youtube, canSend: desk.connected, sendAccount: desk.account } };
+        const ready = this.youtubeSend.sendReadiness();
+        this.status = { ...this.status, youtube: { ...youtube, canSend: ready.canSend, sendAccount: desk.account, sendHint: ready.hint } };
         this.emit({ type: "status", status: this.status });
         getBot()?.service.setYoutubeLive({
           live: youtube.state === "live",
+          known: youtube.state === "live" || youtube.state === "offline",
           title: youtube.title,
           videoId: youtube.videoId,
         });
@@ -471,7 +473,7 @@ export class Runtime {
     return this.botOps().saveFilters(input);
   }
 
-  botImportSe(jwt: string): Promise<BotSnapshot> {
+  botImportSe(jwt = ""): Promise<BotSnapshot> {
     return this.botOps().importSe(jwt);
   }
 
@@ -606,9 +608,10 @@ export class Runtime {
 
   private publishYoutubeSend(): void {
     const desk = this.youtubeSend.state();
+    const ready = this.youtubeSend.sendReadiness();
     this.status = {
       ...this.status,
-      youtube: { ...this.status.youtube, canSend: desk.connected, sendAccount: desk.account },
+      youtube: { ...this.status.youtube, canSend: ready.canSend, sendAccount: desk.account, sendHint: ready.hint },
     };
     this.emit({ type: "status", status: this.status });
   }

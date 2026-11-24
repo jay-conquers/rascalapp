@@ -24,15 +24,27 @@ export interface BotCommand {
   platforms: PlatformTarget;
 }
 
+/** When a timer is allowed to post. "both" uses the live schedule and the offline schedule separately. */
+export type TimerMode = "live" | "offline" | "both";
+export type TimerPhase = "live" | "offline";
+
 export interface BotTimer {
   id: string;
   name: string;
   enabled: boolean;
+  /** Rotating lines. `message` is the one that will be sent next. */
+  messages: string[];
+  messageIndex: number;
   message: string;
+  mode: TimerMode;
   intervalSec: number;
   minChatLines: number;
   linesSince: number;
   lastFiredAt: number;
+  offlineIntervalSec: number;
+  offlineMinChatLines: number;
+  offlineLinesSince: number;
+  offlineLastFiredAt: number;
   platforms: PlatformTarget;
 }
 
@@ -221,19 +233,93 @@ export function normalizeTimer(value: unknown): BotTimer | null {
   const row = asRecord(value);
   if (!row) return null;
   const name = typeof row.name === "string" ? row.name.trim().slice(0, 40) : "";
-  const message = typeof row.message === "string" ? row.message.slice(0, 450) : "";
-  if (!name || !message) return null;
+  const messages = timerMessagesFrom(row);
+  if (!name || messages.length === 0) return null;
+  const mode: TimerMode = row.mode === "live" || row.mode === "offline" || row.mode === "both" ? row.mode : "both";
+  const intervalSec = clampInt(row.intervalSec, 15, 86400, 600);
+  const minChatLines = clampInt(row.minChatLines, 0, 500, 5);
+  const messageIndex = clampInt(row.messageIndex, 0, messages.length - 1, 0);
   return {
     id: slugId(typeof row.id === "string" ? row.id : name),
     name,
     enabled: row.enabled !== false,
-    message,
-    intervalSec: clampInt(row.intervalSec, 15, 86400, 600),
-    minChatLines: clampInt(row.minChatLines, 0, 500, 5),
+    messages,
+    messageIndex,
+    message: messages[messageIndex] ?? messages[0] ?? "",
+    mode,
+    intervalSec,
+    minChatLines,
     linesSince: clampInt(row.linesSince, 0, 100000, 0),
-    lastFiredAt: typeof row.lastFiredAt === "number" && Number.isFinite(row.lastFiredAt) ? row.lastFiredAt : 0,
+    lastFiredAt: finiteTime(row.lastFiredAt),
+    offlineIntervalSec: clampInt(row.offlineIntervalSec, 15, 86400, intervalSec),
+    offlineMinChatLines: clampInt(row.offlineMinChatLines, 0, 500, minChatLines),
+    offlineLinesSince: clampInt(row.offlineLinesSince, 0, 100000, 0),
+    offlineLastFiredAt: finiteTime(row.offlineLastFiredAt),
     platforms: normalizePlatformTarget(row.platforms),
   };
+}
+
+/** Older timers have one message and no mode. They keep posting on that same interval live or offline. */
+export function timerMessagesFrom(row: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const push = (value: unknown): void => {
+    const text = timerLine(value);
+    if (!text || out.length >= 30) return;
+    out.push(text.slice(0, 450));
+  };
+  if (Array.isArray(row.messages)) {
+    for (const item of row.messages) push(item);
+  }
+  if (out.length === 0) push(row.message);
+  return out;
+}
+
+export function timerMessage(timer: BotTimer): string {
+  const messages = timer.messages.length > 0 ? timer.messages : timer.message ? [timer.message] : [];
+  if (messages.length === 0) return "";
+  const index = ((timer.messageIndex % messages.length) + messages.length) % messages.length;
+  return messages[index] ?? timer.message;
+}
+
+/**
+ * Which schedule applies right now.
+ * `live === null` means the platform has not said yet. A timer whose live and offline
+ * schedules match can still run; different schedules wait until the status is known.
+ */
+export function activePhase(timer: BotTimer, live: boolean | null): TimerPhase | null {
+  if (!timer.enabled || timerMessage(timer) === "") return null;
+  if (timer.mode === "live") return live === true ? "live" : null;
+  if (timer.mode === "offline") return live === false ? "offline" : null;
+  if (live === true) return "live";
+  if (live === false) return "offline";
+  if (timer.intervalSec === timer.offlineIntervalSec && timer.minChatLines === timer.offlineMinChatLines) return "live";
+  return null;
+}
+
+export function timerIsDue(timer: BotTimer, now: number, phase: TimerPhase): boolean {
+  if (!timer.enabled || timerMessage(timer) === "") return false;
+  if (phase === "offline") {
+    return now - timer.offlineLastFiredAt >= timer.offlineIntervalSec * 1000 && timer.offlineLinesSince >= timer.offlineMinChatLines;
+  }
+  return now - timer.lastFiredAt >= timer.intervalSec * 1000 && timer.linesSince >= timer.minChatLines;
+}
+
+/** Rotate to the next message and start that phase's countdown over. */
+export function advanceTimer(timer: BotTimer, now: number, phase: TimerPhase): BotTimer {
+  const messages = timer.messages.length > 0 ? timer.messages : [timer.message];
+  const nextIndex = messages.length === 0 ? 0 : (timer.messageIndex + 1) % messages.length;
+  const next = messages[nextIndex] ?? timer.message;
+  const rotated = { ...timer, messageIndex: nextIndex, message: next };
+  if (phase === "offline") return { ...rotated, offlineLastFiredAt: now, offlineLinesSince: 0 };
+  return { ...rotated, lastFiredAt: now, linesSince: 0 };
+}
+
+/** Count a chat line toward the schedule that is active on that platform. */
+export function countTimerLine(timer: BotTimer, live: boolean | null): BotTimer {
+  const phase = activePhase(timer, live);
+  if (phase === "offline") return { ...timer, offlineLinesSince: Math.min(100000, timer.offlineLinesSince + 1) };
+  if (phase === "live") return { ...timer, linesSince: Math.min(100000, timer.linesSince + 1) };
+  return timer;
 }
 
 export function normalizeFilters(value: unknown): BotFilters {
@@ -315,8 +401,11 @@ export function decideChat(
   };
 }
 
-export function dueTimers(file: BotFile, now: number): BotTimer[] {
-  return file.timers.filter((timer) => timer.enabled && timer.message && now - timer.lastFiredAt >= timer.intervalSec * 1000 && timer.linesSince >= timer.minChatLines);
+export function dueTimers(file: BotFile, now: number, live: boolean | null = null): BotTimer[] {
+  return file.timers.filter((timer) => {
+    const phase = activePhase(timer, live);
+    return phase !== null && timerIsDue(timer, now, phase);
+  });
 }
 
 export function expandTemplate(
@@ -537,6 +626,18 @@ function stringList(value: unknown): string[] {
     if (out.length >= 100) break;
   }
   return out;
+}
+
+function timerLine(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  const row = asRecord(value);
+  if (!row || row.enabled === false) return "";
+  const text = row.message ?? row.text ?? row.content;
+  return typeof text === "string" ? text.trim() : "";
+}
+
+function finiteTime(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function slugId(value: string): string {

@@ -275,8 +275,8 @@ function registerIpc(runtime: Runtime): void {
   ipcMain.handle("app:bot-filters", (_event, filters: unknown) => guard(() => runtime.botSaveFilters(filters)));
   ipcMain.handle("app:bot-import-se", (_event, jwt: unknown) =>
     guard(() => {
-      if (typeof jwt !== "string") throw new Error("Paste the StreamElements JWT.");
-      return runtime.botImportSe(jwt);
+      if (jwt !== undefined && jwt !== null && typeof jwt !== "string") throw new Error("Paste the StreamElements JWT.");
+      return runtime.botImportSe(typeof jwt === "string" ? jwt : "");
     }),
   );
   ipcMain.handle("app:bot-import-json", (_event, payload: unknown) => guard(() => runtime.botImportJson(payload)));

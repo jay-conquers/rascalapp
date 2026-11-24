@@ -36,7 +36,10 @@ export interface NormalizedChatMessage {
 
 export interface PlatformLiveStatus {
   connected: boolean;
+  /** The broadcast is live. This is not the same as the chat socket being connected. */
   live: boolean;
+  /** False until the platform has checked. Omit it when `live` is already known. */
+  liveKnown?: boolean;
   detail: string;
   title?: string;
   liveChatId?: string;
