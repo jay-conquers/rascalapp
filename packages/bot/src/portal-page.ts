@@ -56,13 +56,20 @@ export function portalPage(): string {
       </section>
       <section>
         <h2>Timers</h2>
+        <p>One message per line. Live and offline each have an interval. YouTube only posts while that channel is live.</p>
         <ul id="timers"></ul>
+        <h2>New timer</h2>
         <div class="grid">
           <label>Name <input id="t-name" /></label>
-          <label>Every seconds <input id="t-every" type="number" value="600" /></label>
-          <label>Min chat lines <input id="t-lines" type="number" value="5" /></label>
+          <label>When
+            <select id="t-mode"><option value="live">Only while live</option><option value="offline">Only while offline</option><option value="both">Live and offline</option></select>
+          </label>
+          <label>Live interval seconds <input id="t-every" type="number" value="600" /></label>
+          <label>Live min chat lines <input id="t-lines" type="number" value="5" /></label>
+          <label>Offline interval seconds <input id="t-off-every" type="number" value="1800" /></label>
+          <label>Offline min chat lines <input id="t-off-lines" type="number" value="5" /></label>
         </div>
-        <label>Message <textarea id="t-message"></textarea></label>
+        <label>Messages, one per line <textarea id="t-message"></textarea></label>
         <button id="t-save" type="button">Save timer</button>
       </section>
       <section>
@@ -96,14 +103,26 @@ export function portalPage(): string {
       document.getElementById("logout").hidden = false;
       document.getElementById("export").hidden = false;
       document.getElementById("commands").innerHTML = state.commands.map((command) => "<li><strong>!" + escapeHtml(command.name) + "</strong> <span>" + escapeHtml(command.level) + " · " + command.count + "</span><p>" + escapeHtml(command.response) + "</p></li>").join("") || "<li>No commands yet.</li>";
-      document.getElementById("timers").innerHTML = state.timers.map((timer) => "<li><strong>" + escapeHtml(timer.name) + "</strong><p>" + escapeHtml(timer.message) + "</p></li>").join("") || "<li>No timers yet.</li>";
+      document.getElementById("timers").innerHTML = state.timers.map((timer) => {
+        const messages = (timer.messages && timer.messages.length ? timer.messages : [timer.message]).join("\\n");
+        return "<li data-id=\\"" + escapeHtml(timer.id) + "\\"><strong>" + escapeHtml(timer.name) + "</strong> <span>next: " + escapeHtml(timer.message) + "</span>"
+          + "<div class=\\"grid\\"><label>Name <input class=\\"t-name\\" value=\\"" + escapeHtml(timer.name) + "\\" /></label>"
+          + "<label>When <select class=\\"t-mode\\"><option value=\\"live\\"" + (timer.mode === "live" ? " selected" : "") + ">Only while live</option><option value=\\"offline\\"" + (timer.mode === "offline" ? " selected" : "") + ">Only while offline</option><option value=\\"both\\"" + (timer.mode === "both" || !timer.mode ? " selected" : "") + ">Live and offline</option></select></label>"
+          + "<label>Live interval seconds <input class=\\"t-every\\" type=\\"number\\" value=\\"" + Number(timer.intervalSec) + "\\" /></label>"
+          + "<label>Live min chat lines <input class=\\"t-lines\\" type=\\"number\\" value=\\"" + Number(timer.minChatLines) + "\\" /></label>"
+          + "<label>Offline interval seconds <input class=\\"t-off-every\\" type=\\"number\\" value=\\"" + Number(timer.offlineIntervalSec || timer.intervalSec) + "\\" /></label>"
+          + "<label>Offline min chat lines <input class=\\"t-off-lines\\" type=\\"number\\" value=\\"" + Number(timer.offlineMinChatLines || timer.minChatLines) + "\\" /></label></div>"
+          + "<label>Messages, one per line <textarea class=\\"t-message\\">" + escapeHtml(messages) + "</textarea></label>"
+          + "<label class=\\"row\\"><input class=\\"t-on\\" type=\\"checkbox\\"" + (timer.enabled !== false ? " checked" : "") + " /> Enabled</label>"
+          + "<button class=\\"t-update\\" type=\\"button\\">Save timer</button></li>";
+      }).join("") || "<li>No timers yet.</li>";
       document.getElementById("log").innerHTML = state.log.slice().reverse().map((entry) => "<li><span>" + escapeHtml(entry.action) + " " + escapeHtml(entry.user) + "</span><p>" + escapeHtml(entry.text) + "</p></li>").join("") || "<li>No actions yet.</li>";
       document.getElementById("f-links").checked = state.filters.links.enabled;
       document.getElementById("f-words").value = state.filters.blacklist.map((item) => item.word + ", " + item.action + ", " + item.timeoutSec).join("\\n");
       document.getElementById("f-white").value = state.filters.whitelist.join("\\n");
     }
     function escapeHtml(value) {
-      return String(value || "").replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[char]));
+      return String(value || "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
     }
     document.getElementById("logout").onclick = () => fetch("/portal/logout", { method: "POST" }).then(() => location.reload());
     document.getElementById("export").onclick = async () => {
@@ -121,9 +140,34 @@ export function portalPage(): string {
         if (state) paint(state);
       } catch (err) { error.textContent = err.message; }
     };
+    function timerPayload(root, id) {
+      const messages = root.querySelector(id ? ".t-message" : "#t-message").value.split(/\\n/).map((line) => line.trim()).filter(Boolean);
+      const mode = root.querySelector(id ? ".t-mode" : "#t-mode").value;
+      return {
+        id: id || undefined,
+        name: root.querySelector(id ? ".t-name" : "#t-name").value,
+        messages: messages,
+        message: messages[0] || "",
+        mode: mode,
+        intervalSec: Number(root.querySelector(id ? ".t-every" : "#t-every").value),
+        minChatLines: Number(root.querySelector(id ? ".t-lines" : "#t-lines").value),
+        offlineIntervalSec: Number(root.querySelector(id ? ".t-off-every" : "#t-off-every").value),
+        offlineMinChatLines: Number(root.querySelector(id ? ".t-off-lines" : "#t-off-lines").value),
+        enabled: id ? root.querySelector(".t-on").checked : true
+      };
+    }
+    document.getElementById("timers").onclick = async (event) => {
+      const button = event.target.closest(".t-update");
+      if (!button) return;
+      const item = button.closest("li");
+      try {
+        const state = await api("/portal/api/timers", { method: "POST", body: JSON.stringify(timerPayload(item, item.getAttribute("data-id"))) });
+        if (state) paint(state);
+      } catch (err) { error.textContent = err.message; }
+    };
     document.getElementById("t-save").onclick = async () => {
       try {
-        const state = await api("/portal/api/timers", { method: "POST", body: JSON.stringify({ name: document.getElementById("t-name").value, message: document.getElementById("t-message").value, intervalSec: Number(document.getElementById("t-every").value), minChatLines: Number(document.getElementById("t-lines").value), enabled: true }) });
+        const state = await api("/portal/api/timers", { method: "POST", body: JSON.stringify(timerPayload(document, "")) });
         if (state) paint(state);
       } catch (err) { error.textContent = err.message; }
     };

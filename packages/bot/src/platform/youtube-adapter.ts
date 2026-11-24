@@ -34,6 +34,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
   private primed = false;
   private title = "";
   private live = false;
+  private liveKnown = false;
   private readerFailures = 0;
   private autoFallback = false;
   private replies = 0;
@@ -81,6 +82,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
     return {
       connected: true,
       live: this.live,
+      liveKnown: this.liveKnown,
       detail: this.status,
       title: this.title || undefined,
       liveChatId: this.liveChatId || undefined,
@@ -92,12 +94,23 @@ export class YoutubeChatPlatform implements ChatPlatform {
     if (!this.rememberSeen(message.messageId)) return;
     this.remember(message);
     this.live = true;
+    this.liveKnown = true;
     if (!this.pollingApi()) this.status = this.readerStatus();
     for (const listener of this.listeners) listener(message);
   }
 
-  setLive(input: { live: boolean; title?: string; videoId?: string }): void {
+  setLive(input: { live: boolean; known?: boolean; title?: string; videoId?: string }): void {
+    if (input.known === false) {
+      if (input.title) this.title = input.title;
+      if (input.videoId && input.videoId !== this.videoId) {
+        this.videoId = input.videoId;
+        this.liveChatId = "";
+      }
+      if (!this.pollingApi()) this.status = this.readerStatus();
+      return;
+    }
     this.live = input.live;
+    this.liveKnown = true;
     if (input.title) this.title = input.title;
     if (input.videoId && input.videoId !== this.videoId) {
       this.videoId = input.videoId;
@@ -141,6 +154,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
     this.own = null;
     await this.stopApiPoll();
     this.live = false;
+    this.liveKnown = false;
     this.status = "YouTube bot is idle.";
   }
 
@@ -212,7 +226,8 @@ export class YoutubeChatPlatform implements ChatPlatform {
       onDelete: () => undefined,
       onDeleteAuthor: () => undefined,
       onStatus: (status) => {
-        this.setLive({ live: status.state === "live", title: status.title, videoId: status.videoId });
+        const known = status.state === "live" || status.state === "offline";
+        this.setLive({ live: status.state === "live", known, title: status.title, videoId: status.videoId });
       },
       onHealth: (health) => this.noteReader(health.ok),
       log: new Logger(null),
@@ -253,6 +268,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
           this.pageToken = "";
           this.primed = false;
           this.live = true;
+          this.liveKnown = true;
         }
         const page = await this.api.listMessages(this.liveChatId, this.pageToken);
         this.meter.success(page.pollingIntervalMillis);
@@ -271,6 +287,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
           this.pageToken = "";
           this.primed = false;
           this.live = false;
+          this.liveKnown = true;
           this.status = "YouTube chat ended. The Data API poll is watching for the next broadcast.";
         }
         await sleep(this.meter.delay(), signal);
@@ -312,6 +329,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
     this.videoId = found.videoId;
     this.title = found.title || this.title;
     this.live = true;
+    this.liveKnown = true;
     return found.liveChatId;
   }
 

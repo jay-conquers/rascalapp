@@ -53,10 +53,6 @@ export function BotView() {
   const [response, setResponse] = useState("Hello {user} ({count})");
   const [level, setLevel] = useState("everyone");
   const [cooldown, setCooldown] = useState("5");
-  const [timerName, setTimerName] = useState("");
-  const [timerMessage, setTimerMessage] = useState("{title} is live");
-  const [timerEvery, setTimerEvery] = useState("600");
-  const [timerLines, setTimerLines] = useState("5");
   const [words, setWords] = useState("");
   const [jwt, setJwt] = useState("");
   const [jsonText, setJsonText] = useState("");
@@ -67,8 +63,6 @@ export function BotView() {
   const [clientSecret, setClientSecret] = useState("");
   const [commandTwitch, setCommandTwitch] = useState(true);
   const [commandYoutube, setCommandYoutube] = useState(false);
-  const [timerTwitch, setTimerTwitch] = useState(true);
-  const [timerYoutube, setTimerYoutube] = useState(false);
   const seeded = useRef(false);
   const clientSeeded = useRef(false);
 
@@ -101,13 +95,15 @@ export function BotView() {
     setClientId(state.googleClientId);
   }, [state.googleClientId]);
 
-  async function run(work: () => Promise<BotSnapshot>): Promise<void> {
+  async function run(work: () => Promise<BotSnapshot>): Promise<boolean> {
     setBusy(true);
     setError(null);
     try {
       setState(await work());
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "That bot change failed.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -324,65 +320,20 @@ export function BotView() {
 
       <section className="bot-card">
         <h3>Timers</h3>
-        <ul className="tts-list">
-          {state.timers.map((timer) => (
-            <li key={timer.id}>
-              <p className="tts-line">
-                <strong>{timer.name}</strong>
-                <span>
-                  {platformLabel(timer.platforms)} · every {timer.intervalSec}s after {timer.minChatLines} lines
-                </span>
-              </p>
-              <PlatformChecks
-                target={timer.platforms}
-                disabled={busy}
-                onChange={(platforms) => void run(() => window.rascal!.botSaveTimer({ ...timer, platforms }))}
-              />
-              <p>{timer.message}</p>
-              <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => window.rascal!.botDeleteTimer(timer.id))}>
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="custom-offset">
-          <label>
-            Name
-            <input value={timerName} onChange={(event) => setTimerName(event.target.value)} />
-          </label>
-          <label>
-            Interval seconds
-            <input value={timerEvery} onChange={(event) => setTimerEvery(event.target.value)} />
-          </label>
-          <label>
-            Min chat lines
-            <input value={timerLines} onChange={(event) => setTimerLines(event.target.value)} />
-          </label>
-        </div>
-        <PlatformChecks target={targetFromChecks(timerTwitch, timerYoutube)} disabled={busy} onChange={(platforms) => { const next = checksFromTarget(platforms); setTimerTwitch(next.twitch); setTimerYoutube(next.youtube); }} />
-        <label>
-          Message
-          <textarea value={timerMessage} onChange={(event) => setTimerMessage(event.target.value)} />
-        </label>
-        <button
-          type="button"
-          className="primary"
-          disabled={busy}
-          onClick={() =>
-            void run(() =>
-              window.rascal!.botSaveTimer({
-                name: timerName,
-                message: timerMessage,
-                intervalSec: Number(timerEvery) || 600,
-                minChatLines: Number(timerLines) || 0,
-                enabled: true,
-                platforms: targetFromChecks(timerTwitch, timerYoutube),
-              }),
-            )
-          }
-        >
-          Save timer
-        </button>
+        <p className="form-note">
+          A timer can run while the stream is live, while it is offline, or both. Each side has its own interval and chat-line minimum. Put one message per line and Rascal rotates through them. Live and offline come from Twitch and, when the page reader has an answer, from YouTube. YouTube only posts while that channel is live.
+        </p>
+        {state.timers.map((timer) => (
+          <TimerEditor
+            key={timer.id}
+            timer={timer}
+            busy={busy}
+            onSave={(input) => run(() => window.rascal!.botSaveTimer(input))}
+            onDelete={() => run(() => window.rascal!.botDeleteTimer(timer.id))}
+          />
+        ))}
+        <h3>New timer</h3>
+        <TimerEditor busy={busy} timer={null} onSave={(input) => run(() => window.rascal!.botSaveTimer(input))} />
       </section>
 
       <section className="bot-card">
@@ -479,6 +430,202 @@ export function BotView() {
         </ul>
       </section>
     </section>
+  );
+}
+
+type SavedTimer = BotSnapshot["timers"][number];
+
+interface TimerDraft {
+  name: string;
+  messagesText: string;
+  mode: SavedTimer["mode"];
+  intervalSec: string;
+  minChatLines: string;
+  offlineIntervalSec: string;
+  offlineMinChatLines: string;
+  enabled: boolean;
+  twitch: boolean;
+  youtube: boolean;
+}
+
+function blankTimerDraft(): TimerDraft {
+  return {
+    name: "",
+    messagesText: "{title} is live",
+    mode: "live",
+    intervalSec: "600",
+    minChatLines: "5",
+    offlineIntervalSec: "1800",
+    offlineMinChatLines: "5",
+    enabled: true,
+    twitch: true,
+    youtube: false,
+  };
+}
+
+function draftFromTimer(timer: SavedTimer): TimerDraft {
+  const checks = checksFromTarget(timer.platforms);
+  const messages = timer.messages.length > 0 ? timer.messages : timer.message ? [timer.message] : [];
+  return {
+    name: timer.name,
+    messagesText: messages.join("\n"),
+    mode: timer.mode,
+    intervalSec: String(timer.intervalSec),
+    minChatLines: String(timer.minChatLines),
+    offlineIntervalSec: String(timer.offlineIntervalSec),
+    offlineMinChatLines: String(timer.offlineMinChatLines),
+    enabled: timer.enabled,
+    twitch: checks.twitch,
+    youtube: checks.youtube,
+  };
+}
+
+function timerSignature(timer: SavedTimer): string {
+  return [
+    timer.id,
+    timer.name,
+    timer.enabled,
+    timer.mode,
+    timer.intervalSec,
+    timer.minChatLines,
+    timer.offlineIntervalSec,
+    timer.offlineMinChatLines,
+    timer.platforms,
+    ...timer.messages,
+  ].join("\u0001");
+}
+
+function TimerEditor({
+  timer,
+  busy,
+  onSave,
+  onDelete,
+}: {
+  timer: SavedTimer | null;
+  busy: boolean;
+  onSave: (input: Record<string, unknown>) => Promise<boolean>;
+  onDelete?: () => Promise<boolean>;
+}) {
+  const [draft, setDraft] = useState<TimerDraft>(() => (timer ? draftFromTimer(timer) : blankTimerDraft()));
+  const [dirty, setDirty] = useState(false);
+  const signature = timer ? timerSignature(timer) : "";
+  const seen = useRef(signature);
+  useEffect(() => {
+    if (!timer || dirty || seen.current === signature) return;
+    seen.current = signature;
+    setDraft(draftFromTimer(timer));
+  }, [timer, signature, dirty]);
+
+  function edit(patch: Partial<TimerDraft>): void {
+    setDirty(true);
+    setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  const messages = draft.messagesText
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 30);
+  const showLive = draft.mode !== "offline";
+  const showOffline = draft.mode !== "live";
+
+  return (
+    <div className="timer-editor">
+      {timer ? (
+        <p className="tts-line">
+          <strong>{timer.name}</strong>
+          <span>
+            {timer.enabled ? "On" : "Off"} · next: {timer.message || "none"} · {timer.messages.length} message{timer.messages.length === 1 ? "" : "s"}
+          </span>
+        </p>
+      ) : null}
+      <div className="custom-offset">
+        <label>
+          Name
+          <input value={draft.name} onChange={(event) => edit({ name: event.target.value })} />
+        </label>
+        <label>
+          When
+          <select value={draft.mode} onChange={(event) => edit({ mode: event.target.value as TimerDraft["mode"] })}>
+            <option value="live">Only while live</option>
+            <option value="offline">Only while offline</option>
+            <option value="both">Live and offline</option>
+          </select>
+        </label>
+      </div>
+      {showLive ? (
+        <div className="custom-offset">
+          <label>
+            Live interval seconds
+            <input value={draft.intervalSec} onChange={(event) => edit({ intervalSec: event.target.value })} />
+          </label>
+          <label>
+            Live min chat lines
+            <input value={draft.minChatLines} onChange={(event) => edit({ minChatLines: event.target.value })} />
+          </label>
+        </div>
+      ) : null}
+      {showOffline ? (
+        <div className="custom-offset">
+          <label>
+            Offline interval seconds
+            <input value={draft.offlineIntervalSec} onChange={(event) => edit({ offlineIntervalSec: event.target.value })} />
+          </label>
+          <label>
+            Offline min chat lines
+            <input value={draft.offlineMinChatLines} onChange={(event) => edit({ offlineMinChatLines: event.target.value })} />
+          </label>
+        </div>
+      ) : null}
+      <PlatformChecks
+        target={targetFromChecks(draft.twitch, draft.youtube)}
+        disabled={busy}
+        onChange={(platforms) => {
+          const next = checksFromTarget(platforms);
+          edit({ twitch: next.twitch, youtube: next.youtube });
+        }}
+      />
+      <CheckRow checked={draft.enabled} disabled={busy} onChange={(enabled) => edit({ enabled })}>
+        Enabled
+      </CheckRow>
+      <label>
+        Messages, one per line
+        <textarea value={draft.messagesText} onChange={(event) => edit({ messagesText: event.target.value })} />
+      </label>
+      <div className="tts-actions">
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={() => {
+            void onSave({
+              ...(timer ? { id: timer.id } : {}),
+              name: draft.name,
+              messages,
+              message: messages[0] ?? "",
+              mode: draft.mode,
+              intervalSec: Number(draft.intervalSec) || 600,
+              minChatLines: Number(draft.minChatLines) || 0,
+              offlineIntervalSec: Number(draft.offlineIntervalSec) || 1800,
+              offlineMinChatLines: Number(draft.offlineMinChatLines) || 0,
+              enabled: draft.enabled,
+              platforms: targetFromChecks(draft.twitch, draft.youtube),
+            }).then((ok) => {
+              if (!ok) return;
+              setDirty(false);
+              if (!timer) setDraft(blankTimerDraft());
+            });
+          }}
+        >
+          {timer ? "Save timer" : "Add timer"}
+        </button>
+        {onDelete ? (
+          <button type="button" className="ghost" disabled={busy} onClick={() => void onDelete()}>
+            Delete
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

@@ -141,7 +141,9 @@ export function SettingsView({
               placeholder="UCxxxxxxxxxxxxxxxxxxxxxx"
               onChange={(event) => setYoutube(event.target.value)}
             />
-            <span className="count">Leave blank to skip YouTube chat. The ID is in YouTube Studio.</span>
+            <span className="count">
+              Leave blank to skip YouTube chat. The ID is in YouTube Studio. This reads chat with no Google login. Sending from the chat box needs a Google client on the Bot tab (youtube.force-ssl).
+            </span>
           </label>
           <label>
             Overlay port

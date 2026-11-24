@@ -18,6 +18,8 @@ export class TwitchChatPlatform implements ChatPlatform {
   private socket: WebSocket | null = null;
   private stopped = false;
   private status = "Bot is idle.";
+  /** Null until Helix `/streams` has answered. Chat connected does not mean the channel is live. */
+  private streamLive: boolean | null = null;
   private readonly listeners = new Set<(message: NormalizedChatMessage) => void>();
 
   constructor(
@@ -34,8 +36,17 @@ export class TwitchChatPlatform implements ChatPlatform {
     },
   ) {}
 
+  setStreamLive(live: boolean): void {
+    this.streamLive = live;
+  }
+
   liveStatus(): PlatformLiveStatus {
-    return { connected: this.socket !== null, live: this.socket !== null, detail: this.status };
+    return {
+      connected: this.socket !== null,
+      live: this.streamLive === true,
+      liveKnown: this.streamLive !== null,
+      detail: this.status,
+    };
   }
 
   async connect(): Promise<void> {

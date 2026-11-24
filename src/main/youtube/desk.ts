@@ -1,4 +1,5 @@
 import { readBrandEnv } from "../../shared/brand";
+import { youtubeSendStatus, type YoutubeSendStatus } from "../../shared/platform/youtube-send";
 import { YoutubeDataApi } from "../../shared/platform/youtube-api";
 import {
   createYoutubeAuthRequest,
@@ -80,6 +81,18 @@ export class YoutubeDesk {
   replace(tokens: YoutubeBotTokens): void {
     this.tokens = tokens;
     this.store.saveDeskYoutubeTokens(tokens);
+  }
+
+  /** Why the chat box can or cannot post. Does not throw when the Google client is missing. */
+  sendReadiness(): YoutubeSendStatus {
+    const fromEnv = readBrandEnv("GOOGLE_CLIENT_ID")?.trim() ?? "";
+    const stored = fromEnv ? null : this.store.loadGoogleClient();
+    const sender = this.sender();
+    return youtubeSendStatus({
+      clientId: fromEnv || stored?.clientId || "",
+      account: sender ? sender.title || sender.channelId : null,
+      scopes: sender?.scopes ?? [],
+    });
   }
 
   state(): YoutubeDeskState {
