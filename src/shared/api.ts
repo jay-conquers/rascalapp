@@ -4,6 +4,7 @@ export type { BotSnapshot } from "../../packages/bot/src/index";
 import type { BotSnapshot } from "../../packages/bot/src/index";
 import type { YoutubeDeskState } from "../main/youtube/desk";
 import type { TtsPanel } from "./tts";
+import type { FeedToggles } from "./feed-toggles";
 import type {
   AppEvent,
   AppSnapshot,
@@ -21,6 +22,7 @@ export interface SettingsPatch {
   overlayPort?: number;
   alwaysOnTop?: boolean;
   autoImportFirebot?: boolean;
+  feed?: FeedToggles;
 }
 
 export interface RascalApi {

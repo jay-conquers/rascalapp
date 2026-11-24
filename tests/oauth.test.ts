@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { Logger } from "../src/main/logger";
 import { TokenStore } from "../src/main/tokens";
 import { TwitchAuth } from "../src/main/twitch/oauth";
+import { REQUIRED_SCOPES } from "../src/shared/scopes";
 import { expectPrivateMode } from "./expect-mode";
 
 describe("twitch device login", () => {
@@ -48,14 +49,7 @@ describe("twitch device login", () => {
         client_id: "client1234567890",
         login: "examplechannel",
         user_id: "4242",
-        scopes: [
-          "chat:read",
-          "chat:edit",
-          "user:write:chat",
-          "channel:manage:broadcast",
-          "channel:read:redemptions",
-          "channel:manage:redemptions",
-        ],
+        scopes: [...REQUIRED_SCOPES],
         expires_in: 14000,
       });
     };
@@ -73,6 +67,9 @@ describe("twitch device login", () => {
     await auth.login();
     expect(opened).toContain("https://www.twitch.tv/activate");
     expect(calls[0]?.body).toContain("channel%3Amanage%3Abroadcast");
+    expect(calls[0]?.body).toContain("user%3Aread%3Achat");
+    expect(calls[0]?.body).toContain("moderator%3Aread%3Awarnings");
+    expect(calls[0]?.body).toContain("moderator%3Aread%3Afollowers");
     expect(tokens.current?.login).toBe("examplechannel");
     expect(tokens.current?.accessToken).toBe("access-TESTTOKEN");
     expectPrivateMode(tokens.file, 0o600);

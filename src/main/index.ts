@@ -16,7 +16,7 @@ const PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com",
+  "img-src 'self' data: http://127.0.0.1:* http://localhost:* https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com",
   "connect-src 'self'",
   "font-src 'self'",
 ].join("; ");
@@ -341,6 +341,7 @@ function asSettingsPatch(value: unknown): SettingsPatch {
   if (typeof row.overlayPort === "number") patch.overlayPort = row.overlayPort;
   if (typeof row.alwaysOnTop === "boolean") patch.alwaysOnTop = row.alwaysOnTop;
   if (typeof row.autoImportFirebot === "boolean") patch.autoImportFirebot = row.autoImportFirebot;
+  if (row.feed && typeof row.feed === "object") patch.feed = row.feed as SettingsPatch["feed"];
   return patch;
 }
 

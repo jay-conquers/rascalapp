@@ -1,6 +1,7 @@
 import path from "node:path";
 import { brand } from "../shared/brand";
 import { TWITCH_MESSAGE_MAX } from "../shared/defaults";
+import { noticeDedupeKey, noticeEnabled } from "../shared/feed-toggles";
 import { redactError } from "../shared/redact";
 import type { SettingsPatch } from "../shared/api";
 import type { RedeemMapping } from "../shared/redeems";
@@ -8,6 +9,8 @@ import type {
   AppEvent,
   AppSnapshot,
   ChatBadge,
+  ChatMessage,
+  ModAction,
   AuthState,
   CategoryHit,
   ConnectionStatus,
@@ -18,6 +21,7 @@ import type {
 } from "../shared/types";
 import { ChatBus } from "./chat-bus";
 import { EmoteCatalog } from "./emotes/catalog";
+import { EmoteImageCache } from "./emotes/image-cache";
 import { Logger } from "./logger";
 import { OverlayServer } from "./server";
 import { SettingsStore } from "./settings";
@@ -36,6 +40,7 @@ import { TokenStore } from "./tokens";
 import { BadgeCatalog } from "./twitch/badges";
 import { Helix } from "./twitch/helix";
 import { TwitchIrc } from "./twitch/irc";
+import { NoticeSocket } from "./twitch/notices";
 import { TwitchAuth } from "./twitch/oauth";
 import { normalizeYoutubeReaderMessage } from "../shared/platform/normalize";
 import { YoutubeLive } from "./youtube/live";
@@ -51,13 +56,19 @@ export class Runtime {
   private readonly auth: TwitchAuth;
   private readonly helix: Helix;
   private readonly emotes: EmoteCatalog;
+  private readonly emoteImages: EmoteImageCache;
   private readonly badges: BadgeCatalog;
   private readonly irc: TwitchIrc;
+  private readonly notices: NoticeSocket;
   private readonly youtube: YoutubeLive;
   private readonly youtubeSend: YoutubeDesk;
   private seq = 0;
   private stream: StreamInfo | null = null;
   private streamTimer: NodeJS.Timeout | null = null;
+  private viewerTimer: NodeJS.Timeout | null = null;
+  private readonly modLog: ModAction[] = [];
+  private readonly noticeKeys = new Set<string>();
+  private scopeNoted = false;
   private lastSend = 0;
   private sender: ((event: AppEvent) => void) | null = null;
   private hooks: { alwaysOnTop?: (value: boolean) => void } = {};
@@ -69,7 +80,7 @@ export class Runtime {
     openExternal?: (url: string) => Promise<void>;
     fetchImpl?: typeof fetch;
   }) {
-    this.version = deps.version ?? "0.7.0";
+    this.version = deps.version ?? "0.8.0";
     this.log = new Logger(path.join(deps.dir, "logs", brand.logFile));
     this.youtubeSend = youtubeDesk(deps.dir, { log: this.log, fetchImpl: deps.fetchImpl });
     this.youtubeSend.setOnChange(() => this.publishYoutubeSend());
@@ -94,7 +105,17 @@ export class Runtime {
         this.emit({ type: "auth", auth: this.auth.state() });
         this.emit({ type: "login", login: this.auth.prompt });
         this.applyTwitchChannel();
-        if (this.auth.state().loggedIn) void this.badges.loadGlobal();
+        this.scopeNoted = false;
+        if (this.auth.state().loggedIn) {
+          void this.badges.loadGlobal();
+          this.notices.start();
+          this.notices.retarget();
+          void this.refreshViewers();
+          this.armViewerPoll();
+        } else {
+          this.notices.stop();
+          this.setTwitchViewers(null);
+        }
       },
     });
     this.helix = new Helix({
@@ -103,7 +124,8 @@ export class Runtime {
       refresh: () => this.auth.forceRefresh(),
       fetchImpl: deps.fetchImpl,
     });
-    this.emotes = new EmoteCatalog({ log: this.log, fetchImpl: deps.fetchImpl });
+    this.emotes = new EmoteCatalog({ log: this.log, fetchImpl: deps.fetchImpl, flags: settings.feed.emotes });
+    this.emoteImages = new EmoteImageCache({ dir: deps.dir, log: this.log, fetchImpl: deps.fetchImpl });
     this.badges = new BadgeCatalog({
       log: this.log,
       loadGlobal: () => this.helix.getGlobalBadges(),
@@ -113,7 +135,7 @@ export class Runtime {
     this.irc = new TwitchIrc({
       channel: settings.twitchChannel,
       emotes: () => this.emotes.map,
-      onMessage: (message) => this.bus.push(message),
+      onMessage: (message) => this.acceptChat(message),
       onDelete: (id) => this.bus.delete(id),
       onClearUser: (username) => this.bus.clearUser("twitch", username),
       onClearAll: () => this.bus.clearPlatform("twitch"),
@@ -130,13 +152,15 @@ export class Runtime {
     this.youtube = new YoutubeLive({
       channelId: settings.youtubeChannelId,
       onMessage: (message) => {
-        this.bus.push(message);
+        this.acceptChat(message);
         if (message.platform !== "youtube") return;
         const normalized = normalizeYoutubeReaderMessage(message);
         if (normalized) getBot()?.service.ingestYoutube(normalized);
       },
       onDelete: (id) => this.bus.delete(id),
       onDeleteAuthor: (authorId) => this.bus.clearAuthor(authorId),
+      onModAction: (action) => this.pushMod(action),
+      onViewers: (count) => this.setYoutubeViewers(count),
       onHealth: (health) => getBot()?.service.noteYoutubeReader(health.ok),
       onStatus: (youtube) => {
         const desk = this.youtubeSend.state();
@@ -153,10 +177,22 @@ export class Runtime {
       log: this.log,
       fetchImpl: deps.fetchImpl,
     });
+    this.notices = new NoticeSocket({
+      auth: () => this.auth.state(),
+      channel: () => this.chatChannel(),
+      feed: () => this.settings.load().feed,
+      broadcasterId: (login) => this.helix.getUserId(login),
+      subscribe: (type, version, condition, sessionId) => this.helix.subscribeEvent(type, version, condition, sessionId),
+      emotes: () => this.emotes.map,
+      onChat: (message) => this.acceptChat(message),
+      onModAction: (action) => this.pushMod(action),
+      onScopeProblem: (text) => this.noteScope(text),
+      log: this.log,
+    });
     this.bus.setHandlers({
       onMessage: (message) => {
         this.emit({ type: "chat", message });
-        this.server.broadcast({ type: "chat", message });
+        if (!message.deskOnly) this.server.broadcast({ type: "chat", message });
       },
       onDelete: (id) => {
         this.emit({ type: "chat-delete", id });
@@ -185,10 +221,14 @@ export class Runtime {
       overlay: { listening: true, host: this.server.host, port },
     };
     await startStages(this.stageContext());
+    this.registerEmoteRoute();
     void this.emotes.loadGlobals();
     void this.badges.loadGlobal();
     this.irc.start();
     this.youtube.start();
+    this.notices.start();
+    this.armViewerPoll();
+    void this.refreshViewers();
     this.publishYoutubeSend();
     await this.auth.restore();
     if (this.auth.state().loggedIn) {
@@ -208,8 +248,10 @@ export class Runtime {
 
   async stop(): Promise<void> {
     this.disarmStreamPoll();
+    this.disarmViewerPoll();
     this.irc.stop();
     this.youtube.stop();
+    this.notices.stop();
     this.emotes.stop();
     this.badges.stop();
     await stopStages(this.stageContext());
@@ -220,6 +262,7 @@ export class Runtime {
     return {
       seq: this.seq,
       messages: this.bus.messages.map((message) => ({ ...message })),
+      modLog: this.modLog.map((action) => ({ ...action })),
       status: this.status,
       auth: this.auth.state(),
       settings: this.settings.load(),
@@ -300,6 +343,12 @@ export class Runtime {
       if (redeems) this.emit({ type: "redeems", redeems });
     }
     if (next.alwaysOnTop !== prev.alwaysOnTop) this.hooks.alwaysOnTop?.(next.alwaysOnTop);
+    this.emotes.setFlags(next.feed.emotes);
+    if (!next.feed.modLog && prev.feed.modLog) {
+      this.modLog.splice(0, this.modLog.length);
+      this.emit({ type: "mod-log-clear" });
+    }
+    if (next.twitchChannel !== prev.twitchChannel) this.notices.retarget();
     this.emit({ type: "auth", auth: this.auth.state() });
     return this.settings.load();
   }
@@ -324,6 +373,8 @@ export class Runtime {
     const configured = this.settings.load().twitchChannel;
     const login = this.auth.state().loggedIn ? this.auth.state().login ?? "" : "";
     this.irc.setChannel(configured || login);
+    this.notices.retarget();
+    void this.refreshViewers();
   }
 
   logout(): AuthState {
@@ -646,6 +697,8 @@ export class Runtime {
       version: this.version,
       badgeImage: (badge: ChatBadge) => this.badges.imageFor(badge),
       youtubeAuthChanged: () => this.publishYoutubeSend(),
+      acceptChat: (message: ChatMessage) => this.acceptChat(message),
+      emoteForOverlay: (url: string) => this.emoteImages.overlayUrl(url, this.server.port),
     };
   }
 
@@ -678,6 +731,105 @@ export class Runtime {
     if (!this.streamTimer) return;
     clearInterval(this.streamTimer);
     this.streamTimer = null;
+  }
+
+  private acceptChat(message: ChatMessage): void {
+    const feed = this.settings.load().feed;
+    if (message.noticeKind && !noticeEnabled(feed, message.noticeKind)) return;
+    const key = noticeDedupeKey(message);
+    if (key) {
+      if (this.noticeKeys.has(key)) return;
+      this.noticeKeys.add(key);
+      if (this.noticeKeys.size > 500) {
+        const first = this.noticeKeys.values().next().value;
+        if (first) this.noticeKeys.delete(first);
+      }
+    }
+    for (const segment of message.segments) {
+      if (segment.type === "emote") this.emoteImages.prefetch(segment.url);
+    }
+    this.bus.push(message);
+  }
+
+  private pushMod(action: ModAction): void {
+    if (!this.settings.load().feed.modLog) return;
+    if (this.modLog.some((item) => item.id === action.id)) return;
+    this.modLog.push(action);
+    if (this.modLog.length > 300) this.modLog.splice(0, this.modLog.length - 300);
+    this.emit({ type: "mod-log", action });
+  }
+
+  private noteScope(text: string): void {
+    if (this.scopeNoted) return;
+    this.scopeNoted = true;
+    this.emit({ type: "toast", tone: "error", text });
+  }
+
+  private chatChannel(): string {
+    const configured = this.settings.load().twitchChannel;
+    const login = this.auth.state().loggedIn ? this.auth.state().login ?? "" : "";
+    return (configured || login).toLowerCase();
+  }
+
+  private async refreshViewers(): Promise<void> {
+    if (!this.auth.state().loggedIn) {
+      this.setTwitchViewers(null);
+      return;
+    }
+    const channel = this.chatChannel();
+    if (!channel) {
+      this.setTwitchViewers(null);
+      return;
+    }
+    try {
+      this.setTwitchViewers(await this.helix.getViewerCount(channel));
+    } catch (err) {
+      this.log.error("viewer count failed", { message: redactError(err) });
+    }
+  }
+
+  private setTwitchViewers(count: number | null): void {
+    if (this.status.twitch.viewers === count) return;
+    this.status = { ...this.status, twitch: { ...this.status.twitch, viewers: count } };
+    this.emit({ type: "status", status: this.status });
+  }
+
+  private setYoutubeViewers(count: number | null): void {
+    if (this.status.youtube.viewers === count) return;
+    this.status = { ...this.status, youtube: { ...this.status.youtube, viewers: count } };
+    this.emit({ type: "status", status: this.status });
+  }
+
+  private armViewerPoll(): void {
+    if (this.viewerTimer) return;
+    this.viewerTimer = setInterval(() => {
+      void this.refreshViewers();
+    }, 60_000);
+  }
+
+  private disarmViewerPoll(): void {
+    if (!this.viewerTimer) return;
+    clearInterval(this.viewerTimer);
+    this.viewerTimer = null;
+  }
+
+  private registerEmoteRoute(): void {
+    this.server.registerPrefix("GET", "/emote/", (_req, res, url) => {
+      const hash = url.pathname.slice("/emote/".length);
+      const image = this.emoteImages.read(hash);
+      if (!image) {
+        res.writeHead(404, { "Cache-Control": "no-store" });
+        res.end();
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": image.type,
+        "Content-Length": String(image.body.length),
+        "Cache-Control": "private, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
+      });
+      res.end(image.body);
+    });
   }
 
   private forgetStream(): void {

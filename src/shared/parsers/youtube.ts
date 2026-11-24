@@ -1,5 +1,7 @@
 import { colorForName, safeEmoteUrl } from "../emote-url";
-import type { ChatBadge, ChatMessage, Segment } from "../types";
+import type { NoticeKind } from "../feed-toggles";
+import { clipPlain } from "../plain";
+import type { ChatBadge, ChatMessage, ModAction, Segment } from "../types";
 
 export interface LiveContinuation {
   token: string;
@@ -17,6 +19,8 @@ export interface ParsedLiveChat {
   messages: ChatMessage[];
   deletedIds: string[];
   deletedAuthorIds: string[];
+  /** Deletes and author wipes the page reader actually exposes. Moderator names are usually absent. */
+  modActions: ModAction[];
   continuation: LiveContinuation | null;
   ended: boolean;
 }
@@ -131,6 +135,32 @@ export function interpretPlayer(player: unknown): PlayerRead {
   if (isLive) return { live: true, videoId, title, reason: "videoDetails.isLive" };
   if (isLiveNow) return { live: true, videoId, title, reason: "isLiveNow" };
   return { live: false, videoId, title, reason: "not-live" };
+}
+
+/**
+ * Concurrent viewers from the watch page player, not videos.list.
+ * YouTube puts the live concurrent count in videoDetails.viewCount while isLive is set.
+ * A VOD view count is ignored so a past stream is not shown as live viewers.
+ */
+export function readConcurrentViewers(player: unknown): number | null {
+  const root = asRecord(player);
+  const details = asRecord(root?.videoDetails);
+  const live = details?.isLive === true || details?.isLive === "true";
+  if (!live) return null;
+  const fromDetails = parseCount(details?.viewCount);
+  if (fromDetails !== null) return fromDetails;
+  const micro = asRecord(asRecord(root?.microformat)?.playerMicroformatRenderer);
+  const broadcast = asRecord(micro?.liveBroadcastDetails);
+  return parseCount(broadcast?.concurrentViewers);
+}
+
+function parseCount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.floor(value);
+  if (typeof value === "string") {
+    const digits = value.replace(/,/g, "");
+    if (/^\d{1,12}$/.test(digits)) return Number(digits);
+  }
+  return null;
 }
 
 export interface DetectedBroadcast {
@@ -252,14 +282,15 @@ export function parseLiveChatResponse(body: unknown): ParsedLiveChat {
   const continuationRoot =
     asRecord(asRecord(root?.continuationContents)?.liveChatContinuation) ?? findLiveChatRenderer(body);
   if (!continuationRoot) {
-    return { messages: [], deletedIds: [], deletedAuthorIds: [], continuation: null, ended: true };
+    return { messages: [], deletedIds: [], deletedAuthorIds: [], modActions: [], continuation: null, ended: true };
   }
-  const { messages, deletedIds, deletedAuthorIds } = parseActions(continuationRoot.actions);
+  const { messages, deletedIds, deletedAuthorIds, modActions } = parseActions(continuationRoot.actions);
   const picked = pickContinuation(continuationRoot.continuations);
   return {
     messages,
     deletedIds,
     deletedAuthorIds,
+    modActions,
     continuation: picked.continuation,
     ended: picked.ended,
   };
@@ -269,11 +300,13 @@ export function parseActions(actions: unknown): {
   messages: ChatMessage[];
   deletedIds: string[];
   deletedAuthorIds: string[];
+  modActions: ModAction[];
 } {
   const messages: ChatMessage[] = [];
   const deletedIds: string[] = [];
   const deletedAuthorIds: string[] = [];
-  if (!Array.isArray(actions)) return { messages, deletedIds, deletedAuthorIds };
+  const modActions: ModAction[] = [];
+  if (!Array.isArray(actions)) return { messages, deletedIds, deletedAuthorIds, modActions };
   for (const action of actions) {
     const record = asRecord(action);
     if (!record) continue;
@@ -283,6 +316,7 @@ export function parseActions(actions: unknown): {
       messages.push(...inner.messages);
       deletedIds.push(...inner.deletedIds);
       deletedAuthorIds.push(...inner.deletedAuthorIds);
+      modActions.push(...inner.modActions);
     }
     const item = asRecord(asRecord(record.addChatItemAction)?.item);
     if (item) {
@@ -290,31 +324,134 @@ export function parseActions(actions: unknown): {
       if (message) messages.push(message);
     }
     const deleted = asString(asRecord(record.markChatItemAsDeletedAction)?.targetItemId);
-    if (deleted) deletedIds.push(deleted);
+    if (deleted) {
+      deletedIds.push(deleted);
+      modActions.push(youtubeModAction(`yt-delete-${deleted}`, "delete", "", "A message was deleted. YouTube did not name the moderator."));
+    }
     const author = asString(asRecord(record.markChatItemsByAuthorAsDeletedAction)?.externalChannelId);
-    if (author) deletedAuthorIds.push(author);
+    if (author) {
+      deletedAuthorIds.push(author);
+      modActions.push(
+        youtubeModAction(
+          `yt-author-${author}`,
+          "delete",
+          author,
+          `Messages from ${author} were removed. YouTube did not say whether this was a ban or a timeout, and it did not name the moderator.`,
+        ),
+      );
+    }
+    const banner = moderationBanner(record);
+    if (banner) modActions.push(banner);
   }
-  return { messages, deletedIds, deletedAuthorIds };
+  return { messages, deletedIds, deletedAuthorIds, modActions };
+}
+
+function youtubeModAction(id: string, action: ModAction["action"], target: string, summary: string): ModAction {
+  return {
+    id,
+    platform: "youtube",
+    channel: "",
+    timestamp: Date.now(),
+    action,
+    actor: "",
+    target: clipPlain(target, 80),
+    durationSeconds: null,
+    reason: "",
+    summary: clipPlain(summary, 400),
+  };
+}
+
+/** Banners are only logged when the text itself says ban or timeout. Other banners are chat, not mod actions. */
+function moderationBanner(record: Record<string, unknown>): ModAction | null {
+  const banner = asRecord(asRecord(asRecord(record.addBannerToLiveChatCommand)?.bannerRenderer)?.liveChatBannerRenderer);
+  if (!banner) return null;
+  const header = textOf(asRecord(asRecord(banner.header)?.liveChatBannerHeaderRenderer)?.text) || textOf(banner.header);
+  const text = clipPlain(header, 300);
+  if (!text) return null;
+  if (/\b(was banned|has been banned|banned from)\b/i.test(text)) {
+    return youtubeModAction(`yt-banner-${hashText(text)}`, "ban", "", text);
+  }
+  if (/\b(timed out|put in timeout|in a timeout)\b/i.test(text)) {
+    return youtubeModAction(`yt-banner-${hashText(text)}`, "timeout", "", text);
+  }
+  return null;
 }
 
 function messageFromItem(item: Record<string, unknown>): ChatMessage | null {
   const text = asRecord(item.liveChatTextMessageRenderer);
   if (text) return renderMessage(text, "chat");
   const paid = asRecord(item.liveChatPaidMessageRenderer);
-  if (paid) return renderMessage(paid, "superchat", asString(asRecord(paid.purchaseAmountText)?.simpleText) ?? undefined);
+  if (paid) {
+    return withNotice(
+      renderMessage(paid, "superchat", asString(asRecord(paid.purchaseAmountText)?.simpleText) ?? undefined),
+      "superchat",
+    );
+  }
   const sticker = asRecord(item.liveChatPaidStickerRenderer);
   if (sticker) {
-    return renderMessage(sticker, "superchat", asString(asRecord(sticker.purchaseAmountText)?.simpleText) ?? undefined);
+    return withNotice(
+      renderMessage(sticker, "superchat", asString(asRecord(sticker.purchaseAmountText)?.simpleText) ?? undefined),
+      "supersticker",
+    );
   }
   const member = asRecord(item.liveChatMembershipItemRenderer);
   if (member) {
-    const header =
-      textOf(member.headerSubtext) || textOf(member.headerPrimaryText) || "Member";
+    const header = textOf(member.headerSubtext) || textOf(member.headerPrimaryText) || "Member";
     const message = renderMessage(member, "membership");
     if (!message) return null;
-    return { ...message, notice: header, plainText: message.plainText ? `${header} — ${message.plainText}` : header };
+    return {
+      ...message,
+      noticeKind: "membership",
+      notice: header,
+      plainText: message.plainText ? `${header} — ${message.plainText}` : header,
+    };
   }
+  const gift =
+    asRecord(item.liveChatSponsorshipsGiftPurchaseAnnouncementRenderer) ??
+    asRecord(item.liveChatSponsorshipsGiftRedemptionAnnouncementRenderer);
+  if (gift) return giftedMembership(gift);
+  const milestone = asRecord(item.liveChatViewerEngagementMessageRenderer);
+  if (milestone) return engagement(milestone);
   return null;
+}
+
+function withNotice(message: ChatMessage | null, noticeKind: NoticeKind): ChatMessage | null {
+  if (!message) return null;
+  return { ...message, noticeKind };
+}
+
+function giftedMembership(renderer: Record<string, unknown>): ChatMessage | null {
+  const header =
+    textOf(asRecord(asRecord(renderer.header)?.liveChatSponsorshipsHeaderRenderer)?.primaryText) ||
+    textOf(renderer.header) ||
+    textOf(renderer.primaryText);
+  const message = renderMessage(renderer, "membership");
+  const line = clipPlain(header, 200) || message?.plainText || "";
+  if (!line) return null;
+  const base = message ?? renderMessage({ ...renderer, id: renderer.id }, "membership");
+  if (!base) return null;
+  return {
+    ...base,
+    noticeKind: "gifted-membership",
+    notice: line,
+    plainText: base.plainText && base.plainText !== line ? `${line} — ${base.plainText}` : line,
+    segments: base.segments.length > 0 ? base.segments : [{ type: "text", text: line }],
+  };
+}
+
+function engagement(renderer: Record<string, unknown>): ChatMessage | null {
+  const line = textOf(renderer.message) || textOf(renderer.header);
+  if (!line) return null;
+  const message = renderMessage({ ...renderer, message: renderer.message ?? { simpleText: line } }, "system");
+  if (!message) return null;
+  const text = clipPlain(line, 300);
+  return {
+    ...message,
+    noticeKind: "milestone",
+    notice: text,
+    plainText: text,
+    segments: [{ type: "text", text }],
+  };
 }
 
 function renderMessage(renderer: Record<string, unknown>, kind: ChatMessage["kind"], amount?: string): ChatMessage | null {

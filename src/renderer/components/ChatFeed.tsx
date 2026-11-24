@@ -61,7 +61,7 @@ function MessageRow({ message }: { message: ChatMessage }) {
   const platformLabel = message.platform === "twitch" ? "Twitch" : "YouTube";
   return (
     <article
-      className={`msg kind-${message.kind}${message.deleted ? " deleted" : ""}`}
+      className={`msg kind-${message.kind}${message.noticeKind ? ` notice-${message.noticeKind}` : ""}${message.deskOnly ? " desk-only" : ""}${message.deleted ? " deleted" : ""}`}
       data-platform={message.platform}
     >
       <span className={`platform ${message.platform}`} title={platformLabel} aria-label={platformLabel}>

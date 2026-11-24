@@ -90,6 +90,32 @@ const pageTemplate = `<!doctype html>
       return svg;
     }
 
+    function safeOverlayImage(url) {
+      if (typeof url !== "string") return false;
+      try {
+        var parsed = new URL(url);
+      } catch (err) {
+        return false;
+      }
+      if (parsed.protocol === "https:") {
+        var allowed = {
+          "static-cdn.jtvnw.net": 1,
+          "cdn.betterttv.net": 1,
+          "cdn.frankerfacez.com": 1,
+          "cdn.7tv.app": 1,
+          "yt3.ggpht.com": 1,
+          "yt3.googleusercontent.com": 1,
+          "i.ytimg.com": 1,
+          "lh3.googleusercontent.com": 1
+        };
+        return allowed[parsed.hostname] === 1 && !parsed.username;
+      }
+      if (parsed.protocol !== "http:") return false;
+      if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") return false;
+      var hash = parsed.pathname.slice("/emote/".length);
+      return parsed.pathname === "/emote/" + hash && /^[a-f0-9]{64}$/.test(hash);
+    }
+
     function lineEl(line, style) {
       const row = document.createElement("div");
       row.className = "row";
@@ -135,7 +161,7 @@ const pageTemplate = `<!doctype html>
       const text = document.createElement("span");
       if (line.action) text.className = "action";
       for (const part of line.parts || []) {
-        if (part.type === "emote" && typeof part.url === "string" && part.url.indexOf("https://") === 0) {
+        if (part.type === "emote" && safeOverlayImage(part.url)) {
           const image = document.createElement("img");
           image.className = "emote";
           image.alt = part.text || "";

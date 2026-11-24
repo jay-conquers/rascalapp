@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { ChatOverlayFile } from "../shared/chat-overlay";
 import { defaultChatOverlayFile } from "../shared/chat-overlay";
 import type { RedeemSnapshot } from "../shared/redeems";
-import type { AppEvent, AuthState, ChatMessage, ConnectionStatus, LoginPrompt, Settings, StreamInfo } from "../shared/types";
+import type { AppEvent, AuthState, ChatMessage, ConnectionStatus, LoginPrompt, ModAction, Settings, StreamInfo } from "../shared/types";
 import { ChatFeed } from "./components/ChatFeed";
+import { ModLogPanel } from "./components/ModLogPanel";
 import { ChatOverlayView } from "./components/ChatOverlayView";
 import { Composer } from "./components/Composer";
 import { LoginDialog } from "./components/LoginDialog";
@@ -28,7 +29,9 @@ export function App() {
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.7.0");
+  const [version, setVersion] = useState("0.8.0");
+  const [modLog, setModLog] = useState<ModAction[]>([]);
+  const [modOpen, setModOpen] = useState(false);
   const [banner, setBanner] = useState(true);
 
   useEffect(() => {
@@ -42,6 +45,8 @@ export function App() {
     const queued: AppEvent[] = [];
     const apply = (event: AppEvent) => {
       if (event.type === "chat") setMessages((current) => [...current, event.message].slice(-500));
+      else if (event.type === "mod-log") setModLog((current) => [...current, event.action].slice(-300));
+      else if (event.type === "mod-log-clear") setModLog([]);
       else if (event.type === "chat-delete") {
         setMessages((current) => current.map((message) => (message.id === event.id ? { ...message, deleted: true } : message)));
       } else if (event.type === "chat-clear") {
@@ -71,6 +76,7 @@ export function App() {
       .then((snap) => {
         seq = snap.seq;
         setMessages(snap.messages);
+        setModLog(snap.modLog ?? []);
         setStatus(snap.status);
         setAuth(snap.auth);
         setSettings(snap.settings);
@@ -154,8 +160,8 @@ export function App() {
           </div>
         </div>
         <div className="pills">
-          <StatusPill label="Twitch" state={status.twitch.state} detail={status.twitch.detail} />
-          <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} />
+          <StatusPill label="Twitch" state={status.twitch.state} detail={status.twitch.detail} viewers={status.twitch.viewers} />
+          <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} />
         </div>
         <div className="top-actions">
           <button
@@ -273,8 +279,15 @@ export function App() {
         />
       ) : (
         <div className="workspace">
-          <section className="chat-column">
+          <section className={modOpen ? "chat-column with-mod" : "chat-column"}>
             <ChatFeed messages={messages} />
+            {modOpen ? <ModLogPanel actions={modLog} enabled={settings.feed.modLog} /> : null}
+            <div className="mod-toggle">
+              <button type="button" className={modOpen ? "text-button on" : "text-button"} onClick={() => setModOpen((open) => !open)}>
+                {modOpen ? "Hide mod log" : "Mod log"}
+              </button>
+              <span>Private to Rascal. Never posted to chat.</span>
+            </div>
             <Composer
               channel={shownChannel}
               canSendTwitch={auth.loggedIn}
@@ -301,12 +314,14 @@ export function App() {
   );
 }
 
-function StatusPill({ label, state, detail }: { label: string; state: string; detail: string }) {
+function StatusPill({ label, state, detail, viewers }: { label: string; state: string; detail: string; viewers?: number | null }) {
+  const watching = typeof viewers === "number" ? `${viewers.toLocaleString("en-US")} watching` : "";
   return (
-    <p className={`pill state-${state}`} title={detail}>
+    <p className={`pill state-${state}`} title={watching ? `${detail} · ${watching}` : detail}>
       <i />
       <span>{label}</span>
       <em>{shortDetail(detail)}</em>
+      {watching ? <strong className="viewers">{watching}</strong> : null}
     </p>
   );
 }

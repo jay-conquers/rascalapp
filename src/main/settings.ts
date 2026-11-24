@@ -4,6 +4,7 @@ import {
   DEFAULT_TWITCH_CHANNEL,
   DEFAULT_YOUTUBE_CHANNEL_ID,
 } from "../shared/defaults";
+import { defaultFeed, mergeFeed } from "../shared/feed-toggles";
 import type { Settings } from "../shared/types";
 import { readJson, tightenFile, writePrivateJson } from "./private-file";
 
@@ -14,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   overlayPort: DEFAULT_OVERLAY_PORT,
   alwaysOnTop: false,
   autoImportFirebot: true,
+  feed: defaultFeed(),
 };
 
 export class SettingsStore {
@@ -53,6 +55,7 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
     alwaysOnTop: patch.alwaysOnTop !== undefined ? Boolean(patch.alwaysOnTop) : current.alwaysOnTop,
     autoImportFirebot:
       patch.autoImportFirebot !== undefined ? Boolean(patch.autoImportFirebot) : current.autoImportFirebot,
+    feed: mergeFeed(current.feed ?? defaultFeed(), patch.feed),
     windowBounds: patch.windowBounds !== undefined ? patch.windowBounds : current.windowBounds,
   };
   if (next.twitchClientId && !/^[a-zA-Z0-9]{10,80}$/.test(next.twitchClientId)) {

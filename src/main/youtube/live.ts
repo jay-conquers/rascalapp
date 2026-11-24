@@ -4,10 +4,10 @@ import {
   YOUTUBE_CLIENT_VERSION_FALLBACK,
   YOUTUBE_WEB_API_KEY_FALLBACK,
 } from "../../shared/defaults";
-import { detectLiveFromHtml, parseLiveChatResponse, readLiveChatPage } from "../../shared/parsers/youtube";
+import { detectLiveFromHtml, extractEmbeddedJson, parseLiveChatResponse, readConcurrentViewers, readLiveChatPage } from "../../shared/parsers/youtube";
 import { nextYoutubeiPressure, rememberChatIds, youtubeiPollTargetMs, youtubeiWaitMs } from "../../shared/platform/youtubei";
 import { redactError } from "../../shared/redact";
-import type { ChatMessage } from "../../shared/types";
+import type { ChatMessage, ModAction } from "../../shared/types";
 import type { Logger } from "../logger";
 import { isAbort, sleep } from "../sleep";
 
@@ -21,6 +21,7 @@ interface ChatSession extends LiveHit {
   timeoutMs: number;
   apiKey: string;
   clientVersion: string;
+  viewers?: number | null;
 }
 
 export class YoutubeLive {
@@ -31,6 +32,7 @@ export class YoutubeLive {
   private readerFailures = 0;
   private readonly seen = new Set<string>();
   private readonly pollMs: number;
+  private viewersAt = 0;
 
   constructor(
     private readonly deps: {
@@ -38,6 +40,8 @@ export class YoutubeLive {
       onMessage: (message: ChatMessage) => void;
       onDelete: (id: string) => void;
       onDeleteAuthor: (authorId: string) => void;
+      onModAction?: (action: ModAction) => void;
+      onViewers?: (count: number | null) => void;
       onStatus: (status: { state: "idle" | "connecting" | "offline" | "live" | "reconnecting" | "error"; detail: string; videoId?: string; title?: string }) => void;
       onHealth?: (health: { ok: boolean; consecutiveFailures: number }) => void;
       log: Logger;
@@ -81,10 +85,12 @@ export class YoutubeLive {
         this.deps.onStatus({ state: "connecting", detail: "Checking for a live stream…" });
         const live = await detectLive(this.channelId, this.fetcher, signal);
         if (!live) {
+          this.deps.onViewers?.(null);
           this.deps.onStatus({ state: "offline", detail: "Channel is offline" });
           await sleep(20_000, signal);
           continue;
         }
+        if (typeof live.viewers === "number") this.deps.onViewers?.(live.viewers);
         this.deps.onStatus({
           state: "live",
           detail: live.title || "Live",
@@ -169,6 +175,10 @@ export class YoutubeLive {
       }
       for (const id of parsed.deletedIds) this.deps.onDelete(id);
       for (const authorId of parsed.deletedAuthorIds) this.deps.onDeleteAuthor(authorId);
+      for (const action of parsed.modActions) {
+        this.deps.onModAction?.({ ...action, channel: this.channelId });
+      }
+      void this.maybeViewers(session.videoId, signal);
       this.noteReader(true);
       pressure = nextYoutubeiPressure(pressure, "ok");
       if (parsed.ended || !parsed.continuation) return true;
@@ -177,6 +187,22 @@ export class YoutubeLive {
       await sleep(youtubeiWaitMs({ targetMs: this.pollMs, suggestedMs: suggested, pressure }), signal);
     }
     return false;
+  }
+
+  private async maybeViewers(videoId: string, signal: AbortSignal): Promise<void> {
+    if (Date.now() - this.viewersAt < 60_000) return;
+    this.viewersAt = Date.now();
+    try {
+      const response = await this.fetcher(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, {
+        signal,
+        headers: pageHeaders(),
+      });
+      if (!response.ok) return;
+      const count = readConcurrentViewers(extractEmbeddedJson(await response.text(), "ytInitialPlayerResponse"));
+      if (count !== null) this.deps.onViewers?.(count);
+    } catch (err) {
+      if (this.stopped || isAbort(err)) return;
+    }
   }
 
   private noteReader(ok: boolean): void {
@@ -205,9 +231,11 @@ export async function detectLive(
     signal,
     headers: pageHeaders(),
   });
-  const detected = detectLiveFromHtml(await response.text());
+  const html = await response.text();
+  const detected = detectLiveFromHtml(html);
   if (!detected) return null;
-  return sessionFromDetection(detected);
+  const viewers = readConcurrentViewers(extractEmbeddedJson(html, "ytInitialPlayerResponse"));
+  return { ...sessionFromDetection(detected), viewers };
 }
 
 function sessionFromDetection(detected: {

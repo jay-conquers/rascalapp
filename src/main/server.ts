@@ -154,7 +154,8 @@ export class OverlayServer {
       }
       if (method === "GET" && url.pathname === "/api/chat/recent") {
         const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit")) || 200));
-        sendJson(res, 200, { messages: this.recent().slice(-limit) });
+        const messages = this.recent().filter((message) => !message.deskOnly);
+        sendJson(res, 200, { messages: messages.slice(-limit) });
         return;
       }
       if (method === "GET" && (url.pathname === "/overlays" || url.pathname === "/overlays/")) {

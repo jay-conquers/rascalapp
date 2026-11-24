@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { brand } from "../../shared/brand";
+import { NOTICE_LABELS, type FeedToggles, type NoticeKind } from "../../shared/feed-toggles";
+import { MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { CheckRow } from "./CheckRow";
 import type { AuthState, ConnectionStatus, Settings } from "../../shared/types";
 
@@ -7,9 +9,12 @@ const SCOPE_REASONS = [
   ["chat:read", "Read chat while logged in"],
   ["chat:edit", "Send chat over IRC if needed"],
   ["user:write:chat", "Send chat from this desk"],
+  ["user:read:chat", "EventSub notices: subs, raids, watch streaks, mod anniversaries"],
   ["channel:manage:broadcast", "Change title, category, and tags"],
-  ["channel:read:redemptions", "Later: hear channel point redeems"],
-  ["channel:manage:redemptions", "Later: create rewards this app owns"],
+  ["channel:read:redemptions", "Hear channel point redeems"],
+  ["channel:manage:redemptions", "Create rewards this app owns"],
+  ["moderator:read:followers", "Show new follows in the desk"],
+  ...MODERATE_READ_SCOPES.map((scope) => [scope, "Private mod log (channel.moderate)"] as const),
 ] as const;
 
 export function SettingsView({
@@ -26,7 +31,7 @@ export function SettingsView({
   auth: AuthState;
   status: ConnectionStatus;
   version: string;
-  onSave: (patch: Pick<Settings, "twitchClientId" | "twitchChannel" | "youtubeChannelId" | "overlayPort" | "autoImportFirebot">) => Promise<void>;
+  onSave: (patch: Pick<Settings, "twitchClientId" | "twitchChannel" | "youtubeChannelId" | "overlayPort" | "autoImportFirebot" | "feed">) => Promise<void>;
   onLogin: () => void;
   onLogout: () => void;
   onOpenConsole: () => void;
@@ -36,6 +41,7 @@ export function SettingsView({
   const [youtube, setYoutube] = useState(settings.youtubeChannelId);
   const [port, setPort] = useState(String(settings.overlayPort));
   const [autoImport, setAutoImport] = useState(settings.autoImportFirebot !== false);
+  const [feed, setFeed] = useState<FeedToggles>(settings.feed);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -75,6 +81,21 @@ export function SettingsView({
     }
   }
 
+  function patchFeed(patch: Partial<FeedToggles>): void {
+    setFeed((current) => ({ ...current, ...patch }));
+    setSaved(false);
+  }
+
+  function setEmote(key: keyof FeedToggles["emotes"], checked: boolean): void {
+    setFeed((current) => ({ ...current, emotes: { ...current.emotes, [key]: checked } }));
+    setSaved(false);
+  }
+
+  function setNotice(key: NoticeKind, checked: boolean): void {
+    setFeed((current) => ({ ...current, notices: { ...current.notices, [key]: checked } }));
+    setSaved(false);
+  }
+
   async function save(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -87,6 +108,7 @@ export function SettingsView({
         youtubeChannelId: youtube.trim(),
         overlayPort,
         autoImportFirebot: autoImport,
+        feed,
       });
       setSaved(true);
     } catch (err) {
@@ -160,6 +182,25 @@ export function SettingsView({
           </label>
           <CheckRow checked={autoImport} onChange={setAutoImport}>
             Import Firebot reward files on startup
+          </CheckRow>
+
+          <h3>Emotes</h3>
+          <p className="count">Twitch and YouTube emotes in the message itself always render. These switches cover the extra catalogs. They start on.</p>
+          <CheckRow checked={feed.emotes.bttv} onChange={(checked) => setEmote("bttv", checked)}>BetterTTV global and channel emotes</CheckRow>
+          <CheckRow checked={feed.emotes.ffz} onChange={(checked) => setEmote("ffz", checked)}>FrankerFaceZ global and channel emotes</CheckRow>
+          <CheckRow checked={feed.emotes.seventv} onChange={(checked) => setEmote("seventv", checked)}>7TV global and channel emotes</CheckRow>
+
+          <h3>Notices</h3>
+          <p className="count">Each kind can be hidden. Turning one off removes it from this chat view. The private mod log is never posted to chat or drawn on an overlay.</p>
+          <div className="toggle-grid">
+            {NOTICE_LABELS.map((item) => (
+              <CheckRow key={item.key} checked={feed.notices[item.key]} onChange={(checked) => setNotice(item.key, checked)}>
+                {item.label}
+              </CheckRow>
+            ))}
+          </div>
+          <CheckRow checked={feed.modLog} onChange={(checked) => patchFeed({ modLog: checked })}>
+            Private mod log
           </CheckRow>
           {error && <p className="form-error">{error}</p>}
           <div className="form-actions">
@@ -247,7 +288,7 @@ export function SettingsView({
             ))}
           </ul>
           <p className="count">
-            Channel point permissions are requested now so a later update can manage rewards without asking again. This version does not create rewards or listen for redeems. Twitch only lets an app manage rewards it created.
+            A login from before 0.8.0 is missing the moderator read scopes, user:read:chat, and moderator:read:followers. Log in again and approve the new prompt. Chat keeps working before you do. Twitch only lets an app manage rewards it created.
           </p>
         </section>
       </div>

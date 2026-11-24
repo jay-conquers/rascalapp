@@ -161,7 +161,7 @@ export class TwitchIrc {
             (event.type === "privmsg" || event.type === "usernotice" || event.type === "notice")
           ) {
             const enriched =
-              event.type === "privmsg"
+              event.type === "privmsg" || event.type === "usernotice"
                 ? { ...event.message, segments: applyWordEmotes(event.message.segments, this.deps.emotes()) }
                 : event.message;
             this.deps.onMessage(enriched);
