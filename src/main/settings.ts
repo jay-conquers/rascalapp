@@ -6,6 +6,7 @@ import {
 } from "../shared/defaults";
 import { defaultFeed, mergeFeed } from "../shared/feed-toggles";
 import { defaultSendTargets, mergeSendTargets } from "../shared/send-targets";
+import { defaultChatAlert, mergeChatAlert } from "../shared/chat-alert";
 import type { Settings } from "../shared/types";
 import { readJson, tightenFile, writePrivateJson } from "./private-file";
 
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoImportFirebot: true,
   feed: defaultFeed(),
   sendTargets: defaultSendTargets(),
+  chatAlert: defaultChatAlert(),
 };
 
 export class SettingsStore {
@@ -59,6 +61,7 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
       patch.autoImportFirebot !== undefined ? Boolean(patch.autoImportFirebot) : current.autoImportFirebot,
     feed: mergeFeed(current.feed ?? defaultFeed(), patch.feed),
     sendTargets: mergeSendTargets(current.sendTargets, patch.sendTargets),
+    chatAlert: mergeChatAlert(current.chatAlert, patch.chatAlert),
     windowBounds: patch.windowBounds !== undefined ? patch.windowBounds : current.windowBounds,
   };
   if (next.twitchClientId && !/^[a-zA-Z0-9]{10,80}$/.test(next.twitchClientId)) {

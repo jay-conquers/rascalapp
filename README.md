@@ -4,7 +4,7 @@ Rascal is a free, open-source streaming desk for Twitch and YouTube. It replaces
 
 ## Features
 
-- Combined Twitch and YouTube chat in one window. Twitch emotes (global, channel, subscriber, and follower) render from the emote ids in each message. YouTube member and custom emoji render from the page reader. BetterTTV, FrankerFaceZ, and 7TV global and channel emotes are on by default, each with its own switch in Settings.
+- Combined Twitch and YouTube chat in one window. Twitch emotes (global, channel, subscriber, and follower) render from the emote ids in each message. YouTube member and custom emoji render from the page reader. BetterTTV, FrankerFaceZ, and 7TV global and channel emotes are on by default, each with its own switch in Settings. Settings can play a short chime for new viewer messages. It is off until you turn it on, and it keeps playing while the window is in the background.
 - Twitch login with the device-code flow. Rascal is a public client: it never asks for a client secret. Access and refresh tokens stay in the account config folder. On Linux that is `~/.config/rascal/` with mode `0600`.
 - Stream title, category, and tags for the signed-in Twitch channel.
 - Channel-point redeems over EventSub. Map a reward to a video, a sound, or nothing. Import a Firebot `channel-rewards.json` without writing it back. Rascal only edits rewards it created.

@@ -1,5 +1,6 @@
 import type { FeedToggles, NoticeKind } from "./feed-toggles";
 import type { SendTargets } from "./send-targets";
+import type { ChatAlertSettings } from "./chat-alert";
 
 export type { FeedToggles, NoticeKind } from "./feed-toggles";
 
@@ -111,6 +112,8 @@ export interface Settings {
   feed: FeedToggles;
   /** Chat-box platforms. A new install is Twitch only. Offline does not clear these. */
   sendTargets: SendTargets;
+  /** Optional chime for new viewer messages. Off until turned on. */
+  chatAlert: ChatAlertSettings;
   windowBounds?: { x: number; y: number; width: number; height: number };
 }
 
@@ -181,7 +184,8 @@ export type AppEvent =
   | { seq: number; type: "redeems"; redeems: import("./redeems").RedeemSnapshot }
   | { seq: number; type: "mod-log"; action: ModAction }
   | { seq: number; type: "mod-log-clear" }
-  | { seq: number; type: "toast"; tone: "error" | "ok"; text: string };
+  | { seq: number; type: "toast"; tone: "error" | "ok"; text: string }
+  | { seq: number; type: "chat-alert" };
 
 export interface AppSnapshot {
   seq: number;

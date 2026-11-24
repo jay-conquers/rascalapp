@@ -3,6 +3,7 @@ import { brand } from "../shared/brand";
 import { TWITCH_MESSAGE_MAX } from "../shared/defaults";
 import { noticeDedupeKey, noticeEnabled, placeNotice } from "../shared/feed-toggles";
 import { indexChannelEmotes } from "../shared/twitch-emotes";
+import { shouldPlayChatAlert, type AlertIdentity } from "../shared/chat-alert";
 import { redactError } from "../shared/redact";
 import type { SettingsPatch } from "../shared/api";
 import type { RedeemMapping } from "../shared/redeems";
@@ -71,6 +72,7 @@ export class Runtime {
   private readonly noticeKeys = new Set<string>();
   private scopeNoted = false;
   private roomId: string | null = null;
+  private lastAlertAt: number | null = null;
   private lastSend = 0;
   private sender: ((event: AppEvent) => void) | null = null;
   private hooks: { alwaysOnTop?: (value: boolean) => void } = {};
@@ -758,6 +760,7 @@ export class Runtime {
       this.bus.replace(placed.id, placed.message);
       return;
     }
+    this.maybeAlert(placed.message);
     const key = noticeDedupeKey(placed.message);
     if (key) {
       this.noticeKeys.add(key);
@@ -767,6 +770,55 @@ export class Runtime {
       }
     }
     this.bus.push(placed.message);
+  }
+
+  private maybeAlert(message: ChatMessage): void {
+    const settings = this.settings.load().chatAlert;
+    const now = Date.now();
+    const decision = shouldPlayChatAlert({
+      settings,
+      message: {
+        platform: message.platform,
+        username: message.username,
+        displayName: message.displayName,
+        authorId: message.authorId,
+        kind: message.kind,
+        noticeKind: message.noticeKind,
+        timestamp: message.timestamp,
+      },
+      identity: this.alertIdentity(),
+      now,
+      lastPlayedAt: this.lastAlertAt,
+      duplicate: false,
+    });
+    if (!decision.play) return;
+    this.lastAlertAt = now;
+    this.emit({ type: "chat-alert" });
+  }
+
+  private alertIdentity(): AlertIdentity {
+    const selfNames: string[] = [];
+    const selfIds: string[] = [];
+    const botNames: string[] = [];
+    const botIds: string[] = [];
+    const add = (bucket: string[], value?: string | null) => {
+      if (value && value.trim()) bucket.push(value.trim());
+    };
+    const auth = this.auth.state();
+    add(selfNames, auth.login);
+    add(selfIds, auth.userId);
+    const desk = this.youtubeSend.state();
+    add(selfNames, desk.account);
+    add(selfIds, desk.channelId);
+    add(selfIds, this.settings.load().youtubeChannelId);
+    const posters = getBot()?.service.alertPosters();
+    if (posters) {
+      selfNames.push(...posters.selfNames);
+      selfIds.push(...posters.selfIds);
+      botNames.push(...posters.botNames);
+      botIds.push(...posters.botIds);
+    }
+    return { selfNames, selfIds, botNames, botIds };
   }
 
   private async loadTwitchEmotes(broadcasterId: string): Promise<void> {

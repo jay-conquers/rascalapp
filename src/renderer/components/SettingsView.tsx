@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { brand } from "../../shared/brand";
 import { NOTICE_LABELS, type FeedToggles, type NoticeKind } from "../../shared/feed-toggles";
+import { defaultChatAlert, type ChatAlertSettings } from "../../shared/chat-alert";
+import { playChatChime } from "../chat-sound";
 import { MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { CheckRow } from "./CheckRow";
 import type { AuthState, ConnectionStatus, Settings } from "../../shared/types";
@@ -31,7 +33,7 @@ export function SettingsView({
   auth: AuthState;
   status: ConnectionStatus;
   version: string;
-  onSave: (patch: Pick<Settings, "twitchClientId" | "twitchChannel" | "youtubeChannelId" | "overlayPort" | "autoImportFirebot" | "feed">) => Promise<void>;
+  onSave: (patch: Pick<Settings, "twitchClientId" | "twitchChannel" | "youtubeChannelId" | "overlayPort" | "autoImportFirebot" | "feed" | "chatAlert">) => Promise<void>;
   onLogin: () => void;
   onLogout: () => void;
   onOpenConsole: () => void;
@@ -42,6 +44,7 @@ export function SettingsView({
   const [port, setPort] = useState(String(settings.overlayPort));
   const [autoImport, setAutoImport] = useState(settings.autoImportFirebot !== false);
   const [feed, setFeed] = useState<FeedToggles>(settings.feed);
+  const [alert, setAlert] = useState<ChatAlertSettings>(settings.chatAlert ?? defaultChatAlert());
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,6 +112,7 @@ export function SettingsView({
         overlayPort,
         autoImportFirebot: autoImport,
         feed,
+        chatAlert: alert,
       });
       setSaved(true);
     } catch (err) {
@@ -183,6 +187,74 @@ export function SettingsView({
           <CheckRow checked={autoImport} onChange={setAutoImport}>
             Import Firebot reward files on startup
           </CheckRow>
+
+          <h3>Message sound</h3>
+          <p className="count">
+            A short chime for new viewer messages. It stays off until you turn it on, and it still plays while this window is in the background. Your own messages, the bot, notices, and chat history do not play it.
+          </p>
+          <CheckRow checked={alert.enabled} onChange={(checked) => { setSaved(false); setAlert((current) => ({ ...current, enabled: checked })); }}>
+            Play a sound for new messages
+          </CheckRow>
+          <CheckRow checked={alert.notices} onChange={(checked) => { setSaved(false); setAlert((current) => ({ ...current, notices: checked })); }}>
+            Also play for notices
+          </CheckRow>
+          <label>
+            Volume
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(alert.volume * 100)}
+              onChange={(event) => setAlert((current) => ({ ...current, volume: Number(event.target.value) / 100 }))}
+            />
+            <span className="count">{Math.round(alert.volume * 100)}%</span>
+          </label>
+          <label>
+            Cooldown (seconds)
+            <input
+              inputMode="decimal"
+              value={String(alert.cooldownMs / 1000)}
+              onChange={(event) => {
+                const seconds = Number(event.target.value);
+                if (!Number.isFinite(seconds)) return;
+                setAlert((current) => ({ ...current, cooldownMs: Math.round(seconds * 1000) }));
+              }}
+            />
+          </label>
+          <p className="count">{alert.soundPath ? `Custom sound: ${alert.soundPath}` : "Using the built-in chime."}</p>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                void playChatChime({
+                  volume: alert.volume,
+                  soundPath: alert.soundPath,
+                  readFile: (filePath) => window.rascal?.readChatSound(filePath) ?? Promise.resolve(null),
+                });
+              }}
+            >
+              Test sound
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                void window.rascal?.pickChatSound().then((file) => {
+                  if (file) setAlert((current) => ({ ...current, soundPath: file }));
+                }).catch((err: unknown) => {
+                  setError(err instanceof Error ? err.message : "That sound could not be used.");
+                });
+              }}
+            >
+              Choose sound
+            </button>
+            {alert.soundPath ? (
+              <button type="button" className="ghost" onClick={() => setAlert((current) => ({ ...current, soundPath: "" }))}>
+                Use built-in chime
+              </button>
+            ) : null}
+          </div>
 
           <h3>Emotes</h3>
           <p className="count">Twitch and YouTube emotes in the message itself always render. These switches cover the extra catalogs. They start on.</p>

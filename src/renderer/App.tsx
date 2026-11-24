@@ -15,6 +15,8 @@ import { TtsView } from "./components/TtsView";
 import { BotView } from "./components/BotView";
 import { brand } from "../shared/brand";
 import { twitchLink, youtubeLink, type SendTargets } from "../shared/send-targets";
+import { defaultChatAlert } from "../shared/chat-alert";
+import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
 
 export function App() {
@@ -34,6 +36,8 @@ export function App() {
   const [modLog, setModLog] = useState<ModAction[]>([]);
   const [modOpen, setModOpen] = useState(false);
   const sendSeq = useRef(0);
+  const alertRef = useRef(defaultChatAlert());
+  alertRef.current = settings?.chatAlert ?? alertRef.current;
   const [banner, setBanner] = useState(true);
 
   useEffect(() => {
@@ -49,6 +53,13 @@ export function App() {
       if (event.type === "chat") setMessages((current) => [...current, event.message].slice(-500));
       else if (event.type === "chat-replace") {
         setMessages((current) => current.map((message) => (message.id === event.message.id ? event.message : message)));
+      } else if (event.type === "chat-alert") {
+        const alert = alertRef.current;
+        void playChatChime({
+          volume: alert.volume,
+          soundPath: alert.soundPath,
+          readFile: (filePath) => window.rascal?.readChatSound(filePath) ?? Promise.resolve(null),
+        });
       }
       else if (event.type === "mod-log") setModLog((current) => [...current, event.action].slice(-300));
       else if (event.type === "mod-log-clear") setModLog([]);
