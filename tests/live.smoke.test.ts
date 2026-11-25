@@ -1,7 +1,7 @@
 import tls from "node:tls";
 import { describe, expect, it } from "vitest";
 import { IrcFramer, parseIrcLine } from "../src/shared/parsers/twitch-irc";
-import { detectLive } from "../src/main/youtube/live";
+import { detectLive } from "../src/shared/youtube/page-reader";
 
 import { readBrandEnv } from "../src/shared/brand";
 

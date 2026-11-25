@@ -12,7 +12,7 @@ import {
 } from "../../../src/shared/platform/youtube-oauth.ts";
 import type { QuotaSnapshot } from "../../../src/shared/platform/youtube-quota.ts";
 import type { PlatformCapabilities } from "../../../src/shared/platform/types.ts";
-import { detectLive } from "../../../src/main/youtube/live.ts";
+import { detectLive } from "../../../src/shared/youtube/page-reader.ts";
 import {
   activePhase,
   advanceTimer,

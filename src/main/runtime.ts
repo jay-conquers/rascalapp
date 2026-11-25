@@ -45,7 +45,7 @@ import { TwitchIrc } from "./twitch/irc";
 import { NoticeSocket } from "./twitch/notices";
 import { TwitchAuth } from "./twitch/oauth";
 import { normalizeYoutubeReaderMessage } from "../shared/platform/normalize";
-import { YoutubeLive } from "./youtube/live";
+import { YoutubeLive } from "../shared/youtube/page-reader";
 import { youtubeDesk, type YoutubeDesk, type YoutubeDeskState } from "./youtube/desk";
 
 export class Runtime {

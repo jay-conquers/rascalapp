@@ -1,11 +1,10 @@
-import { YoutubeLive } from "../../../../src/main/youtube/live.ts";
-import { Logger } from "../../../../src/main/logger.ts";
 import { normalizeYoutubeReaderMessage } from "../../../../src/shared/platform/normalize.ts";
 import { isChatClosedError, isQuotaError, YoutubeDataApi } from "../../../../src/shared/platform/youtube-api.ts";
 import { sharedQuotaMeter, YoutubeQuotaMeter, type QuotaSnapshot } from "../../../../src/shared/platform/youtube-quota.ts";
 import { describeYoutubeQuota, shouldUseYoutubeApiPoll } from "../../../../src/shared/platform/youtubei.ts";
 import type { ChatPlatform, NormalizedChatMessage, PlatformCapabilities, PlatformLiveStatus } from "../../../../src/shared/platform/types.ts";
-import { isAbort, sleep } from "../../../../src/main/sleep.ts";
+import { isAbort, sleep } from "../../../../src/shared/sleep.ts";
+import { YoutubeLive, type PageReaderLog } from "../../../../src/shared/youtube/page-reader.ts";
 
 const CAPABILITIES: PlatformCapabilities = {
   send: true,
@@ -13,6 +12,12 @@ const CAPABILITIES: PlatformCapabilities = {
   timeout: true,
   ban: true,
   unban: true,
+};
+
+/** The headless reader used to log into a file-less logger that nothing read. */
+const quietPageLog: PageReaderLog = {
+  info() {},
+  error() {},
 };
 
 export class YoutubeChatPlatform implements ChatPlatform {
@@ -230,7 +235,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
         this.setLive({ live: status.state === "live", known, title: status.title, videoId: status.videoId });
       },
       onHealth: (health) => this.noteReader(health.ok),
-      log: new Logger(null),
+      log: quietPageLog,
       fetchImpl: this.deps.fetchImpl,
     });
     this.own = reader;
