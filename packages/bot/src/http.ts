@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import http from "node:http";
-import { brand } from "../../../src/shared/brand.ts";
+import { brand, readBrandEnv } from "../../../src/shared/brand.ts";
 import { PORTAL_SCOPES } from "./model.ts";
 import { portalPage } from "./portal-page.ts";
 import type { BotService } from "./service.ts";
@@ -63,11 +63,27 @@ export async function startHttp(service: BotService, options: { host: string; po
       res.end();
       return;
     }
+    if (method === "GET" && url.pathname === "/youtube/callback") {
+      const redirect = service.youtubeRedirect();
+      if (requestHostname(req) !== new URL(redirect).hostname.toLowerCase()) {
+        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+        res.end("Open the YouTube login from its public address.");
+        return;
+      }
+      const code = url.searchParams.get("code") ?? "";
+      const state = url.searchParams.get("state") ?? "";
+      const error = url.searchParams.get("error") ?? "";
+      const accepted = service.acceptYoutubeCallback({ code, state, error });
+      const page = accepted && !error ? "YouTube is connected. You can close this window." : "That YouTube login was not waiting. Start it again from Rascal.";
+      res.writeHead(accepted ? 200 : 400, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(`<!doctype html><title>YouTube</title><p>${page}</p>`);
+      return;
+    }
     if (method === "GET" && url.pathname === "/portal/callback") {
       const code = url.searchParams.get("code") ?? "";
       const state = url.searchParams.get("state") ?? "";
       if (!portalHostMatches(req, service.snapshot(port).redirectUri)) {
-        sendJson(res, 400, { error: "Open the portal at its localhost address and log in again." });
+        sendJson(res, 400, { error: "Open the portal on its public address and log in again." });
         return;
       }
       const flow = pending.get(state);
@@ -243,6 +259,7 @@ async function finishPortalLogin(service: BotService, clientId: string, verifier
       grant_type: "authorization_code",
       redirect_uri: redirect,
       code_verifier: verifier,
+      ...(twitchClientSecret() ? { client_secret: twitchClientSecret() } : {}),
     }),
   });
   if (!tokenRes.ok) throw new Error("Twitch did not finish the portal login.");
@@ -263,6 +280,10 @@ async function moderates(fetchImpl: typeof fetch, headers: Record<string, string
   if (!response.ok) return false;
   const rows = ((await response.json()) as { data?: { broadcaster_id?: string; broadcaster_login?: string }[] }).data ?? [];
   return rows.some((row) => row.broadcaster_id === snap.broadcasterId || (row.broadcaster_login ?? "").toLowerCase() === snap.channelLogin.toLowerCase());
+}
+
+function twitchClientSecret(): string {
+  return readBrandEnv("TWITCH_CLIENT_SECRET") || process.env.TWITCH_CLIENT_SECRET || "";
 }
 
 function redirectLoopbackPortal(req: http.IncomingMessage, res: http.ServerResponse, redirectUri: string, port: number): boolean {

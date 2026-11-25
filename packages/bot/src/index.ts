@@ -25,6 +25,8 @@ export async function startBot(options: {
   bridge?: ChannelTokenBridge;
   onAccountsChanged?: () => void;
   youtubeReader?: "external" | "own";
+  /** Do not slide to the next port. A public URL has to stay on the port the proxy expects. */
+  strictPort?: boolean;
 }): Promise<BotHandle> {
   const store = new BotStore(options.dir);
   const file = store.loadConfig();
@@ -40,7 +42,8 @@ export async function startBot(options: {
   if (options.bridge) service.setChannelTokenBridge(options.bridge);
   let httpServer: Awaited<ReturnType<typeof startHttp>> | null = null;
   let lastError: unknown;
-  for (let offset = 0; offset < 10; offset += 1) {
+  const attempts = options.strictPort ? 1 : 10;
+  for (let offset = 0; offset < attempts; offset += 1) {
     try {
       httpServer = await startHttp(service, { host, port: preferred + offset, clientId: options.clientId, fetchImpl: options.fetchImpl });
       break;

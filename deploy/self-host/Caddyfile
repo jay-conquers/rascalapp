@@ -1,0 +1,6 @@
+# Replace nothing here. Set PUBLIC_HOST in .env to the DNS name that points at this machine.
+# Caddy asks Let's Encrypt for a certificate for that name.
+
+{$PUBLIC_HOST} {
+	reverse_proxy bot:4788
+}

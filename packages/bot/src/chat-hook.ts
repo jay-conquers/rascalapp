@@ -99,8 +99,12 @@ export function normalizeHook(value: unknown): ChatHook | null {
   };
 }
 
-/** https anywhere, or http only for this machine. No userinfo, and no query is required. */
-export function checkHookUrl(value: string): string {
+/**
+ * https anywhere, or http for this machine.
+ * Set RASCAL_HOOK_PRIVATE_HTTP=1 to also allow http to a private address or a single-label
+ * name such as another container. Link-local addresses stay blocked.
+ */
+export function checkHookUrl(value: string, allowPrivateHttp = process.env.RASCAL_HOOK_PRIVATE_HTTP === "1"): string {
   const text = value.trim();
   if (!text || text.length > 300) return "";
   let url: URL;
@@ -111,9 +115,21 @@ export function checkHookUrl(value: string): string {
   }
   if (url.username || url.password) return "";
   const local = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-  if (url.protocol === "http:" && local) return url.toString();
+  if (url.protocol === "http:" && (local || (allowPrivateHttp && isPrivateHookHost(url.hostname)))) return url.toString();
   if (url.protocol === "https:") return url.toString();
   return "";
+}
+
+function isPrivateHookHost(hostname: string): boolean {
+  if (hostname === "localhost" || hostname === "metadata" || hostname === "metadata.google.internal") return false;
+  if (/^[a-z0-9-]+$/i.test(hostname)) return true;
+  const parts = hostname.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const [a, b] = parts;
+  if (a === 10) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  return false;
 }
 
 /** Origin and path only. Query strings stay out of logs. */
