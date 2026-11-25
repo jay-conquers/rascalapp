@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Chat hooks. Each hook in `bot.json` can POST a viewer's command to an address you run. It is off until enabled. A secret signs the body, and the service can optionally return a short chat reply.
+
 ## 0.8.1
 
 - A command can list keywords. A keyword or phrase in a normal message fires that command, on a word boundary, ignoring case. The command cooldown stops a busy chat from repeating it. StreamElements keyword phrases such as `on accident` import into this list.

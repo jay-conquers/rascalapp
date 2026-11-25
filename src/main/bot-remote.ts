@@ -44,6 +44,25 @@ export class RemoteBot {
     return this.send("POST", "/api/extras", body);
   }
 
+  saveHook(body: unknown): Promise<BotSnapshot> {
+    return this.send("POST", "/api/hooks", body);
+  }
+
+  deleteHook(id: string): Promise<BotSnapshot> {
+    return this.send("POST", "/api/hooks/delete", { id });
+  }
+
+  async testHook(id: string): Promise<{ ok: boolean; status: number; ms: number; detail: string }> {
+    const json: unknown = await this.send("POST", "/api/hooks/test", { id });
+    const row = json && typeof json === "object" ? (json as { ok?: unknown; status?: unknown; ms?: unknown; detail?: unknown }) : {};
+    return {
+      ok: row.ok === true,
+      status: typeof row.status === "number" ? row.status : 0,
+      ms: typeof row.ms === "number" ? row.ms : 0,
+      detail: typeof row.detail === "string" ? row.detail : "",
+    };
+  }
+
   importSe(jwt = ""): Promise<BotSnapshot> {
     return this.send("POST", "/api/import/streamelements", { jwt });
   }

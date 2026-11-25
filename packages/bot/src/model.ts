@@ -1,4 +1,7 @@
+import { normalizeHooks, type ChatHook } from "./chat-hook.ts";
 import { normalizePlatformTarget, targetsPlatform, type PlatformTarget } from "../../../src/shared/platform/target.ts";
+
+export type { ChatHook } from "./chat-hook.ts";
 import { keywordHits, normalizeKeywords } from "./keywords.ts";
 import { handleQuote, normalizeQuotes, type Quote } from "./quotes.ts";
 import { defaultThanks, normalizeThanks, type ThanksSettings } from "./thanks.ts";
@@ -113,6 +116,8 @@ export interface BotFile {
   quotes: Quote[];
   thanks: ThanksSettings;
   shoutout: ShoutoutSettings;
+  /** External chat services. Off until a streamer turns one on. */
+  hooks: ChatHook[];
 }
 
 export interface ChatLine {
@@ -232,6 +237,7 @@ export function defaultBotFile(): BotFile {
     quotes: [],
     thanks: defaultThanks(),
     shoutout: defaultShoutout(),
+    hooks: [],
   };
 }
 
@@ -256,6 +262,7 @@ export function normalizeBotFile(value: unknown): BotFile {
     quotes: normalizeQuotes(row.quotes),
     thanks: normalizeThanks(row.thanks),
     shoutout: normalizeShoutout(row.shoutout),
+    hooks: normalizeHooks(row.hooks),
   };
 }
 
