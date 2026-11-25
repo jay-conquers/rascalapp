@@ -21,8 +21,27 @@ export function safeEmoteUrl(raw: string | undefined | null): string | null {
     return null;
   }
   if (url.protocol !== "https:") return null;
+  if (url.username || url.password) return null;
   if (!ALLOWED_HOSTS.has(url.hostname)) return null;
+  for (const key of url.searchParams.keys()) {
+    if (/access_token|refresh_token|id_token|^token$|jwt/i.test(key)) return null;
+  }
   return url.toString();
+}
+
+/** Loopback emote cache, or an allowlisted https image. */
+export function overlayEmoteAllowed(raw: string): boolean {
+  if (safeEmoteUrl(raw)) return true;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:") return false;
+  if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") return false;
+  const hash = url.pathname.slice("/emote/".length);
+  return url.pathname === `/emote/${hash}` && /^[a-f0-9]{64}$/.test(hash);
 }
 
 export function colorForName(name: string, provided?: string): string {

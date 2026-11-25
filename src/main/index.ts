@@ -8,6 +8,7 @@ import { migrateLegacyConfig } from "./migrate-config";
 import { Runtime } from "./runtime";
 import { setChatShortcutHooks } from "./stages/chat";
 import { redactError } from "../shared/redact";
+import { readChatSoundFile } from "./chat-sound-file";
 import type { SettingsPatch } from "../shared/api";
 import { normalizePlacement, type RedeemMapping } from "../shared/redeems";
 import type { StreamUpdate } from "../shared/types";
@@ -16,7 +17,7 @@ const PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com",
+  "img-src 'self' data: http://127.0.0.1:* http://localhost:* https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com",
   "connect-src 'self'",
   "font-src 'self'",
 ].join("; ");
@@ -292,6 +293,26 @@ function registerIpc(runtime: Runtime): void {
   ipcMain.handle("app:youtube-connect", () => guard(() => runtime.youtubeConnect()));
   ipcMain.handle("app:youtube-cancel", () => guard(() => runtime.youtubeCancel()));
   ipcMain.handle("app:youtube-logout", () => guard(() => runtime.youtubeLogout()));
+  ipcMain.handle("app:chat-sound-pick", () =>
+    guard(async () => {
+      const result = await dialog.showOpenDialog({
+        title: "Choose a chat alert sound",
+        properties: ["openFile"],
+        filters: [{ name: "Audio", extensions: ["wav", "mp3", "ogg", "flac", "m4a", "aac"] }],
+      });
+      if (result.canceled) return null;
+      const file = result.filePaths[0];
+      if (!file) return null;
+      readChatSoundFile(file);
+      return file;
+    }),
+  );
+  ipcMain.handle("app:chat-sound-read", (_event, filePath: unknown) =>
+    guard(() => {
+      if (typeof filePath !== "string") throw new Error("Choose a local audio file.");
+      return readChatSoundFile(filePath).bytes;
+    }),
+  );
   ipcMain.handle("app:pick-media", (_event, kind: unknown) =>
     guard(async () => {
       const video = kind !== "sound";
@@ -341,6 +362,9 @@ function asSettingsPatch(value: unknown): SettingsPatch {
   if (typeof row.overlayPort === "number") patch.overlayPort = row.overlayPort;
   if (typeof row.alwaysOnTop === "boolean") patch.alwaysOnTop = row.alwaysOnTop;
   if (typeof row.autoImportFirebot === "boolean") patch.autoImportFirebot = row.autoImportFirebot;
+  if (row.feed && typeof row.feed === "object") patch.feed = row.feed as SettingsPatch["feed"];
+  if (row.sendTargets && typeof row.sendTargets === "object") patch.sendTargets = row.sendTargets as SettingsPatch["sendTargets"];
+  if (row.chatAlert && typeof row.chatAlert === "object") patch.chatAlert = row.chatAlert as SettingsPatch["chatAlert"];
   return patch;
 }
 

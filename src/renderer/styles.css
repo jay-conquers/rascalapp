@@ -143,8 +143,47 @@ img { max-width: 100%; }
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
 }
+.chat-column.with-mod {
+  grid-template-rows: minmax(0, 1fr) 190px auto auto;
+}
+.mod-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+.mod-log {
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid #6b4423;
+  background: #1a120c;
+  padding: 8px 14px 10px;
+}
+.mod-log header { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.mod-log h2 { margin: 0; font-size: 13px; letter-spacing: 0.04em; }
+.mod-log .private-tag { color: #f5c451; font-size: 11px; font-weight: 800; }
+.mod-log ol { list-style: none; margin: 6px 0 0; padding: 0; }
+.mod-entry {
+  margin: 6px 0;
+  padding: 4px 0 4px 8px;
+  border-left: 3px solid #d97706;
+  background: rgba(217, 119, 6, 0.08);
+}
+.mod-entry time, .mod-entry .mod-platform { color: var(--muted); font-size: 11px; margin-right: 8px; }
+.mod-entry p { margin: 2px 0 0; }
+.msg.notice-sub, .msg.notice-resub, .msg.notice-subgift, .msg.notice-membership, .msg.notice-gifted-membership { box-shadow: inset 3px 0 0 #f5c451; }
+.msg.notice-raid { box-shadow: inset 3px 0 0 #c4a3ff; }
+.msg.notice-cheer, .msg.notice-superchat, .msg.notice-supersticker { box-shadow: inset 3px 0 0 var(--gold); }
+.msg.notice-follow { box-shadow: inset 3px 0 0 #7dd3fc; }
+.msg.notice-watch-streak, .msg.notice-mod-anniversary, .msg.notice-milestone { box-shadow: inset 3px 0 0 #5eead4; }
+.msg.notice-redemption { box-shadow: inset 3px 0 0 #fb923c; background: rgba(251, 146, 60, 0.08); }
+.msg.desk-only { background: rgba(251, 146, 60, 0.05); }
+.pill .viewers { font-variant-numeric: tabular-nums; color: var(--cream); font-size: 12px; }
+.toggle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }
 .feed-wrap { position: relative; min-height: 0; }
 .feed {
   height: 100%;
@@ -496,6 +535,8 @@ label.check-row {
   align-content: start;
 }
 .composer-targets { display: flex; flex-wrap: wrap; gap: 12px; }
+.offline-note { margin-left: 6px; color: var(--muted); font-style: normal; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: lowercase; }
+.settings input[type="range"] { padding: 0; accent-color: var(--gold); }
 .youtube-send-hint { display: grid; gap: 8px; }
 .youtube-send-hint p { margin: 0; }
 .quota-meter { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }

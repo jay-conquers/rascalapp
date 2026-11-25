@@ -283,6 +283,31 @@ export class BotService {
     };
   }
 
+  /** Names and ids Rascal posts as, so a message chime can ignore them. */
+  alertPosters(): { selfNames: string[]; selfIds: string[]; botNames: string[]; botIds: string[] } {
+    const selfNames: string[] = [];
+    const selfIds: string[] = [];
+    const botNames: string[] = [];
+    const botIds: string[] = [];
+    if (this.file.channelLogin) selfNames.push(this.file.channelLogin);
+    if (this.file.broadcasterId) selfIds.push(this.file.broadcasterId);
+    if (this.file.youtubeChannelId) selfIds.push(this.file.youtubeChannelId);
+    const posting = this.activeTwitch();
+    if (this.file.accounts.twitch === "bot" && posting) {
+      botNames.push(posting.login);
+      botIds.push(posting.userId);
+    } else if (this.tokens) {
+      botNames.push(this.tokens.login);
+      botIds.push(this.tokens.userId);
+    }
+    const youtube = this.file.accounts.youtube === "bot" ? this.youtubeSession() : this.youtubeTokens;
+    if (youtube) {
+      if (youtube.title) botNames.push(youtube.title);
+      botIds.push(youtube.channelId);
+    }
+    return { selfNames, selfIds, botNames, botIds };
+  }
+
   setIdentity(patch: { channelLogin?: string; broadcasterId?: string; publicUrl?: string; youtubeChannelId?: string }): void {
     const previousChannel = this.file.youtubeChannelId;
     if (typeof patch.channelLogin === "string") this.file.channelLogin = patch.channelLogin.trim().replace(/^#/, "").toLowerCase();

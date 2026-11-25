@@ -17,7 +17,8 @@ import { brand } from "../../shared/brand";
 import { redactError } from "../../shared/redact";
 import type { AppContext } from "../stages/types";
 import type { TwitchReward } from "../twitch/helix";
-import { EventSubClient } from "./eventsub";
+import { chatFromRedemption } from "../../shared/parsers/eventsub-events";
+import { EventSubClient, type EventSubRedemption } from "./eventsub";
 import { buildAlertsPage, overlayHelloMessage } from "./overlay-page";
 import { AlertQueue, type AlertJob } from "./queue";
 import { firebotRewardsFile } from "../../shared/paths";
@@ -334,7 +335,9 @@ export class RedeemEngine {
     if (changed) saveRedeemFile(this.file, this.data);
   }
 
-  private onRedemption(redemption: { redemptionId: string; rewardId: string; rewardTitle: string; userName: string }): void {
+  private onRedemption(redemption: EventSubRedemption): void {
+    const channel = this.ctx.settings.load().twitchChannel || this.ctx.auth.state().login || "";
+    this.ctx.acceptChat?.(chatFromRedemption(redemption, channel));
     const reward = this.rewards.find((item) => item.id === redemption.rewardId);
     const mapping =
       this.data.mappings.find((item) => item.rewardId === redemption.rewardId) ??

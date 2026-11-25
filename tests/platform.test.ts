@@ -3,7 +3,7 @@ import { decideChat, defaultBotFile, emptyMemory, normalizeBotFile, type BotComm
 import { normalizeTwitchChatFields, normalizeYoutubeLiveChatItem } from "../src/shared/platform/normalize";
 import { PlatformRegistry } from "../src/shared/platform/registry";
 import type { ChatPlatform, PlatformLiveStatus } from "../src/shared/platform/types";
-import { YoutubeApiError, YoutubeDataApi, isQuotaError } from "../src/shared/platform/youtube-api";
+import { YoutubeApiError, YoutubeDataApi, isQuotaError, pickLiveBroadcast } from "../src/shared/platform/youtube-api";
 import { YOUTUBE_QUOTA_COSTS, YoutubeQuotaMeter, nextPollDelayMs, youtubeMessagesPerDay, youtubePollsPerDay } from "../src/shared/platform/youtube-quota";
 
 const facts = { title: "Ranked", game: "Valorant", uptime: "2h", followage: "400d" };
@@ -227,6 +227,91 @@ describe("mocked youtube api", () => {
       expect(err instanceof Error ? err.message : "").not.toContain("secret-token");
       expect(String(err)).toMatch(/quota/i);
     }
+  });
+});
+
+describe("youtube live chat insert", () => {
+  const upcoming = {
+    id: "upcoming0001",
+    snippet: { title: "Old premiere", liveChatId: "stale-chat" },
+    status: { lifeCycleStatus: "ready" },
+  };
+  const current = {
+    id: "Cg9VaXE-Q18",
+    snippet: { title: "Kingdom Come Deliverance 2 - Part 5", liveChatId: "broadcast-chat" },
+    status: { lifeCycleStatus: "live" },
+  };
+
+  it("skips a stale upcoming broadcast and keeps the live one", () => {
+    expect(pickLiveBroadcast([upcoming, current], "Cg9VaXE-Q18")).toEqual({
+      videoId: "Cg9VaXE-Q18",
+      title: "Kingdom Come Deliverance 2 - Part 5",
+      liveChatId: "broadcast-chat",
+    });
+    expect(pickLiveBroadcast([upcoming])).toBeNull();
+    expect(pickLiveBroadcast([current, { ...upcoming, status: { lifeCycleStatus: "complete" } }])?.videoId).toBe("Cg9VaXE-Q18");
+  });
+
+  it("posts to the active live chat and shows YouTube's 400 reason without the token", async () => {
+    const calls: { url: string; method: string; body?: string; authorization?: string }[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const headers = new Headers(init?.headers);
+      const url = String(input);
+      calls.push({
+        url,
+        method: init?.method ?? "GET",
+        body: typeof init?.body === "string" ? init.body : undefined,
+        authorization: headers.get("authorization") ?? undefined,
+      });
+      if (url.includes("/videos")) {
+        return json({
+          items: [
+            {
+              id: "Cg9VaXE-Q18",
+              snippet: { title: "Kingdom Come Deliverance 2 - Part 5" },
+              liveStreamingDetails: { activeLiveChatId: "active-chat" },
+            },
+          ],
+        });
+      }
+      if (url.includes("/liveChat/messages") && (init?.method ?? "GET") === "POST") {
+        return json(
+          {
+            error: {
+              code: 400,
+              message: "The live chat is not active.",
+              status: "INVALID_ARGUMENT",
+              errors: [{ reason: "liveChatEnded", message: "The live chat is not active. Bearer ya29.SECRETTOKEN" }],
+            },
+          },
+          400,
+        );
+      }
+      return json({}, 404);
+    };
+    const api = new YoutubeDataApi({ token: async () => "ya29.SECRETTOKEN", fetchImpl });
+    const chat = await api.liveChatForVideo("Cg9VaXE-Q18");
+    expect(chat?.liveChatId).toBe("active-chat");
+    await expect(api.insertMessage("active-chat", "  hello\nthere  ")).rejects.toThrow(/live chat is not active/i);
+    try {
+      await api.insertMessage("active-chat", "hello");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      expect(message).not.toContain("SECRETTOKEN");
+      expect(message).not.toContain("ya29");
+      expect(message).toMatch(/YouTube refused the message|live chat is not active/i);
+    }
+    const insert = calls.find((call) => call.method === "POST");
+    expect(insert?.url).toContain("part=snippet");
+    expect(JSON.parse(insert?.body ?? "{}")).toEqual({
+      snippet: {
+        liveChatId: "active-chat",
+        type: "textMessageEvent",
+        textMessageDetails: { messageText: "hello there" },
+      },
+    });
+    expect(insert?.authorization).toBe("Bearer ya29.SECRETTOKEN");
+    expect(JSON.stringify(insert?.body)).not.toContain("SECRETTOKEN");
   });
 });
 

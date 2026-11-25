@@ -9,9 +9,45 @@ export class YoutubeApiError extends Error {
   constructor(
     readonly status: number,
     readonly reason: string,
+    readonly detail = "",
   ) {
-    super(publicMessage(status, reason));
+    super(publicMessage(status, reason, detail));
   }
+}
+
+export interface BroadcastCandidate {
+  videoId: string;
+  title: string;
+  liveChatId: string;
+  /** Empty when the payload did not include status.lifeCycleStatus. */
+  life: string;
+}
+
+/**
+ * Choose the broadcast that can take a chat message.
+ * Upcoming, ready, testing, and completed rows often still have a liveChatId,
+ * and posting to those returns HTTP 400. A live row wins over an earlier stale one.
+ * When nothing says it is live, rows with no lifecycle are kept so older payloads still work.
+ */
+export function pickLiveBroadcast(items: unknown[], preferredVideoId?: string): YoutubeBroadcast | null {
+  const rows = items.map(parseBroadcast).filter((row): row is BroadcastCandidate => row !== null);
+  const live = rows.filter((row) => row.life === "live");
+  const candidates = live.length > 0 ? live : rows.filter((row) => row.life === "");
+  const preferred = preferredVideoId?.trim();
+  const match = preferred ? candidates.find((row) => row.videoId === preferred) : undefined;
+  const picked = match ?? candidates[0];
+  if (!picked) return null;
+  return { videoId: picked.videoId, title: picked.title, liveChatId: picked.liveChatId };
+}
+
+function parseBroadcast(item: unknown): BroadcastCandidate | null {
+  const row = asRecord(item);
+  const snippet = asRecord(row?.snippet);
+  const liveChatId = text(snippet?.liveChatId);
+  const videoId = text(row?.id);
+  if (!liveChatId || !videoId) return null;
+  const life = text(asRecord(row?.status)?.lifeCycleStatus).toLowerCase();
+  return { videoId, title: text(snippet?.title), liveChatId, life };
 }
 
 export interface YoutubeBroadcast {
@@ -41,23 +77,14 @@ export class YoutubeDataApi {
     },
   ) {}
 
-  async listActiveBroadcast(): Promise<YoutubeBroadcast | null> {
+  async listActiveBroadcast(preferredVideoId?: string): Promise<YoutubeBroadcast | null> {
     const json = await this.request("GET", "/liveBroadcasts", YOUTUBE_QUOTA_COSTS.liveBroadcastsList, {
       part: "snippet,status",
       mine: "true",
       broadcastStatus: "active",
-      maxResults: "5",
+      maxResults: "10",
     });
-    const items = arrayOf(json.items);
-    for (const item of items) {
-      const row = asRecord(item);
-      const snippet = asRecord(row?.snippet);
-      const liveChatId = text(snippet?.liveChatId);
-      const videoId = text(row?.id);
-      if (!liveChatId || !videoId) continue;
-      return { videoId, title: text(snippet?.title), liveChatId };
-    }
-    return null;
+    return pickLiveBroadcast(arrayOf(json.items), preferredVideoId);
   }
 
   async liveChatForVideo(videoId: string): Promise<YoutubeBroadcast | null> {
@@ -178,8 +205,9 @@ export class YoutubeDataApi {
     }
     const json = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (!response.ok) {
-      const reason = errorReason(json) || `http${response.status}`;
-      throw new YoutubeApiError(response.status, reason);
+      const parsed = youtubeErrorDetail(json);
+      const reason = parsed.reason || `http${response.status}`;
+      throw new YoutubeApiError(response.status, reason, parsed.message);
     }
     return json;
   }
@@ -192,23 +220,44 @@ export function isQuotaError(err: unknown): boolean {
 
 export function isChatClosedError(err: unknown): boolean {
   if (!(err instanceof YoutubeApiError)) return false;
-  return err.reason === "liveChatEnded" || err.reason === "liveChatNotFound" || err.reason === "liveChatDisabled";
+  return (
+    err.reason === "liveChatEnded" ||
+    err.reason === "liveChatNotFound" ||
+    err.reason === "liveChatDisabled" ||
+    (err.status === 400 && err.reason !== "banNotTracked")
+  );
 }
 
-function publicMessage(status: number, reason: string): string {
+function publicMessage(status: number, reason: string, detail: string): string {
+  const safe = safeYoutubeDetail(detail);
   if (reason === "quotaExceeded" || status === 429) return "YouTube quota is used up for today.";
-  if (reason === "liveChatEnded" || reason === "liveChatDisabled") return "That YouTube live chat has ended.";
-  if (reason === "forbidden" || status === 403) return "YouTube refused that action. The account needs to own the chat or be a moderator.";
+  if (reason === "liveChatEnded" || reason === "liveChatDisabled" || reason === "liveChatNotFound" || /live chat is not active/i.test(safe)) {
+    return safe || "That YouTube live chat is not active. It may be an upcoming or finished broadcast.";
+  }
+  if (reason === "forbidden" || status === 403) {
+    return safe ? `YouTube refused that action. ${safe}` : "YouTube refused that action. The account needs to own the chat or be a moderator.";
+  }
   if (reason === "banNotTracked") return "YouTube can only lift a ban this bot created in this session.";
   if (status === 0) return "YouTube chat could not be reached.";
+  if (safe) return `YouTube refused the message: ${safe}`;
   return `YouTube returned HTTP ${status}.`;
 }
 
-function errorReason(json: Record<string, unknown>): string {
-  const error = asRecord(json.error);
+/** YouTube's error.message, with tokens stripped. Safe to show in the chat box. */
+export function youtubeErrorDetail(json: unknown): { reason: string; message: string } {
+  const error = asRecord(asRecord(json)?.error);
   const errors = arrayOf(error?.errors);
   const first = asRecord(errors[0]);
-  return text(first?.reason) || text(error?.status);
+  const reason = text(first?.reason) || text(error?.status);
+  const message = text(first?.message) || text(error?.message);
+  return { reason, message: safeYoutubeDetail(message) };
+}
+
+function safeYoutubeDetail(value: string): string {
+  const cleaned = redact(value).replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  if (/ya29\.|access_token|refresh_token|authorization|bearer /i.test(cleaned)) return redact(cleaned).slice(0, 300);
+  return cleaned.slice(0, 300);
 }
 
 function numberOrNull(value: unknown): number | null {

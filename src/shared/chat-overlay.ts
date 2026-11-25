@@ -1,3 +1,4 @@
+import { overlayEmoteAllowed } from "./emote-url";
 import type { ChatBadge, ChatMessage, Platform } from "./types";
 
 export const DEFAULT_TTS_BASE = "http://127.0.0.1:17761";
@@ -292,13 +293,14 @@ export function projectChatOverlay(
   style: ChatOverlayStyle,
   now = Date.now(),
   badgeUrl?: (badge: ChatBadge) => string | null,
+  emoteUrl?: (url: string) => string | null,
 ): OverlayLine[] {
   const hidden = new Set(style.hiddenUsers.map((name) => name.trim().toLowerCase()).filter(Boolean));
   const life = style.lifetimeSeconds > 0 ? style.lifetimeSeconds * 1000 : 0;
   const fadeMs = 700;
   const kept: { message: ChatMessage; opacity: number }[] = [];
   for (const message of messages) {
-    if (message.deleted) continue;
+    if (message.deleted || message.deskOnly) continue;
     const names = [message.username, message.displayName].map((name) => name.trim().toLowerCase()).filter(Boolean);
     if (names.some((name) => hidden.has(name))) continue;
     if (style.hideCommands && message.plainText.trim().startsWith("!")) continue;
@@ -312,7 +314,7 @@ export function projectChatOverlay(
   }
   const sliced = kept.slice(-Math.max(1, style.maxMessages));
   const ordered = chatFlow(style.direction).reverse ? [...sliced].reverse() : sliced;
-  return ordered.map(({ message, opacity }) => toLine(message, style, opacity, badgeUrl));
+  return ordered.map(({ message, opacity }) => toLine(message, style, opacity, badgeUrl, emoteUrl));
 }
 
 function toLine(
@@ -320,15 +322,21 @@ function toLine(
   style: ChatOverlayStyle,
   opacity: number,
   badgeUrl?: (badge: ChatBadge) => string | null,
+  emoteUrl?: (url: string) => string | null,
 ): OverlayLine {
   const author = /^#[0-9a-fA-F]{6}$/.test(message.color) ? message.color : style.nameColor;
   const parts: OverlayLine["parts"] = [];
   for (const segment of message.segments) {
-    if (segment.type === "emote" && segment.url.startsWith("https://")) {
-      parts.push({ type: "emote", text: segment.text, url: segment.url, source: segment.source });
-    } else {
+    if (segment.type === "emote") {
+      const rewritten = emoteUrl?.(segment.url) || segment.url;
+      if (overlayEmoteAllowed(rewritten)) {
+        parts.push({ type: "emote", text: segment.text, url: rewritten, source: segment.source });
+        continue;
+      }
       parts.push({ type: "text", text: segment.text });
+      continue;
     }
+    parts.push({ type: "text", text: segment.text });
   }
   if (parts.length === 0 && message.plainText) parts.push({ type: "text", text: message.plainText });
   return {

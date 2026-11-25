@@ -81,6 +81,12 @@ export class Helix {
     return this.request("GET", "/chat/badges/global");
   }
 
+  /** Broadcaster emotes: follower, subscriber, and the channel's own prefix set. */
+  getChannelEmotes(broadcasterId: string): Promise<unknown> {
+    if (!/^\d+$/.test(broadcasterId)) return Promise.resolve({ data: [] });
+    return this.request("GET", `/chat/emotes?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
+  }
+
   getChannelBadges(broadcasterId: string): Promise<unknown> {
     if (!/^\d+$/.test(broadcasterId)) return Promise.resolve({ data: [] });
     return this.request("GET", `/chat/badges?broadcaster_id=${encodeURIComponent(broadcasterId)}`);
@@ -138,13 +144,36 @@ export class Helix {
   }
 
   async subscribeRedemptions(broadcasterId: string, sessionId: string): Promise<void> {
+    await this.subscribeEvent(
+      "channel.channel_points_custom_reward_redemption.add",
+      "1",
+      { broadcaster_user_id: broadcasterId },
+      sessionId,
+    );
+  }
+
+  /** Helix Get Streams. An empty list means the channel is offline, so the count is null. */
+  async getViewerCount(login: string): Promise<number | null> {
+    if (!/^[a-z0-9_]{3,25}$/.test(login)) return null;
+    const json = await this.request("GET", `/streams?user_login=${encodeURIComponent(login)}`);
+    const row = first(json);
+    if (!row || typeof row.viewer_count !== "number") return null;
+    return row.viewer_count;
+  }
+
+  async subscribeEvent(
+    type: string,
+    version: string,
+    condition: Record<string, string>,
+    sessionId: string,
+  ): Promise<void> {
     await this.request(
       "POST",
       "/eventsub/subscriptions",
       {
-        type: "channel.channel_points_custom_reward_redemption.add",
-        version: "1",
-        condition: { broadcaster_user_id: broadcasterId },
+        type,
+        version,
+        condition,
         transport: { method: "websocket", session_id: sessionId },
       },
       false,

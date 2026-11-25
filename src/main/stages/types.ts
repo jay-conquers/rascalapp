@@ -24,6 +24,10 @@ export interface AppContext {
   badgeImage: (badge: ChatBadge) => string | null;
   /** Lets the bot tell the desk that a YouTube account changed. */
   youtubeAuthChanged?: () => void;
+  /** Chat notices, including redeems. The runtime applies toggles and keeps desk-only lines off overlays. */
+  acceptChat?: (message: import("../../shared/types").ChatMessage) => void;
+  /** Cached emote URL for the loopback overlay, or null to keep the https CDN URL. */
+  emoteForOverlay?: (url: string) => string | null;
 }
 
 export interface StageModule {

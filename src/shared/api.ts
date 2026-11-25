@@ -4,6 +4,9 @@ export type { BotSnapshot } from "../../packages/bot/src/index";
 import type { BotSnapshot } from "../../packages/bot/src/index";
 import type { YoutubeDeskState } from "../main/youtube/desk";
 import type { TtsPanel } from "./tts";
+import type { FeedToggles } from "./feed-toggles";
+import type { SendTargets } from "./send-targets";
+import type { ChatAlertSettings } from "./chat-alert";
 import type {
   AppEvent,
   AppSnapshot,
@@ -21,6 +24,9 @@ export interface SettingsPatch {
   overlayPort?: number;
   alwaysOnTop?: boolean;
   autoImportFirebot?: boolean;
+  feed?: FeedToggles;
+  sendTargets?: SendTargets;
+  chatAlert?: ChatAlertSettings;
 }
 
 export interface RascalApi {
@@ -44,6 +50,8 @@ export interface RascalApi {
   skipAlert(): Promise<RedeemSnapshot>;
   clearAlerts(): Promise<RedeemSnapshot>;
   pickMediaFile(kind: "video" | "sound"): Promise<string | null>;
+  pickChatSound(): Promise<string | null>;
+  readChatSound(filePath: string): Promise<Uint8Array>;
   saveChatPreset(preset: ChatOverlayStyle): Promise<ChatOverlayFile>;
   createChatPreset(name: string, basedOnId: string): Promise<ChatOverlayFile>;
   deleteChatPreset(id: string): Promise<ChatOverlayFile>;

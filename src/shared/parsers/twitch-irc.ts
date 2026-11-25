@@ -1,4 +1,6 @@
 import { colorForName } from "../emote-url";
+import { twitchEmoteUrl } from "../twitch-emotes";
+import type { NoticeKind } from "../feed-toggles";
 import type { ChatBadge, ChatMessage, Segment } from "../types";
 
 export interface IrcEvent {
@@ -180,6 +182,9 @@ function messageFrom(input: {
   const plain = notice && body ? `${notice} — ${body}` : notice || body;
   const segments = body ? segmentsFromEmotes(body, input.tags.emotes) : [];
   const timestamp = Number(input.tags["tmi-sent-ts"]);
+  const noticeKind = classifyIrcNotice(input.command, input.tags);
+  const bits = Number(input.tags.bits);
+  const amount = noticeKind === "cheer" && Number.isInteger(bits) && bits > 0 ? `${bits} bits` : undefined;
   return {
     id: input.tags.id || `twitch-${login}-${timestamp || Date.now()}-${hashText(plain)}`,
     platform: "twitch",
@@ -194,7 +199,36 @@ function messageFrom(input: {
     timestamp: Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now(),
     kind,
     notice,
+    ...(noticeKind ? { noticeKind } : {}),
+    ...(amount ? { amount } : {}),
   };
+}
+
+/** Map Twitch IRC msg-id values that the public chat actually sends. Unknown ids stay ordinary notices. */
+export function classifyIrcNotice(command: string, tags: Record<string, string>): NoticeKind | undefined {
+  const bits = Number(tags.bits);
+  if ((command === "PRIVMSG" || command === "USERNOTICE") && Number.isInteger(bits) && bits > 0) return "cheer";
+  if (command !== "USERNOTICE") return undefined;
+  const id = (tags["msg-id"] || "").toLowerCase();
+  const category = (tags["msg-param-category"] || "").toLowerCase();
+  if (id === "sub") return "sub";
+  if (id === "resub") return "resub";
+  if (
+    id === "subgift" ||
+    id === "anonsubgift" ||
+    id === "submysterygift" ||
+    id === "giftpaidupgrade" ||
+    id === "anongiftpaidupgrade" ||
+    id === "rewardgift"
+  ) {
+    return "subgift";
+  }
+  if (id === "primepaidupgrade") return "sub";
+  if (id === "raid" || id === "unraid") return "raid";
+  if (id === "watchstreak" || id === "watch_streak" || id === "watch-streak") return "watch-streak";
+  if (id === "viewermilestone" && category.includes("watch")) return "watch-streak";
+  if (id === "modiversary" || id === "mod_anniversary") return "mod-anniversary";
+  return undefined;
 }
 
 export function badgesFrom(tags: Record<string, string>): ChatBadge[] {
@@ -233,7 +267,7 @@ export function segmentsFromEmotes(text: string, emoteTag: string | undefined): 
       const colon = piece.indexOf(":");
       if (colon === -1) continue;
       const id = piece.slice(0, colon);
-      if (!/^\d+$/.test(id)) continue;
+      if (!twitchEmoteUrl(id)) continue;
       for (const span of piece.slice(colon + 1).split(",")) {
         const [rawStart, rawEnd] = span.split("-");
         const start = Number(rawStart);
@@ -255,7 +289,7 @@ export function segmentsFromEmotes(text: string, emoteTag: string | undefined): 
     segments.push({
       type: "emote",
       text: name,
-      url: `https://static-cdn.jtvnw.net/emoticons/v2/${range.id}/default/dark/2.0`,
+      url: twitchEmoteUrl(range.id) ?? "",
       source: "twitch",
     });
     cursor = range.end + 1;

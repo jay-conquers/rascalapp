@@ -1,6 +1,6 @@
 import { readBrandEnv } from "../../shared/brand";
 import { youtubeSendStatus, type YoutubeSendStatus } from "../../shared/platform/youtube-send";
-import { YoutubeDataApi } from "../../shared/platform/youtube-api";
+import { YoutubeDataApi, isChatClosedError } from "../../shared/platform/youtube-api";
 import {
   createYoutubeAuthRequest,
   exchangeYoutubeCode,
@@ -150,22 +150,43 @@ export class YoutubeDesk {
     if (!message) throw new Error("Message is empty.");
     if (message.length > 200) throw new Error("YouTube live chat stops at 200 characters.");
     const api = this.api();
-    let liveChatId = videoId ? this.chats.get(videoId) : undefined;
-    if (!liveChatId) {
-      const own = await api.listActiveBroadcast();
-      if (own && (!videoId || own.videoId === videoId)) {
-        liveChatId = own.liveChatId;
-        this.chats.set(own.videoId, own.liveChatId);
-      } else if (videoId) {
-        const chat = await api.liveChatForVideo(videoId);
-        if (chat) {
-          liveChatId = chat.liveChatId;
-          this.chats.set(videoId, chat.liveChatId);
-        }
+    const liveChatId = await this.lookupChat(api, videoId, false);
+    if (!liveChatId) throw new Error("YouTube is not live, so this message cannot be sent.");
+    try {
+      await api.insertMessage(liveChatId, message);
+    } catch (err) {
+      if (!videoId || !isChatClosedError(err)) throw err;
+      this.chats.delete(videoId);
+      const fresh = await this.lookupChat(api, videoId, true);
+      if (!fresh || fresh === liveChatId) throw err;
+      await api.insertMessage(fresh, message);
+    }
+  }
+
+  /**
+   * The page reader's video is the one on screen. Its activeLiveChatId is the
+   * chat that can take a message. liveBroadcasts can list a stale upcoming
+   * broadcast first; that chat id is not used when this video has an active chat.
+   * If this video has no active chat, a broadcast whose lifecycle is live is used.
+   */
+  private async lookupChat(api: YoutubeDataApi, videoId: string | undefined, ignoreCache: boolean): Promise<string | null> {
+    const id = videoId?.trim() || "";
+    if (id && !ignoreCache) {
+      const cached = this.chats.get(id);
+      if (cached) return cached;
+    }
+    if (id) {
+      const chat = await api.liveChatForVideo(id);
+      if (chat?.liveChatId) {
+        this.chats.set(id, chat.liveChatId);
+        return chat.liveChatId;
       }
     }
-    if (!liveChatId) throw new Error("YouTube is not live, so this message cannot be sent.");
-    await api.insertMessage(liveChatId, message);
+    const own = await api.listActiveBroadcast(id || undefined);
+    if (!own) return null;
+    this.chats.set(own.videoId, own.liveChatId);
+    if (id) this.chats.set(id, own.liveChatId);
+    return own.liveChatId;
   }
 
   private sender(): YoutubeBotTokens | null {

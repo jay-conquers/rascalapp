@@ -273,7 +273,7 @@ export class ChatOverlayEngine {
       type: "chat-frame",
       style,
       box: chatBoxRect(style.box),
-      lines: projectChatOverlay(this.ctx.chat.messages, style, Date.now(), this.ctx.badgeImage),
+      lines: projectChatOverlay(this.ctx.chat.messages, style, Date.now(), this.ctx.badgeImage, this.ctx.emoteForOverlay),
     });
   }
 }
