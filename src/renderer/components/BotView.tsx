@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { brand } from "../../shared/brand";
 import type { BotSnapshot } from "../../shared/api";
-import type { YoutubeDeskState } from "../../main/youtube/desk";
+import type { YoutubeDeskState } from "../../shared/youtube/desk-state";
 import { defaultShoutout, defaultThanks, type ShoutoutSettings, type ThanksSettings } from "../../../packages/bot/src/model";
 import { checksFromTarget, targetFromChecks, type PlatformTarget } from "../../shared/platform/target";
 import { CheckRow } from "./CheckRow";
