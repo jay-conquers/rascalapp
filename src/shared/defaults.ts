@@ -1,6 +1,3 @@
-import { brand } from "./brand";
-
-export const APP_NAME = brand.configDirName;
 export const DEFAULT_TWITCH_CHANNEL = "";
 export const DEFAULT_YOUTUBE_CHANNEL_ID = "";
 export const DEFAULT_OVERLAY_PORT = 4777;

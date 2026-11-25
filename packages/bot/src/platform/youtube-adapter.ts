@@ -1,11 +1,13 @@
-import { YoutubeLive } from "../../../../src/main/youtube/live.ts";
-import { Logger } from "../../../../src/main/logger.ts";
+import type { BotPlatform, HookSubject, LoginPromptView, PlatformAccountCard, PlatformFacts } from "../../../../src/shared/platform/bot-platform.ts";
 import { normalizeYoutubeReaderMessage } from "../../../../src/shared/platform/normalize.ts";
 import { isChatClosedError, isQuotaError, YoutubeDataApi } from "../../../../src/shared/platform/youtube-api.ts";
 import { sharedQuotaMeter, YoutubeQuotaMeter, type QuotaSnapshot } from "../../../../src/shared/platform/youtube-quota.ts";
 import { describeYoutubeQuota, shouldUseYoutubeApiPoll } from "../../../../src/shared/platform/youtubei.ts";
-import type { ChatPlatform, NormalizedChatMessage, PlatformCapabilities, PlatformLiveStatus } from "../../../../src/shared/platform/types.ts";
-import { isAbort, sleep } from "../../../../src/main/sleep.ts";
+import type { NormalizedChatMessage, PlatformCapabilities, PlatformLiveStatus } from "../../../../src/shared/platform/types.ts";
+import { isAbort, sleep } from "../../../../src/shared/sleep.ts";
+import { YoutubeLive, type PageReaderLog } from "../../../../src/shared/youtube/page-reader.ts";
+import type { YoutubeBotTokens } from "../store.ts";
+import { YoutubeAccountLogin } from "./youtube-account.ts";
 
 const CAPABILITIES: PlatformCapabilities = {
   send: true,
@@ -15,7 +17,13 @@ const CAPABILITIES: PlatformCapabilities = {
   unban: true,
 };
 
-export class YoutubeChatPlatform implements ChatPlatform {
+/** The headless reader used to log into a file-less logger that nothing read. */
+const quietPageLog: PageReaderLog = {
+  info() {},
+  error() {},
+};
+
+export class YoutubeChatPlatform implements BotPlatform {
   readonly id = "youtube";
   readonly label = "YouTube";
   readonly capabilities = CAPABILITIES;
@@ -40,6 +48,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
   private replies = 0;
   private own: YoutubeLive | null = null;
   private status = "Waiting for YouTube chat from the page reader.";
+  private readonly login: YoutubeAccountLogin;
 
   constructor(
     private readonly deps: {
@@ -53,10 +62,113 @@ export class YoutubeChatPlatform implements ChatPlatform {
       /** Desk already runs the page reader. A headless bot starts its own. */
       ownReader?: boolean;
       optIn?: () => boolean;
+      session?: () => YoutubeBotTokens | null;
+      separateAccount?: () => YoutubeBotTokens | null;
+      accountMode?: () => "bot" | "channel";
+      note?: () => string;
+      setNote?: (note: string) => void;
+      google?: () => { clientId: string; clientSecret: string };
+      redirect?: () => string;
+      saveTokens?: (tokens: YoutubeBotTokens) => void;
+      clearTokens?: () => void;
+      onChanged?: () => void;
     },
   ) {
+    const noop = () => undefined;
     this.meter = deps.meter ?? sharedQuotaMeter();
     this.api = new YoutubeDataApi({ token: () => deps.accessToken(), fetchImpl: deps.fetchImpl, meter: this.meter });
+    this.login = new YoutubeAccountLogin({
+      google: deps.google ?? (() => ({ clientId: "", clientSecret: "" })),
+      redirect: deps.redirect ?? (() => ""),
+      fetchImpl: () => deps.fetchImpl,
+      meter: () => this.quota(),
+      setNote: deps.setNote ?? noop,
+      save: deps.saveTokens ?? noop,
+      clear: deps.clearTokens ?? noop,
+      log: deps.log,
+      onChanged: deps.onChanged ?? noop,
+      reconnect: () => this.reconnect(),
+    });
+  }
+
+  accountCard(): PlatformAccountCard {
+    const tokens = this.deps.session?.() ?? null;
+    const separate = this.deps.separateAccount?.() ?? null;
+    const live = this.liveStatus();
+    return {
+      connected: Boolean(tokens) && live.connected,
+      status: this.deps.note?.() || live.detail,
+      account: tokens ? tokens.title || tokens.channelId : null,
+      accountMode: this.deps.accountMode?.() ?? "bot",
+      separateAccount: separate ? separate.title || separate.channelId : null,
+      quota: this.quotaView(),
+    };
+  }
+
+  acceptsTimers(): boolean {
+    return this.liveStatus().live === true;
+  }
+
+  postingIdentity(): { userId: string; login: string } | null {
+    const tokens = this.deps.session?.() ?? null;
+    return tokens ? { userId: tokens.channelId, login: tokens.title } : null;
+  }
+
+  currentFacts(): PlatformFacts {
+    const live = this.liveStatus();
+    return { title: live.title ?? "", game: "", uptime: live.live ? "live" : "offline", followage: "" };
+  }
+
+  factsFor(_userId: string): Promise<PlatformFacts> {
+    return Promise.resolve(this.currentFacts());
+  }
+
+  builtinLookup(_kind: "followage" | "accountage" | "shoutout", _login: string, _speakerName: string): Promise<string> {
+    return Promise.resolve("");
+  }
+
+  hookSubject(): HookSubject {
+    return {
+      channel: this.deps.channelId(),
+      botUserId: this.deps.session?.()?.channelId ?? "",
+      botLogin: "",
+      channelLogin: "",
+      broadcasterId: this.deps.channelId(),
+    };
+  }
+
+  echoIds(): HookSubject {
+    return { ...this.hookSubject(), channel: "" };
+  }
+
+  async open(): Promise<void> {
+    this.deps.setNote?.("");
+    await this.connect();
+  }
+
+  async reconnect(): Promise<void> {
+    await this.disconnect();
+    await this.open();
+  }
+
+  loginPrompt(): LoginPromptView | null {
+    return this.login.promptView();
+  }
+
+  startAccountLogin(): Promise<void> {
+    return this.login.start();
+  }
+
+  cancelAccountLogin(): void {
+    this.login.cancel();
+  }
+
+  logoutAccount(): void {
+    this.login.logout();
+  }
+
+  acceptLoginCallback(input: { code: string; state: string; error: string }): boolean {
+    return this.login.accept(input);
   }
 
   quota(): YoutubeQuotaMeter {
@@ -230,7 +342,7 @@ export class YoutubeChatPlatform implements ChatPlatform {
         this.setLive({ live: status.state === "live", known, title: status.title, videoId: status.videoId });
       },
       onHealth: (health) => this.noteReader(health.ok),
-      log: new Logger(null),
+      log: quietPageLog,
       fetchImpl: this.deps.fetchImpl,
     });
     this.own = reader;

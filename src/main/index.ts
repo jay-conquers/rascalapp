@@ -12,6 +12,7 @@ import { readChatSoundFile } from "./chat-sound-file";
 import type { SettingsPatch } from "../shared/api";
 import { normalizePlacement, type RedeemMapping } from "../shared/redeems";
 import type { StreamUpdate } from "../shared/types";
+import { asRecord } from "../shared/record";
 
 const PAGE_CSP = [
   "default-src 'self'",
@@ -407,9 +408,6 @@ function asDestinations(value: unknown): { twitch?: boolean; youtube?: boolean }
   return destinations;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function readVersion(): string {
   try {

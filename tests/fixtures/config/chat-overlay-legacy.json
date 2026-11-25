@@ -1,0 +1,8 @@
+{
+  "ttsBaseUrl": "http://127.0.0.1:17761/",
+  "presets": [
+    { "id": "default", "name": "Main", "fontSize": 30, "widthPercent": 40, "alignment": "right", "hiddenUsers": ["Nightbot", "@StreamElements", "x"] },
+    { "id": "Vertical Copy", "name": "Vertical copy", "direction": "top", "widthPercent": 50, "alignment": "center", "textColor": "#ABCDEF", "backgroundOpacity": 3 },
+    { "id": "default", "name": "duplicate id is dropped" }
+  ]
+}

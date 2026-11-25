@@ -1,0 +1,10 @@
+{
+  "twitchClientId": "  abc1234567890xyz  ",
+  "twitchChannel": "#ExampleChannel",
+  "overlayPort": "4777",
+  "alwaysOnTop": "yes",
+  "feed": { "emotes": { "bttv": "off" }, "notices": { "sub": false, "notAKind": false }, "modLog": 0 },
+  "sendTargets": { "youtube": "true" },
+  "chatAlert": { "enabled": true, "volume": 7, "cooldownMs": -10, "soundPath": "https://evil.example/beep.wav" },
+  "windowBounds": { "x": 0, "y": 0, "width": 100, "height": 100 }
+}

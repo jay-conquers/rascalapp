@@ -1,7 +1,7 @@
 import { redact, redactError } from "../../shared/redact";
 import { missingScopes, REQUIRED_SCOPES } from "../../shared/scopes";
 import type { AuthState, LoginPrompt } from "../../shared/types";
-import { isAbort, sleep } from "../sleep";
+import { isAbort, sleep } from "../../shared/sleep";
 import type { Logger } from "../logger";
 import type { TokenStore } from "../tokens";
 

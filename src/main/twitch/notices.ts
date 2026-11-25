@@ -4,6 +4,7 @@ import { chatFromFollow, chatFromNotification, modActionFromModerate } from "../
 import { MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { redactError } from "../../shared/redact";
 import type { ChatMessage, ModAction } from "../../shared/types";
+import { asRecord } from "../../shared/record";
 
 const DEFAULT_URL = "wss://eventsub.wss.twitch.tv/ws";
 
@@ -235,9 +236,6 @@ function parseJson(raw: string): unknown {
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;

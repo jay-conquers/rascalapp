@@ -1,0 +1,12 @@
+{
+  "twitchClientId": "abc1234567890xyz",
+  "twitchChannel": "examplechannel",
+  "youtubeChannelId": "",
+  "overlayPort": 4790,
+  "alwaysOnTop": false,
+  "autoImportFirebot": false,
+  "feed": { "emotes": { "bttv": false, "ffz": true, "seventv": true }, "notices": { "cheer": false, "follow": true, "milestone": false }, "modLog": false },
+  "sendTargets": { "twitch": false, "youtube": true },
+  "chatAlert": { "enabled": true, "volume": 0.35, "cooldownMs": 4000, "notices": true, "soundPath": "/home/tester/sounds/ding.wav" },
+  "windowBounds": { "x": -1920, "y": 0, "width": 1180, "height": 780 }
+}

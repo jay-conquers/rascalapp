@@ -1,0 +1,22 @@
+{
+  "channelLogin": "examplechannel",
+  "broadcasterId": "42",
+  "portalPort": 4788,
+  "bindHost": "127.0.0.1",
+  "publicUrl": "",
+  "commands": [
+    { "id": "so", "name": "so", "response": "Go see {touser}", "enabled": true, "cooldownSec": 5, "userCooldownSec": 15, "level": "mod", "aliases": ["shout"], "count": 12 },
+    { "id": "lurk", "name": "lurk", "response": "{user} is lurking", "enabled": false, "cooldownSec": 0, "userCooldownSec": 30, "level": "everyone", "aliases": [], "count": 0 }
+  ],
+  "timers": [
+    { "id": "socials", "name": "Socials", "enabled": true, "message": "Follow on twitter", "intervalSec": 900, "minChatLines": 3, "linesSince": 2, "lastFiredAt": 1700000000000 }
+  ],
+  "filters": {
+    "blacklist": [{ "word": "badword", "action": "timeout", "timeoutSec": 120 }],
+    "whitelist": ["clip"],
+    "links": { "enabled": true, "action": "delete", "timeoutSec": 30 },
+    "caps": { "enabled": false, "minLength": 20, "maxPercent": 80, "action": "delete", "timeoutSec": 30 },
+    "symbols": { "enabled": false, "minLength": 20, "maxPercent": 70, "action": "delete", "timeoutSec": 30 },
+    "permitSec": 60
+  }
+}

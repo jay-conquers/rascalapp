@@ -1,5 +1,6 @@
 import { normalizeKeywords } from "./keywords.ts";
 import { commandName, normalizeCommand, normalizeTimer, type BotCommand, type BotTimer, type TimerMode, type UserLevel } from "./model.ts";
+import { asRecord } from "../../../src/shared/record.ts";
 
 /** Map a StreamElements commands/timers payload. The JWT itself is never read here. */
 export function importStreamElements(commandsPayload: unknown, timersPayload: unknown): { commands: BotCommand[]; timers: BotTimer[] } {
@@ -190,6 +191,3 @@ function numberOr(value: unknown, fallback: number): number {
   return Number.isFinite(number) ? Math.round(number) : fallback;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

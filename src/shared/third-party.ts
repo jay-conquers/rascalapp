@@ -1,5 +1,6 @@
 import { safeEmoteUrl } from "./emote-url";
 import type { WordEmote } from "./word-emotes";
+import { asRecord } from "./record";
 
 export interface ThirdPartyPayloads {
   bttvGlobal?: unknown;
@@ -89,9 +90,6 @@ function pickSevenFile(files: unknown[]): string | null {
   return names.find((name) => name.startsWith("1x.")) ?? names.find((name) => name.startsWith("2x.")) ?? names[0] ?? null;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;

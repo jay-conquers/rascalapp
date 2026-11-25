@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { brand } from "./brand";
+import { brand } from "./brand.ts";
 
 /**
  * Platform paths for the desktop app and the headless bot.

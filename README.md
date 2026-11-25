@@ -137,6 +137,10 @@ Use 1920×1080, leave custom CSS empty, and turn on transparency. The page reloa
 
 The port is 4777 unless you change it in Settings. The paths stay the same.
 
+## Source layout
+
+The desk (Electron) and the headless bot share `src/shared`. The bot does not import the desktop. Chat sites implement one `ChatPlatform` interface; Twitch and YouTube are the two adapters today. How to add a platform, and where config loading stops and the command engine starts, is in [docs/architecture.md](docs/architecture.md).
+
 ## Self-host the bot
 
 The bot can stay inside the desktop app, or run on a server you control. The step-by-step for your own domain, HTTPS, and OAuth apps is [docs/self-hosting.md](docs/self-hosting.md). `deploy/fly` is an optional Fly.io example for one small always-on machine in Ashburn (`shared-cpu-1x`, 256 MB, no dedicated IPv4). The app name in `fly.toml` is `rascal`. If that name is taken, use `rascalapp`. The volume is `rascal_bot_data`. The public portal callback is `https://<your-host>/portal/callback`.

@@ -1,0 +1,184 @@
+{
+  "channelLogin": "examplechannel",
+  "broadcasterId": "42",
+  "youtubeChannelId": "UCexamplechannel00000001",
+  "accounts": {
+    "twitch": "bot",
+    "youtube": "channel"
+  },
+  "youtubeApiPoll": false,
+  "portalPort": 4788,
+  "bindHost": "127.0.0.1",
+  "publicUrl": "https://bot.example.com",
+  "commands": [
+    {
+      "id": "so",
+      "name": "so",
+      "response": "Go see {touser}",
+      "enabled": true,
+      "cooldownSec": 5,
+      "userCooldownSec": 15,
+      "level": "mod",
+      "aliases": [
+        "shout"
+      ],
+      "keywords": [],
+      "count": 12,
+      "platforms": "twitch"
+    },
+    {
+      "id": "alot",
+      "name": "alot",
+      "response": "a lot*",
+      "enabled": true,
+      "cooldownSec": 30,
+      "userCooldownSec": 0,
+      "level": "everyone",
+      "aliases": [],
+      "keywords": [
+        "alot",
+        "on accident"
+      ],
+      "count": 3,
+      "platforms": "all"
+    },
+    {
+      "id": "yt",
+      "name": "yt",
+      "response": "hi {user}",
+      "enabled": true,
+      "cooldownSec": 5,
+      "userCooldownSec": 15,
+      "level": "sub",
+      "aliases": [],
+      "keywords": [],
+      "count": 0,
+      "platforms": "youtube"
+    }
+  ],
+  "timers": [
+    {
+      "id": "socials",
+      "name": "Socials",
+      "enabled": true,
+      "messages": [
+        "Follow on twitter",
+        "Join the discord"
+      ],
+      "messageIndex": 1,
+      "message": "Join the discord",
+      "mode": "both",
+      "intervalSec": 900,
+      "minChatLines": 3,
+      "linesSince": 2,
+      "lastFiredAt": 1700000000000,
+      "offlineIntervalSec": 1800,
+      "offlineMinChatLines": 0,
+      "offlineLinesSince": 0,
+      "offlineLastFiredAt": 1700000500000,
+      "platforms": "all"
+    }
+  ],
+  "filters": {
+    "blacklist": [
+      {
+        "word": "badword",
+        "action": "ban",
+        "timeoutSec": 60
+      }
+    ],
+    "whitelist": [
+      "clip"
+    ],
+    "links": {
+      "enabled": true,
+      "action": "timeout",
+      "timeoutSec": 15
+    },
+    "caps": {
+      "enabled": true,
+      "minLength": 12,
+      "maxPercent": 75,
+      "action": "timeout",
+      "timeoutSec": 10
+    },
+    "symbols": {
+      "enabled": false,
+      "minLength": 20,
+      "maxPercent": 70,
+      "action": "delete",
+      "timeoutSec": 30
+    },
+    "permitSec": 45,
+    "platforms": "all"
+  },
+  "quotes": [
+    {
+      "id": 1,
+      "text": "best stream",
+      "by": "coolmod",
+      "at": 1700000000000
+    },
+    {
+      "id": 3,
+      "text": "numbers stay put",
+      "by": "ace",
+      "at": 1700000100000
+    }
+  ],
+  "thanks": {
+    "follow": {
+      "enabled": true,
+      "template": "Thanks {user}!"
+    },
+    "sub": {
+      "enabled": false,
+      "template": "Thanks for subscribing, {user}!"
+    },
+    "resub": {
+      "enabled": false,
+      "template": "Thanks for resubscribing, {user}! {amount}"
+    },
+    "subgift": {
+      "enabled": true,
+      "template": "Thanks {user} for {count} gifts!"
+    },
+    "cheer": {
+      "enabled": false,
+      "template": "Thanks for the cheer, {user}! {amount}"
+    },
+    "raid": {
+      "enabled": true,
+      "template": "Welcome raiders from {user}!"
+    },
+    "redemption": {
+      "enabled": false,
+      "template": "Thanks for the redeem, {user}!"
+    }
+  },
+  "shoutout": {
+    "template": "Go follow {target}!",
+    "helix": false
+  },
+  "hooks": [
+    {
+      "id": "reader",
+      "name": "reader",
+      "enabled": true,
+      "trigger": "ask",
+      "keywords": [
+        "hey bot"
+      ],
+      "url": "https://hooks.example/in",
+      "method": "POST",
+      "secret": "hook-SECRET",
+      "timeoutMs": 4000,
+      "cooldownSec": 5,
+      "userCooldownSec": 15,
+      "level": "sub",
+      "reply": "chat",
+      "allowBroadcaster": true,
+      "platforms": "all"
+    }
+  ]
+}

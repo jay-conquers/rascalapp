@@ -5,7 +5,7 @@ import { IrcFramer, parseIrcLine } from "../../shared/parsers/twitch-irc";
 import { redactError } from "../../shared/redact";
 import type { ChatMessage } from "../../shared/types";
 import type { Logger } from "../logger";
-import { isAbort, sleep } from "../sleep";
+import { isAbort, sleep } from "../../shared/sleep";
 
 export class TwitchIrc {
   private socket: tls.TLSSocket | null = null;

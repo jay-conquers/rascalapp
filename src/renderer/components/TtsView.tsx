@@ -116,7 +116,6 @@ export function TtsView() {
           <dl className="tts-status">
             <div><dt>Twitch</dt><dd>{state.status.twitch || "—"}</dd></div>
             <div><dt>YouTube</dt><dd>{state.status.youtube || "—"}</dd></div>
-            <div><dt>AskJeeves</dt><dd>{state.status.askjeeves || "—"}</dd></div>
             <div><dt>YouTube subs</dt><dd>{state.status.youtube_subs || "—"}</dd></div>
             <div><dt>Overlays</dt><dd>{state.overlays_connected}</dd></div>
           </dl>

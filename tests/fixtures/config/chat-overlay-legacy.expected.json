@@ -1,0 +1,82 @@
+{
+  "ttsBaseUrl": "http://127.0.0.1:17761",
+  "ttsShortcuts": false,
+  "presets": [
+    {
+      "id": "default",
+      "name": "Main",
+      "fontFamily": "Noto Sans, Liberation Sans, DejaVu Sans, sans-serif",
+      "fontSize": 30,
+      "textColor": "#f4f6fb",
+      "useAuthorColor": true,
+      "nameColor": "#ffffff",
+      "background": "pill",
+      "backgroundColor": "#000000",
+      "backgroundOpacity": 0.5,
+      "outline": true,
+      "shadow": true,
+      "maxMessages": 14,
+      "lifetimeSeconds": 20,
+      "direction": "bottom",
+      "alignment": "right",
+      "widthPercent": 40,
+      "showPlatformIcons": true,
+      "showBadges": true,
+      "hiddenUsers": [
+        "nightbot",
+        "streamelements"
+      ],
+      "hideCommands": true,
+      "box": {
+        "preset": "right-column",
+        "sizePercent": 40,
+        "marginPercent": 0,
+        "x": 60,
+        "y": 0,
+        "width": 40,
+        "height": 100,
+        "unit": "percent"
+      }
+    },
+    {
+      "id": "verticalcopy",
+      "name": "Vertical copy",
+      "fontFamily": "Noto Sans, Liberation Sans, DejaVu Sans, sans-serif",
+      "fontSize": 28,
+      "textColor": "#abcdef",
+      "useAuthorColor": true,
+      "nameColor": "#ffffff",
+      "background": "pill",
+      "backgroundColor": "#000000",
+      "backgroundOpacity": 1,
+      "outline": true,
+      "shadow": true,
+      "maxMessages": 14,
+      "lifetimeSeconds": 20,
+      "direction": "top",
+      "alignment": "center",
+      "widthPercent": 50,
+      "showPlatformIcons": true,
+      "showBadges": true,
+      "hiddenUsers": [
+        "streamelements",
+        "nightbot",
+        "botrix",
+        "fossabot",
+        "streamlabs",
+        "soundalerts"
+      ],
+      "hideCommands": true,
+      "box": {
+        "preset": "custom",
+        "sizePercent": 50,
+        "marginPercent": 0,
+        "x": 25,
+        "y": 0,
+        "width": 50,
+        "height": 100,
+        "unit": "percent"
+      }
+    }
+  ]
+}

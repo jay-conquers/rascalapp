@@ -1,0 +1,214 @@
+{
+  "channelLogin": "examplechannel",
+  "broadcasterId": "",
+  "youtubeChannelId": "",
+  "accounts": {
+    "twitch": "channel",
+    "youtube": "bot"
+  },
+  "youtubeApiPoll": false,
+  "portalPort": 1024,
+  "bindHost": "0.0.0.0",
+  "publicUrl": "https://bot.example.com/",
+  "commands": [
+    {
+      "id": "hello",
+      "name": "hello",
+      "response": "hi",
+      "enabled": true,
+      "cooldownSec": 30,
+      "userCooldownSec": 0,
+      "level": "everyone",
+      "aliases": [
+        "hi",
+        "hi"
+      ],
+      "keywords": [
+        "alot",
+        "two words"
+      ],
+      "count": 9,
+      "platforms": "twitch"
+    },
+    {
+      "id": "long-idwithspaces",
+      "name": "long",
+      "response": "x",
+      "enabled": true,
+      "cooldownSec": 86400,
+      "userCooldownSec": 15,
+      "level": "everyone",
+      "aliases": [],
+      "keywords": [],
+      "count": 0,
+      "platforms": "twitch"
+    }
+  ],
+  "timers": [
+    {
+      "id": "rotating",
+      "name": "Rotating",
+      "enabled": true,
+      "messages": [
+        "first",
+        "third",
+        "fourth"
+      ],
+      "messageIndex": 2,
+      "message": "fourth",
+      "mode": "both",
+      "intervalSec": 15,
+      "minChatLines": 500,
+      "linesSince": 0,
+      "lastFiredAt": 0,
+      "offlineIntervalSec": 15,
+      "offlineMinChatLines": 500,
+      "offlineLinesSince": 0,
+      "offlineLastFiredAt": 0,
+      "platforms": "twitch"
+    },
+    {
+      "id": "legacy",
+      "name": "Legacy",
+      "enabled": true,
+      "messages": [
+        "only one"
+      ],
+      "messageIndex": 0,
+      "message": "only one",
+      "mode": "both",
+      "intervalSec": 120,
+      "minChatLines": 5,
+      "linesSince": 0,
+      "lastFiredAt": 0,
+      "offlineIntervalSec": 120,
+      "offlineMinChatLines": 5,
+      "offlineLinesSince": 0,
+      "offlineLastFiredAt": 0,
+      "platforms": "twitch"
+    }
+  ],
+  "filters": {
+    "blacklist": [
+      {
+        "word": "badword",
+        "action": "delete",
+        "timeoutSec": 1
+      }
+    ],
+    "whitelist": [
+      "clip"
+    ],
+    "links": {
+      "enabled": false,
+      "action": "delete",
+      "timeoutSec": 1209600
+    },
+    "caps": {
+      "enabled": true,
+      "minLength": 5,
+      "maxPercent": 100,
+      "action": "delete",
+      "timeoutSec": 30
+    },
+    "symbols": {
+      "enabled": false,
+      "minLength": 20,
+      "maxPercent": 70,
+      "action": "delete",
+      "timeoutSec": 30
+    },
+    "permitSec": 5,
+    "platforms": "twitch"
+  },
+  "quotes": [
+    {
+      "id": 1,
+      "text": "plain string quote",
+      "by": "",
+      "at": 0
+    },
+    {
+      "id": 2,
+      "text": "uses the quote key",
+      "by": "ace",
+      "at": 0
+    },
+    {
+      "id": 5,
+      "text": "message key with id",
+      "by": "",
+      "at": 0
+    }
+  ],
+  "thanks": {
+    "follow": {
+      "enabled": true,
+      "template": "Thanks for the follow, {user}!"
+    },
+    "sub": {
+      "enabled": false,
+      "template": "Thanks for subscribing, {user}!"
+    },
+    "resub": {
+      "enabled": false,
+      "template": "Thanks for resubscribing, {user}! {amount}"
+    },
+    "subgift": {
+      "enabled": false,
+      "template": "Thanks {user} for the gift!"
+    },
+    "cheer": {
+      "enabled": false,
+      "template": "Thanks for the cheer, {user}! {amount}"
+    },
+    "raid": {
+      "enabled": false,
+      "template": "Raid {user}"
+    },
+    "redemption": {
+      "enabled": false,
+      "template": "Thanks for the redeem, {user}!"
+    }
+  },
+  "shoutout": {
+    "template": "Go follow {target} at twitch.tv/{target}! They were last playing {game}.",
+    "helix": true
+  },
+  "hooks": [
+    {
+      "id": "readerhook",
+      "name": "Reader Hook",
+      "enabled": true,
+      "trigger": "ask",
+      "keywords": [],
+      "url": "https://hooks.example/in?token=keep",
+      "method": "POST",
+      "secret": "",
+      "timeoutMs": 500,
+      "cooldownSec": 2,
+      "userCooldownSec": 3,
+      "level": "mod",
+      "reply": "chat",
+      "allowBroadcaster": false,
+      "platforms": "twitch"
+    },
+    {
+      "id": "local",
+      "name": "local",
+      "enabled": false,
+      "trigger": "loc",
+      "keywords": [],
+      "url": "http://127.0.0.1:8787/hook",
+      "method": "POST",
+      "secret": "",
+      "timeoutMs": 5000,
+      "cooldownSec": 5,
+      "userCooldownSec": 15,
+      "level": "sub",
+      "reply": "none",
+      "allowBroadcaster": false,
+      "platforms": "twitch"
+    }
+  ]
+}

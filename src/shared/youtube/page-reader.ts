@@ -1,15 +1,20 @@
-import { readBrandEnv } from "../../shared/brand";
+import { readBrandEnv } from "../brand";
 import {
   browserUserAgent,
   YOUTUBE_CLIENT_VERSION_FALLBACK,
   YOUTUBE_WEB_API_KEY_FALLBACK,
-} from "../../shared/defaults";
-import { detectLiveFromHtml, extractEmbeddedJson, parseLiveChatResponse, readConcurrentViewers, readLiveChatPage } from "../../shared/parsers/youtube";
-import { nextYoutubeiPressure, rememberChatIds, youtubeiPollTargetMs, youtubeiWaitMs } from "../../shared/platform/youtubei";
-import { redactError } from "../../shared/redact";
-import type { ChatMessage, ModAction } from "../../shared/types";
-import type { Logger } from "../logger";
+} from "../defaults";
+import { detectLiveFromHtml, extractEmbeddedJson, parseLiveChatResponse, readConcurrentViewers, readLiveChatPage } from "../parsers/youtube";
+import { nextYoutubeiPressure, rememberChatIds, youtubeiPollTargetMs, youtubeiWaitMs } from "../platform/youtubei";
+import { redactError } from "../redact";
+import type { ChatMessage, ModAction } from "../types";
 import { isAbort, sleep } from "../sleep";
+
+/** Enough of a logger for the page reader. The desktop logger satisfies this. */
+export interface PageReaderLog {
+  info(message: string, extra?: Record<string, unknown>): void;
+  error(message: string, extra?: Record<string, unknown>): void;
+}
 
 interface LiveHit {
   videoId: string;
@@ -44,7 +49,7 @@ export class YoutubeLive {
       onViewers?: (count: number | null) => void;
       onStatus: (status: { state: "idle" | "connecting" | "offline" | "live" | "reconnecting" | "error"; detail: string; videoId?: string; title?: string }) => void;
       onHealth?: (health: { ok: boolean; consecutiveFailures: number }) => void;
-      log: Logger;
+      log: PageReaderLog;
       fetchImpl?: typeof fetch;
       /** Page-reader gap. Defaults to 1.5s and never below 1s. `RASCAL_YOUTUBE_POLL_MS` overrides it. */
       pollMs?: number;

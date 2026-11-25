@@ -81,7 +81,3 @@ export async function useEmbeddedBot(): Promise<void> {
   if (!ctxRef) throw new Error(`${brand.displayName} is still starting.`);
   await startEmbeddedBot(ctxRef);
 }
-
-export function configDirFromStage(): string | null {
-  return ctxRef ? path.dirname(ctxRef.settings.file) : null;
-}

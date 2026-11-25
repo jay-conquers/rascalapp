@@ -11,17 +11,10 @@ import {
 import { sharedQuotaMeter } from "../../shared/platform/youtube-quota";
 import { BotStore, type YoutubeBotTokens } from "../../../packages/bot/src/store";
 import { waitForYoutubeCallback } from "../../../packages/bot/src/youtube-login";
+import type { YoutubeDeskState } from "../../shared/youtube/desk-state";
 import type { Logger } from "../logger";
 
-export interface YoutubeDeskState {
-  connected: boolean;
-  account: string | null;
-  channelId: string | null;
-  status: string;
-  login: { verificationUri: string; expiresAt: number } | null;
-  /** Which connect button is waiting on the Google redirect. */
-  purpose: "desk" | "bot" | null;
-}
+export type { YoutubeDeskState };
 
 const desks = new Map<string, YoutubeDesk>();
 

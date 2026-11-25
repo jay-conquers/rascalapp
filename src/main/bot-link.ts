@@ -1,6 +1,7 @@
 import path from "node:path";
 import { validateBotServerUrl } from "../../packages/bot/src/model.ts";
 import { readJson, writePrivateJson } from "./private-file";
+import { asRecord } from "../shared/record";
 
 export interface BotLink {
   mode: "embedded" | "server";
@@ -42,6 +43,3 @@ export function botLinkView(link: BotLink): BotLinkView {
   return { mode: link.mode, serverUrl: link.serverUrl, tokenSet: link.adminToken.length >= 16 };
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

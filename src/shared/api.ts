@@ -2,7 +2,7 @@ import type { ChatOverlayFile, ChatOverlayStyle } from "./chat-overlay";
 import type { RedeemMapping, RedeemSnapshot } from "./redeems";
 export type { BotSnapshot } from "../../packages/bot/src/index";
 import type { BotSnapshot } from "../../packages/bot/src/index";
-import type { YoutubeDeskState } from "../main/youtube/desk";
+import type { YoutubeDeskState } from "./youtube/desk-state";
 import type { TtsPanel } from "./tts";
 import type { FeedToggles } from "./feed-toggles";
 import type { SendTargets } from "./send-targets";
