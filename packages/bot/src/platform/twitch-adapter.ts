@@ -1,7 +1,10 @@
+import type { BotPlatform, HookSubject, LoginPromptView, PlatformAccountCard, PlatformFacts } from "../../../../src/shared/platform/bot-platform.ts";
 import { normalizeTwitchChatFields } from "../../../../src/shared/platform/normalize.ts";
-import type { ChatPlatform, NormalizedChatMessage, PlatformCapabilities, PlatformLiveStatus } from "../../../../src/shared/platform/types.ts";
-import type { ChatLine } from "../model.ts";
+import type { NormalizedChatMessage, PlatformCapabilities, PlatformLiveStatus } from "../../../../src/shared/platform/types.ts";
+import type { ChatLine, ShoutoutSettings } from "../model.ts";
+import type { BotTokens } from "../store.ts";
 import { chatSubscription, HelixBot, parseChatFrame } from "../twitch.ts";
+import { TwitchSession } from "./twitch-session.ts";
 
 const CAPABILITIES: PlatformCapabilities = {
   send: true,
@@ -11,7 +14,7 @@ const CAPABILITIES: PlatformCapabilities = {
   unban: true,
 };
 
-export class TwitchChatPlatform implements ChatPlatform {
+export class TwitchChatPlatform implements BotPlatform {
   readonly id = "twitch";
   readonly label = "Twitch";
   readonly capabilities = CAPABILITIES;
@@ -21,6 +24,7 @@ export class TwitchChatPlatform implements ChatPlatform {
   /** Null until Helix `/streams` has answered. Chat connected does not mean the channel is live. */
   private streamLive: boolean | null = null;
   private readonly listeners = new Set<(message: NormalizedChatMessage) => void>();
+  private readonly session: TwitchSession;
 
   constructor(
     private readonly deps: {
@@ -33,8 +37,113 @@ export class TwitchChatPlatform implements ChatPlatform {
       fetchImpl: typeof fetch;
       log: (level: "info" | "error", message: string, extra?: Record<string, string>) => void;
       onBroadcasterId: (id: string) => void;
+      session?: () => BotTokens | null;
+      botAccount?: () => BotTokens | null;
+      accountMode?: () => "bot" | "channel";
+      channelLogin?: () => string;
+      statusOverride?: () => string | null;
+      setStatus?: (status: string | null) => void;
+      saveBotTokens?: (tokens: BotTokens) => void;
+      clearBotTokens?: () => void;
+      validate?: (accessToken: string) => Promise<{ login: string; userId: string; scopes: string[] }>;
+      shoutout?: () => ShoutoutSettings;
+      pushLog?: (entry: { t: number; action: string; user: string; text: string; by: string }) => void;
+      productName?: () => string;
+      serviceStopped?: () => boolean;
     },
-  ) {}
+  ) {
+    const noop = () => undefined;
+    this.session = new TwitchSession({
+      helix: deps.helix,
+      clientId: deps.clientId,
+      fetchImpl: () => deps.fetchImpl,
+      session: deps.session ?? (() => null),
+      botAccount: deps.botAccount ?? (() => null),
+      accountMode: deps.accountMode ?? (() => "bot"),
+      broadcasterId: deps.broadcasterId,
+      channelLogin: deps.channelLogin ?? (() => ""),
+      statusOverride: deps.statusOverride ?? (() => null),
+      setStatus: deps.setStatus ?? noop,
+      saveBotTokens: deps.saveBotTokens ?? noop,
+      clearBotTokens: deps.clearBotTokens ?? noop,
+      validate: deps.validate ?? (async () => ({ login: "", userId: "", scopes: [] })),
+      shoutout: deps.shoutout ?? (() => ({ template: "", helix: false })),
+      log: deps.log,
+      pushLog: deps.pushLog ?? noop,
+      productName: deps.productName ?? (() => "Rascal"),
+      stopped: deps.serviceStopped ?? (() => false),
+      open: () => this.open(),
+      disconnect: () => this.disconnect(),
+      setStreamLive: (live) => this.setStreamLive(live),
+      liveKnown: () => this.liveStatus().liveKnown !== false,
+    });
+  }
+
+  accountCard(): PlatformAccountCard {
+    return this.session.accountCard(this.liveStatus());
+  }
+
+  acceptsTimers(): boolean {
+    return this.session.acceptsTimers();
+  }
+
+  postingIdentity(): { userId: string; login: string } | null {
+    return this.session.postingIdentity();
+  }
+
+  factsFor(userId: string): Promise<PlatformFacts> {
+    return this.session.factsFor(userId);
+  }
+
+  currentFacts(): PlatformFacts {
+    return this.session.currentFacts();
+  }
+
+  builtinLookup(kind: "followage" | "accountage" | "shoutout", login: string, speakerName: string): Promise<string> {
+    return this.session.builtinLookup(kind, login, speakerName);
+  }
+
+  hookSubject(): HookSubject {
+    return this.session.hookSubject();
+  }
+
+  echoIds(): HookSubject {
+    return this.session.hookSubject();
+  }
+
+  async open(): Promise<void> {
+    if (!this.deps.session?.() || this.deps.serviceStopped?.()) return;
+    this.deps.setStatus?.(null);
+    await this.connect();
+  }
+
+  async reconnect(): Promise<void> {
+    await this.open();
+  }
+
+  loginPrompt(): LoginPromptView | null {
+    return this.session.loginPrompt();
+  }
+
+  startAccountLogin(): Promise<void> {
+    return this.session.startLogin();
+  }
+
+  cancelAccountLogin(): void {
+    this.session.cancelLogin();
+  }
+
+  logoutAccount(): void {
+    this.session.logout();
+  }
+
+  ingest(): void {}
+
+  noteReader(): void {}
+
+  setLive(): void {}
+
+  setOptIn(): void {}
 
   setStreamLive(live: boolean): void {
     this.streamLive = live;

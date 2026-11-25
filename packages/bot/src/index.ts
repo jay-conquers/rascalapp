@@ -53,10 +53,7 @@ export async function startBot(options: {
     }
   }
   if (!httpServer) throw lastError instanceof Error ? lastError : new Error("Could not bind the bot portal.");
-  if (store.loadTokens() || service.snapshot(0).platforms.some((platform) => platform.id === "twitch" && platform.accountMode === "channel" && platform.account)) {
-    await service.connect();
-  }
-  await service.connectYoutube();
+  await service.openPlatforms();
   return {
     service,
     port: httpServer.port,

@@ -1,15 +1,9 @@
 import { brand, readBrandEnv } from "../../../src/shared/brand.ts";
+import { liveFlag, type BotPlatform } from "../../../src/shared/platform/bot-platform.ts";
 import { PlatformRegistry } from "../../../src/shared/platform/registry.ts";
 import { targetsPlatform } from "../../../src/shared/platform/target.ts";
 import type { ChatPlatform, NormalizedChatMessage } from "../../../src/shared/platform/types.ts";
-import { YoutubeDataApi } from "../../../src/shared/platform/youtube-api.ts";
-import {
-  createYoutubeAuthRequest,
-  exchangeYoutubeCode,
-  refreshYoutubeAccessToken,
-  type YoutubeAuthRequest,
-  type YoutubeOAuthClient,
-} from "../../../src/shared/platform/youtube-oauth.ts";
+import { refreshYoutubeAccessToken, type YoutubeOAuthClient } from "../../../src/shared/platform/youtube-oauth.ts";
 import type { QuotaSnapshot } from "../../../src/shared/platform/youtube-quota.ts";
 import type { PlatformCapabilities } from "../../../src/shared/platform/types.ts";
 import { detectLive } from "../../../src/shared/youtube/page-reader.ts";
@@ -40,16 +34,15 @@ import {
 } from "./model.ts";
 import { TwitchChatPlatform } from "./platform/twitch-adapter.ts";
 import { YoutubeChatPlatform } from "./platform/youtube-adapter.ts";
-import { accountAgeLine, followageLine } from "./duration.ts";
+import { safeError } from "./errors.ts";
 import { importQuoteList, normalizeQuotes } from "./quotes.ts";
 import { buildHookPayload, consumeOutgoing, decideChatHook, normalizeHook, normalizeHooks, noteOutgoing, redactHookUrl, sampleHookPayload, type SentLine } from "./chat-hook.ts";
 import { callChatHook } from "./chat-hook-send.ts";
 import { channelIdFromJwt, importStreamElements } from "./se.ts";
 import { flushGiftHold, normalizeThanks, planThankYou, thankKind, type GiftHold } from "./thanks.ts";
 import { BotStore, readYoutubeTokens, type BotTokens, type YoutubeBotTokens } from "./store.ts";
-import { isLoopbackRedirect, youtubePublicRedirect } from "./public-url.ts";
-import { age, HelixBot, pollDevice, startDevice, type DevicePrompt } from "./twitch.ts";
-import { waitForYoutubeCallback } from "./youtube-login.ts";
+import { youtubePublicRedirect } from "./public-url.ts";
+import { HelixBot } from "./twitch.ts";
 
 export interface BotLoginPrompt {
   userCode: string;
@@ -130,31 +123,16 @@ export class BotService {
   private secrets: { apiKey: string; sessionSecret: string; seJwt: string };
   private memory = emptyMemory();
   private log: ModLogEntry[] = [];
-  private prompt: DevicePrompt | null = null;
-  private youtubePrompt: YoutubeAuthRequest | null = null;
-  private loginAbort: AbortController | null = null;
-  private youtubeLoginAbort: AbortController | null = null;
-  private youtubeCallback: {
-    state: string;
-    resolve: (value: { code: string; state: string }) => void;
-    reject: (err: Error) => void;
-  } | null = null;
   private statusOverride: string | null = null;
   private youtubeNote = "";
   private stopped = false;
-  private facts: ChannelFacts = { ...EMPTY_FACTS };
-  private streamLiveAt = 0;
-  private followCache = new Map<string, { at: number; text: string }>();
   private recentChatters = new Map<string, { name: string; at: number }>();
   private seenHookIds = new Set<string>();
   private outgoing: SentLine[] = [];
   private giftHold: GiftHold | null = null;
   private giftTimer: ReturnType<typeof setTimeout> | null = null;
   private bridge: ChannelTokenBridge | null = null;
-  private readonly helix: HelixBot;
-  private readonly twitch: TwitchChatPlatform;
-  private readonly youtube: YoutubeChatPlatform;
-  private readonly registry = new PlatformRegistry();
+  private readonly registry = new PlatformRegistry<BotPlatform>();
 
   constructor(
     private readonly store: BotStore,
@@ -172,9 +150,9 @@ export class BotService {
     this.youtubeTokens = store.loadYoutubeTokens();
     this.secrets = store.loadSecrets();
     const fetchImpl = deps.fetchImpl ?? fetch;
-    this.helix = new HelixBot(() => this.deps.clientId(), () => this.accessToken(), fetchImpl);
-    this.twitch = new TwitchChatPlatform({
-      helix: this.helix,
+    const helix = new HelixBot(() => this.deps.clientId(), () => this.accessToken(), fetchImpl);
+    const twitch = new TwitchChatPlatform({
+      helix,
       clientId: () => this.deps.clientId(),
       accessToken: () => this.accessToken(),
       broadcasterId: () => this.file.broadcasterId,
@@ -187,8 +165,29 @@ export class BotService {
         this.file.broadcasterId = id;
         this.file = this.store.saveConfig(this.file);
       },
+      session: () => this.activeTwitch(),
+      botAccount: () => this.tokens,
+      accountMode: () => this.file.accounts.twitch,
+      channelLogin: () => this.file.channelLogin,
+      statusOverride: () => this.statusOverride,
+      setStatus: (status) => {
+        this.statusOverride = status;
+      },
+      saveBotTokens: (tokens) => {
+        this.tokens = tokens;
+        this.store.saveTokens(tokens);
+      },
+      clearBotTokens: () => {
+        this.tokens = null;
+        this.store.clearTokens();
+      },
+      validate: (accessToken) => this.validate(accessToken),
+      shoutout: () => this.file.shoutout,
+      pushLog: (entry) => this.pushLog(entry),
+      productName: () => brand.displayName,
+      serviceStopped: () => this.stopped,
     });
-    this.youtube = new YoutubeChatPlatform({
+    const youtube = new YoutubeChatPlatform({
       accessToken: () => this.youtubeAccessToken(),
       channelId: () => this.file.youtubeChannelId,
       hasToken: () => this.youtubeSession() !== null,
@@ -200,15 +199,32 @@ export class BotService {
       log: (level, message, extra) => this.deps.log(level, message, extra),
       ownReader: this.deps.youtubeReader !== "external",
       optIn: () => this.file.youtubeApiPoll,
+      session: () => this.youtubeSession(),
+      separateAccount: () => this.youtubeTokens,
+      accountMode: () => this.file.accounts.youtube,
+      note: () => this.youtubeNote,
+      setNote: (note) => {
+        this.youtubeNote = note;
+      },
+      google: () => this.google(),
+      redirect: () => this.youtubeRedirect(),
+      saveTokens: (tokens) => {
+        this.youtubeTokens = tokens;
+        this.store.saveYoutubeTokens(tokens);
+      },
+      clearTokens: () => {
+        this.youtubeTokens = null;
+        this.store.clearYoutubeTokens();
+      },
+      onChanged: () => this.deps.onAccountsChanged?.(),
     });
-    this.registry.register(this.twitch);
-    this.registry.register(this.youtube);
-    this.twitch.onMessage((message) => {
-      void this.onPlatformMessage(message);
-    });
-    this.youtube.onMessage((message) => {
-      void this.onPlatformMessage(message);
-    });
+    this.registry.register(twitch);
+    this.registry.register(youtube);
+    for (const platform of this.registry.list()) {
+      platform.onMessage((message) => {
+        void this.onPlatformMessage(message);
+      });
+    }
   }
 
   /** The desk passes its live token store so a "post as my channel" choice shares that login. */
@@ -279,25 +295,25 @@ export class BotService {
     this.youtubeTokens = tokens;
     this.store.saveYoutubeTokens(tokens);
     this.deps.onAccountsChanged?.();
-    void this.reconnectYoutube();
+    void this.registry.get("youtube")?.reconnect();
   }
 
   snapshot(portalPort: number): BotSnapshot {
     const base = portalBase(this.file.publicUrl, portalPort);
     const client = this.google();
-    const twitchLive = this.twitch.liveStatus();
-    const active = this.activeTwitch();
+    const twitch = this.registry.get("twitch");
+    const youtube = this.registry.get("youtube");
+    const active = twitch?.postingIdentity() ?? null;
+    const twitchLive = twitch?.liveStatus();
     return {
-      connected: Boolean(active && twitchLive.connected),
-      status: this.statusOverride ?? twitchLive.detail,
+      connected: Boolean(active && twitchLive?.connected),
+      status: this.statusOverride ?? twitchLive?.detail ?? "Bot is idle.",
       botLogin: active?.login ?? null,
       channelLogin: this.file.channelLogin,
       broadcasterId: this.file.broadcasterId,
       portalUrl: `${base}/portal`,
       redirectUri: `${base}/portal/callback`,
-      login: this.prompt
-        ? { userCode: this.prompt.userCode, verificationUri: this.prompt.verificationUri, expiresAt: this.prompt.expiresAt }
-        : null,
+      login: twitch?.loginPrompt() ?? null,
       commands: this.file.commands,
       timers: this.file.timers,
       filters: this.file.filters,
@@ -308,9 +324,7 @@ export class BotService {
       log: this.log.slice(-80),
       seJwtSet: this.secrets.seJwt.length > 0,
       platforms: this.platformSections(),
-      youtubeLogin: this.youtubePrompt
-        ? { userCode: "", verificationUri: this.youtubePrompt.url, expiresAt: this.youtubePrompt.expiresAt }
-        : null,
+      youtubeLogin: youtube?.loginPrompt() ?? null,
       youtubeRedirectUri: this.youtubeRedirect(),
       googleClientId: client.clientId,
       googleClientSecretSet: client.clientSecret.length > 0,
@@ -354,8 +368,8 @@ export class BotService {
       this.file.youtubeChannelId = /^UC[\w-]{22}$/.test(value) || value === "" ? value : this.file.youtubeChannelId;
     }
     this.file = this.store.saveConfig(this.file);
-    if (this.activeTwitch()) void this.connect();
-    if (previousChannel !== this.file.youtubeChannelId) void this.reconnectYoutube();
+    if (this.registry.get("twitch")?.postingIdentity()) void this.connect();
+    if (previousChannel !== this.file.youtubeChannelId) void this.registry.get("youtube")?.reconnect();
   }
 
   setAccounts(patch: { twitch?: unknown; youtube?: unknown; youtubeApiPoll?: unknown }): void {
@@ -363,22 +377,22 @@ export class BotService {
     const youtube = patch.youtube === "channel" ? "channel" : patch.youtube === "bot" ? "bot" : this.file.accounts.youtube;
     const youtubeApiPoll = typeof patch.youtubeApiPoll === "boolean" ? patch.youtubeApiPoll : this.file.youtubeApiPoll;
     this.file = this.store.saveConfig({ ...this.file, accounts: { twitch, youtube }, youtubeApiPoll });
-    this.youtube.setOptIn(youtubeApiPoll);
+    for (const platform of this.registry.list()) platform.setOptIn?.(youtubeApiPoll);
     this.statusOverride = null;
     if (patch.twitch !== undefined) void this.connect();
-    if (patch.youtube !== undefined) void this.reconnectYoutube();
+    if (patch.youtube !== undefined) void this.registry.get("youtube")?.reconnect();
   }
 
   ingestYoutube(message: NormalizedChatMessage): void {
-    this.youtube.ingest(message);
+    this.registry.get("youtube")?.ingest?.(message);
   }
 
   noteYoutubeReader(ok: boolean): void {
-    this.youtube.noteReader(ok);
+    this.registry.get("youtube")?.noteReader?.(ok);
   }
 
   setYoutubeLive(input: { live: boolean; known?: boolean; title?: string; videoId?: string }): void {
-    this.youtube.setLive(input);
+    this.registry.get("youtube")?.setLive?.(input);
   }
 
   saveGoogleClient(input: unknown): void {
@@ -391,35 +405,15 @@ export class BotService {
   }
 
   async startLogin(): Promise<void> {
-    if (this.loginAbort) return;
-    const clientId = this.deps.clientId();
-    if (!clientId) throw new Error(`Add the Twitch client ID in ${brand.displayName} settings first.`);
-    const fetchImpl = this.fetchImpl();
-    this.prompt = await startDevice(clientId, fetchImpl);
-    this.statusOverride = "Waiting for the bot account to approve the code.";
-    const controller = new AbortController();
-    this.loginAbort = controller;
-    void this.finishLogin(clientId, controller);
+    await this.registry.get("twitch")?.startAccountLogin();
   }
 
   cancelLogin(): void {
-    this.loginAbort?.abort();
-    this.loginAbort = null;
-    this.prompt = null;
+    this.registry.get("twitch")?.cancelAccountLogin();
   }
 
   logout(): void {
-    this.cancelLogin();
-    this.tokens = null;
-    this.store.clearTokens();
-    this.statusOverride = "Bot logged out.";
-    if (this.file.accounts.twitch === "channel" && this.activeTwitch()) {
-      this.statusOverride = null;
-      void this.connect();
-    } else {
-      void this.twitch.disconnect();
-    }
-    this.deps.log("info", "bot logged out");
+    this.registry.get("twitch")?.logoutAccount();
   }
 
   youtubeRedirect(): string {
@@ -428,38 +422,19 @@ export class BotService {
 
   /** The public HTTPS callback lands here. Loopback logins do not. */
   acceptYoutubeCallback(input: { code: string; state: string; error: string }): boolean {
-    const pending = this.youtubeCallback;
-    if (!pending || !input.state || pending.state !== input.state) return false;
-    if (input.error || !input.code) pending.reject(new Error("The YouTube login was cancelled."));
-    else pending.resolve({ code: input.code, state: input.state });
-    return true;
+    return this.registry.get("youtube")?.acceptLoginCallback?.(input) ?? false;
   }
 
   async startYoutubeLogin(): Promise<void> {
-    if (this.youtubeLoginAbort) return;
-    const client = this.google();
-    const request = createYoutubeAuthRequest(client, undefined, this.youtubeRedirect());
-    this.youtubePrompt = request;
-    this.youtubeNote = "Waiting for Google to approve YouTube.";
-    const controller = new AbortController();
-    this.youtubeLoginAbort = controller;
-    void this.finishYoutubeLogin(client, request, controller);
+    await this.registry.get("youtube")?.startAccountLogin();
   }
 
   cancelYoutubeLogin(): void {
-    this.youtubeLoginAbort?.abort();
-    this.youtubeLoginAbort = null;
-    this.youtubePrompt = null;
+    this.registry.get("youtube")?.cancelAccountLogin();
   }
 
   logoutYoutube(): void {
-    this.cancelYoutubeLogin();
-    this.youtubeTokens = null;
-    this.store.clearYoutubeTokens();
-    this.youtubeNote = "YouTube bot logged out.";
-    void this.reconnectYoutube();
-    this.deps.onAccountsChanged?.();
-    this.deps.log("info", "youtube bot logged out");
+    this.registry.get("youtube")?.logoutAccount();
   }
 
   saveCommand(input: unknown): void {
@@ -547,11 +522,22 @@ export class BotService {
       text: input.text ?? "",
       now: Date.now(),
       hold: this.giftHold,
-      facts: this.facts,
+      facts: this.registry.get("twitch")?.currentFacts() ?? { ...EMPTY_FACTS },
     });
     this.giftHold = planned.hold;
     if (planned.waitMs > 0) this.armGift(planned.waitMs);
     if (planned.say) void this.postBot(input.platform === "youtube" ? "youtube" : "twitch", planned.say);
+  }
+
+  private armGift(waitMs: number): void {
+    if (this.giftTimer) clearTimeout(this.giftTimer);
+    this.giftTimer = setTimeout(() => {
+      this.giftTimer = null;
+      const flushed = flushGiftHold(this.file.thanks, this.giftHold, Date.now(), this.registry.get("twitch")?.currentFacts() ?? { ...EMPTY_FACTS }, true);
+      this.giftHold = flushed.hold;
+      if (flushed.say) void this.postBot("twitch", flushed.say);
+    }, waitMs);
+    this.giftTimer.unref?.();
   }
 
   saveTimer(input: unknown, now = Date.now()): void {
@@ -645,18 +631,17 @@ export class BotService {
   async tick(): Promise<void> {
     if (this.stopped) return;
     const now = Date.now();
-    const facts = await this.channelFacts("twitch", "");
+    const facts = (await this.registry.get("twitch")?.factsFor("")) ?? { ...EMPTY_FACTS };
     let changed = false;
     const timers = [...this.file.timers];
     for (let index = 0; index < timers.length; index += 1) {
       let timer = timers[index];
       if (!timer) continue;
-      const buckets = new Map<TimerPhase, ChatPlatform[]>();
+      const buckets = new Map<TimerPhase, BotPlatform[]>();
       for (const platform of this.registry.list()) {
         if (!targetsPlatform(timer.platforms, platform.id)) continue;
-        if (platform.id === "twitch" && !this.activeTwitch()) continue;
-        const live = this.liveFlag(platform);
-        if (platform.id === "youtube" && live !== true) continue;
+        if (!platform.acceptsTimers()) continue;
+        const live = liveFlag(platform.liveStatus());
         const phase = activePhase(timer, live);
         if (!phase || !timerIsDue(timer, now, phase)) continue;
         const list = buckets.get(phase) ?? [];
@@ -689,125 +674,26 @@ export class BotService {
     this.stopped = true;
     if (this.giftTimer) clearTimeout(this.giftTimer);
     this.giftTimer = null;
-    this.cancelLogin();
-    this.cancelYoutubeLogin();
-    void this.twitch.disconnect();
-    void this.youtube.disconnect();
+    for (const platform of this.registry.list()) {
+      platform.cancelAccountLogin();
+      void platform.disconnect();
+    }
+  }
+
+  /** Opens every registered platform. Twitch no-ops until it has a posting account. */
+  async openPlatforms(): Promise<void> {
+    if (this.stopped) return;
+    for (const platform of this.registry.list()) await platform.open();
   }
 
   async connect(): Promise<void> {
-    if (!this.activeTwitch() || this.stopped) return;
-    this.statusOverride = null;
-    await this.twitch.connect();
+    await this.registry.get("twitch")?.open();
   }
 
   async connectYoutube(): Promise<void> {
-    if (this.stopped) return;
-    this.youtubeNote = "";
-    await this.youtube.connect();
+    await this.registry.get("youtube")?.open();
   }
 
-  private async reconnectYoutube(): Promise<void> {
-    await this.youtube.disconnect();
-    await this.connectYoutube();
-  }
-
-  private async finishLogin(clientId: string, controller: AbortController): Promise<void> {
-    const prompt = this.prompt;
-    if (!prompt) return;
-    const fetchImpl = this.fetchImpl();
-    try {
-      const deadline = prompt.expiresAt;
-      while (!controller.signal.aborted && Date.now() < deadline) {
-        await sleep(prompt.interval * 1000);
-        const result = await pollDevice(clientId, prompt.deviceCode, fetchImpl);
-        if (result === "pending") continue;
-        if (result === "denied") throw new Error("The bot login was denied.");
-        const identity = await this.validate(result.accessToken);
-        this.tokens = {
-          clientId,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-          expiresAt: Date.now() + result.expiresIn * 1000,
-          scopes: identity.scopes,
-          userId: identity.userId,
-          login: identity.login,
-        };
-        this.store.saveTokens(this.tokens);
-        this.prompt = null;
-        this.statusOverride = `Logged in as ${identity.login}. Mod that account in your channel so it can timeout and delete.`;
-        this.deps.log("info", "bot login succeeded", { login: identity.login });
-        await this.connect();
-        return;
-      }
-    } catch (err) {
-      this.prompt = null;
-      this.statusOverride = err instanceof Error ? err.message : "Bot login failed.";
-      this.deps.log("error", "bot login failed", { message: safeError(err) });
-    } finally {
-      this.loginAbort = null;
-    }
-  }
-
-  private waitForPublicYoutube(state: string, signal: AbortSignal): Promise<{ code: string; state: string }> {
-    return new Promise((resolve, reject) => {
-      let timer: ReturnType<typeof setTimeout>;
-      const finish = (err: Error | null, value?: { code: string; state: string }) => {
-        clearTimeout(timer);
-        signal.removeEventListener("abort", onAbort);
-        if (this.youtubeCallback?.state === state) this.youtubeCallback = null;
-        if (err) reject(err);
-        else if (value) resolve(value);
-      };
-      const onAbort = () => finish(new Error("The YouTube login was cancelled."));
-      timer = setTimeout(() => finish(new Error("The YouTube login timed out. Start it again.")), 5 * 60_000);
-      signal.addEventListener("abort", onAbort);
-      this.youtubeCallback = {
-        state,
-        resolve: (value) => finish(null, value),
-        reject: (err) => finish(err),
-      };
-    });
-  }
-
-  private async finishYoutubeLogin(client: YoutubeOAuthClient, request: YoutubeAuthRequest, controller: AbortController): Promise<void> {
-    try {
-      const callback = isLoopbackRedirect(request.redirectUri)
-        ? await waitForYoutubeCallback({ signal: controller.signal })
-        : await this.waitForPublicYoutube(request.state, controller.signal);
-      if (controller.signal.aborted) return;
-      if (callback.state !== request.state || !callback.code) throw new Error("That YouTube login did not match. Start again.");
-      const exchanged = await exchangeYoutubeCode(client, request, callback.code, this.fetchImpl());
-      const api = new YoutubeDataApi({
-        token: async () => exchanged.accessToken,
-        fetchImpl: this.fetchImpl(),
-        meter: this.youtube.quota(),
-      });
-      const identity = await api.myChannel();
-      this.youtubeTokens = {
-        clientId: client.clientId,
-        accessToken: exchanged.accessToken,
-        refreshToken: exchanged.refreshToken,
-        expiresAt: Date.now() + exchanged.expiresIn * 1000,
-        scopes: exchanged.scope.split(/\s+/).filter(Boolean),
-        channelId: identity.channelId,
-        title: identity.title,
-      };
-      this.store.saveYoutubeTokens(this.youtubeTokens);
-      this.youtubePrompt = null;
-      this.youtubeNote = "";
-      this.deps.log("info", "youtube login succeeded", { channel: identity.channelId });
-      this.deps.onAccountsChanged?.();
-      await this.reconnectYoutube();
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      this.youtubePrompt = null;
-      this.youtubeNote = err instanceof Error ? err.message : "YouTube login failed.";
-      this.deps.log("error", "youtube login failed", { message: safeError(err) });
-    } finally {
-      if (this.youtubeLoginAbort === controller) this.youtubeLoginAbort = null;
-    }
-  }
 
   private async onPlatformMessage(message: NormalizedChatMessage): Promise<void> {
     const platform = this.registry.get(message.platform);
@@ -820,13 +706,13 @@ export class BotService {
       text: message.text,
       roles: message.user.roles,
     };
-    const facts = await this.channelFacts(message.platform, line.userId);
-    const botUserId = message.platform === "youtube" ? this.youtubeSession()?.channelId ?? "" : this.activeTwitch()?.userId ?? "";
+    const facts = await platform.factsFor(line.userId);
+    const botUserId = platform.postingIdentity()?.userId ?? "";
     const now = Date.now();
     const decision = decideChat(this.file, this.memory, line, now, facts, botUserId, message.platform, { chatters: this.rememberChatter(line, now, botUserId) });
     if (decision.quotes) this.file = this.store.saveConfig({ ...this.file, quotes: decision.quotes });
-    if (decision.lookup && message.platform === "twitch") {
-      const looked = await this.answerLookup(decision.lookup, line);
+    if (decision.lookup) {
+      const looked = await platform.builtinLookup(decision.lookup.kind, decision.lookup.login, line.displayName);
       if (looked) decision.say.push(looked.slice(0, 450));
     }
     if (decision.countCommandId) {
@@ -835,20 +721,21 @@ export class BotService {
       this.file = this.store.saveConfig(this.file);
     }
     if (decision.chatLine) {
-      const live = this.liveFlag(platform);
+      const live = liveFlag(platform.liveStatus());
       this.file.timers = this.file.timers.map((timer) => (targetsPlatform(timer.platforms, message.platform) ? countTimerLine(timer, live) : timer));
     }
     if (decision.log) this.pushLog({ t: Date.now(), ...decision.log });
+    const subject = platform.hookSubject();
     const gate = {
       platform: message.platform,
-      channel: message.platform === "youtube" ? this.file.youtubeChannelId : this.file.channelLogin,
-      botUserId,
-      botLogin: message.platform === "youtube" ? "" : this.activeTwitch()?.login ?? "",
-      channelLogin: message.platform === "youtube" ? "" : this.file.channelLogin,
-      broadcasterId: message.platform === "youtube" ? this.file.youtubeChannelId : this.file.broadcasterId,
+      channel: subject.channel,
+      botUserId: subject.botUserId,
+      botLogin: subject.botLogin,
+      channelLogin: subject.channelLogin,
+      broadcasterId: subject.broadcasterId,
       publishedAt: message.publishedAt,
       duplicate: this.rememberHookMessage(message.messageId),
-      sentByRascal: this.echoOfOurs(message.platform, line, now, botUserId),
+      sentByRascal: this.echoOfOurs(platform, line, now),
     };
     const hookDecision = decideChatHook(this.file.hooks, line, now, this.memory, gate);
     if (hookDecision.action === "fire") void this.dispatchHook(platform, hookDecision.hook, line, hookDecision.text, now, gate);
@@ -925,85 +812,22 @@ export class BotService {
     }
   }
 
-  private rememberChatter(line: ChatLine, now: number, botUserId: string): string[] {
-    const login = line.login.toLowerCase();
-    const botLogin = (this.activeTwitch()?.login ?? "").toLowerCase();
-    const channel = this.file.channelLogin.toLowerCase();
-    const blocked = !login || line.userId === botUserId || login === channel || login === botLogin || BOT_NAMES.has(login);
-    if (!blocked) this.recentChatters.set(login, { name: line.displayName || line.login, at: now });
-    const names: string[] = [];
-    for (const [key, row] of this.recentChatters) {
-      if (now - row.at > CHATTER_MS) this.recentChatters.delete(key);
-      else names.push(row.name);
-    }
-    return names;
-  }
-
-  private async answerLookup(lookup: { kind: "followage" | "accountage" | "shoutout"; login: string }, line: ChatLine): Promise<string> {
-    try {
-      const profile = await this.helix.userByLogin(lookup.login);
-      if (!profile) return `I couldn't find ${lookup.login}.`;
-      const name = profile.name || profile.login;
-      if (lookup.kind === "accountage") return accountAgeLine(name, profile.createdAt, Date.now());
-      if (lookup.kind === "followage") {
-        if (!this.file.broadcasterId) return "The channel id is not set.";
-        const followed = await this.helix.followedAt(this.file.broadcasterId, profile.id);
-        return followageLine(name, followed, Date.now());
-      }
-      const channel = await this.helix.channel(profile.id);
-      const text = expandTemplate(this.file.shoutout.template, {
-        user: line.displayName,
-        touser: profile.login,
-        count: "0",
-        randomPool: "",
-        facts: { ...this.facts, game: channel.game },
-      });
-      const scopes = this.activeTwitch()?.scopes ?? [];
-      const moderatorId = this.activeTwitch()?.userId ?? "";
-      if (this.file.shoutout.helix && scopes.includes("moderator:manage:shoutouts") && this.file.broadcasterId && moderatorId) {
-        try {
-          await this.helix.shoutout(this.file.broadcasterId, profile.id, moderatorId);
-        } catch (err) {
-          this.pushLog({ t: Date.now(), action: "shoutout", user: profile.login, text: safeError(err), by: "bot" });
-        }
-      }
-      return text;
-    } catch (err) {
-      this.deps.log("error", "lookup failed", { message: safeError(err) });
-      return "I couldn't look that up.";
-    }
-  }
-
-  private armGift(waitMs: number): void {
-    if (this.giftTimer) clearTimeout(this.giftTimer);
-    this.giftTimer = setTimeout(() => {
-      this.giftTimer = null;
-      const flushed = flushGiftHold(this.file.thanks, this.giftHold, Date.now(), this.facts, true);
-      this.giftHold = flushed.hold;
-      if (flushed.say) void this.postBot("twitch", flushed.say);
-    }, waitMs);
-    this.giftTimer.unref?.();
-  }
-
   private async say(platform: ChatPlatform, text: string): Promise<void> {
     this.outgoing = noteOutgoing(this.outgoing, platform.id, text, Date.now());
     await platform.sendMessage(text);
   }
 
-  /** A line Rascal just posted, coming back from the same account. A viewer's copy is left alone. */
-  private echoOfOurs(platform: string, line: ChatLine, now: number, botUserId: string): boolean {
-    const botLogin = (platform === "youtube" ? "" : this.activeTwitch()?.login ?? "").toLowerCase();
-    const channel = (platform === "youtube" ? "" : this.file.channelLogin).toLowerCase();
-    const broadcasterId = platform === "youtube" ? this.file.youtubeChannelId : this.file.broadcasterId;
+  private echoOfOurs(platform: BotPlatform, line: ChatLine, now: number): boolean {
+    const ids = platform.echoIds();
     const login = line.login.toLowerCase();
     const fromAccount =
-      (botUserId && line.userId === botUserId) ||
-      (broadcasterId && line.userId === broadcasterId) ||
-      (channel && login === channel) ||
-      (botLogin && login === botLogin) ||
+      (ids.botUserId && line.userId === ids.botUserId) ||
+      (ids.broadcasterId && line.userId === ids.broadcasterId) ||
+      (ids.channelLogin && login === ids.channelLogin.toLowerCase()) ||
+      (ids.botLogin && login === ids.botLogin.toLowerCase()) ||
       line.roles.includes("broadcaster");
     if (!fromAccount) return false;
-    const taken = consumeOutgoing(this.outgoing, platform, line.text, now);
+    const taken = consumeOutgoing(this.outgoing, platform.id, line.text, now);
     this.outgoing = taken.sent;
     return taken.matched;
   }
@@ -1019,49 +843,20 @@ export class BotService {
     }
   }
 
-  private async channelFacts(platformId: string, userId: string): Promise<ChannelFacts> {
-    if (platformId !== "twitch") {
-      const live = this.youtube.liveStatus();
-      return { title: live.title ?? "", game: "", uptime: live.live ? "live" : "offline", followage: "" };
+  private rememberChatter(line: ChatLine, now: number, botUserId: string): string[] {
+    const login = line.login.toLowerCase();
+    const botLogin = (this.registry.get("twitch")?.postingIdentity()?.login ?? "").toLowerCase();
+    const channel = this.file.channelLogin.toLowerCase();
+    const blocked = !login || line.userId === botUserId || login === channel || login === botLogin || BOT_NAMES.has(login);
+    if (!blocked) this.recentChatters.set(login, { name: line.displayName || line.login, at: now });
+    const names: string[] = [];
+    for (const [key, row] of this.recentChatters) {
+      if (now - row.at > CHATTER_MS) this.recentChatters.delete(key);
+      else names.push(row.name);
     }
-    await this.refreshStreamLive();
-    if (!this.activeTwitch() || !this.file.broadcasterId) return { ...EMPTY_FACTS, followage: "" };
-    let followage = "";
-    if (userId) {
-      const cached = this.followCache.get(userId);
-      if (cached && Date.now() - cached.at < 10 * 60_000) followage = cached.text;
-      else {
-        try {
-          followage = await this.helix.followage(this.file.broadcasterId, userId);
-          this.followCache.set(userId, { at: Date.now(), text: followage });
-        } catch {
-          followage = "unknown";
-        }
-      }
-    }
-    return { ...this.facts, followage };
+    return names;
   }
 
-  /** Helix `/streams` says whether the Twitch channel is actually live. Chat being connected is not enough. */
-  private async refreshStreamLive(): Promise<void> {
-    if (!this.activeTwitch() || !this.file.broadcasterId) return;
-    if (Date.now() - this.streamLiveAt < 30_000 && this.twitch.liveStatus().liveKnown !== false) return;
-    try {
-      const channel = await this.helix.channel(this.file.broadcasterId);
-      const live = Boolean(channel.startedAt);
-      this.twitch.setStreamLive(live);
-      this.facts = { title: channel.title, game: channel.game, uptime: live ? age(channel.startedAt) : "offline", followage: this.facts.followage };
-      this.streamLiveAt = Date.now();
-    } catch (err) {
-      this.deps.log("error", "stream status failed", { message: safeError(err) });
-    }
-  }
-
-  private liveFlag(platform: ChatPlatform): boolean | null {
-    const status = platform.liveStatus();
-    if (status.liveKnown === false) return null;
-    return status.live;
-  }
 
   private async accessToken(): Promise<string> {
     const tokens = this.activeTwitch();
@@ -1144,34 +939,12 @@ export class BotService {
   }
 
   private platformSections(): PlatformSection[] {
-    const twitchTokens = this.activeTwitch();
-    const twitchLive = this.twitch.liveStatus();
-    const youtubeTokens = this.youtubeSession();
-    const youtubeLive = this.youtube.liveStatus();
-    return [
-      {
-        id: "twitch",
-        label: "Twitch",
-        connected: Boolean(twitchTokens && twitchLive.connected),
-        status: this.statusOverride ?? twitchLive.detail,
-        account: twitchTokens?.login ?? null,
-        accountMode: this.file.accounts.twitch,
-        separateAccount: this.tokens?.login ?? null,
-        capabilities: this.twitch.capabilities,
-        quota: null,
-      },
-      {
-        id: "youtube",
-        label: "YouTube",
-        connected: Boolean(youtubeTokens) && youtubeLive.connected,
-        status: this.youtubeNote || youtubeLive.detail,
-        account: youtubeTokens ? youtubeTokens.title || youtubeTokens.channelId : null,
-        accountMode: this.file.accounts.youtube,
-        separateAccount: this.youtubeTokens ? this.youtubeTokens.title || this.youtubeTokens.channelId : null,
-        capabilities: this.youtube.capabilities,
-        quota: this.youtube.quotaView(),
-      },
-    ];
+    return this.registry.list().map((platform) => ({
+      id: platform.id,
+      label: platform.label,
+      ...platform.accountCard(),
+      capabilities: platform.capabilities,
+    }));
   }
 
   /**
@@ -1202,19 +975,10 @@ export class BotService {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function hookError(err: unknown): string {
   const message = err instanceof Error ? err.message : "";
   if (message.startsWith("The hook ") || message.startsWith("That address ")) return message.slice(0, 180);
   return "The hook did not answer.";
-}
-
-function safeError(err: unknown): string {
-  const message = err instanceof Error ? err.message : "Bot request failed.";
-  return message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").replace(/OAuth\s+\S+/gi, "OAuth [redacted]").replace(/ya29\.[A-Za-z0-9_\-]+/g, "[redacted]").slice(0, 180);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
