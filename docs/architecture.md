@@ -16,7 +16,7 @@ packages/bot    the headless bot: config, command engine, HTTP API, portal
 
 ## Chat platforms
 
-A platform is a `ChatPlatform` (`src/shared/platform/types.ts`): connect, send, delete, timeout, ban, unban, look up a user, and report whether the channel is live. Incoming chat is a `NormalizedChatMessage`. Twitch and YouTube each have an adapter in `packages/bot/src/platform/`. The desk has its own readers (Twitch IRC and EventSub, the YouTube page reader in `src/shared/youtube/page-reader.ts`) and hands the bot a line that is already in that shape.
+A platform is a `ChatPlatform` (`src/shared/platform/types.ts`): connect, send, delete, timeout, ban, unban, look up a user, and report whether the channel is live. Incoming chat is a `NormalizedChatMessage`. Twitch and YouTube each have an adapter in `packages/bot/src/platform/`. The desk registers the same two sites on its own `PlatformRegistry` (`src/shared/platform/desk.ts`). Starting the app and sending a chat line walk that list. Twitch IRC, EventSub, and the YouTube page reader stay behind those adapters. The page reader lives in `src/shared/youtube/page-reader.ts`.
 
 `BotService` constructs a Twitch adapter and a YouTube adapter and registers both on `PlatformRegistry`. Chat, timers, moderation, login, and the snapshot walk that list. The adapters implement `BotPlatform` in `src/shared/platform/bot-platform.ts`. Commands and filters ask `targetsPlatform` for the saved target string.
 
