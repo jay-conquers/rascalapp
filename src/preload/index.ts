@@ -45,6 +45,7 @@ const api: RascalApi = {
   botSaveTimer: (timer) => ipcRenderer.invoke("app:bot-timer", timer),
   botDeleteTimer: (id) => ipcRenderer.invoke("app:bot-timer-delete", id),
   botSaveFilters: (filters) => ipcRenderer.invoke("app:bot-filters", filters),
+  botSaveExtras: (patch) => ipcRenderer.invoke("app:bot-extras", patch),
   botImportSe: (jwt) => ipcRenderer.invoke("app:bot-import-se", jwt),
   botImportJson: (payload) => ipcRenderer.invoke("app:bot-import-json", payload),
   botLink: () => ipcRenderer.invoke("app:bot-link"),

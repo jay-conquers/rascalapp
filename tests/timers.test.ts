@@ -168,7 +168,8 @@ describe("streamelements import", () => {
     expect(imported.commands[0]).toMatchObject({
       name: "so",
       response: "Go see ${user}",
-      aliases: ["shout", "shoutout"],
+      aliases: ["shout"],
+      keywords: ["shoutout", "shout out"],
       cooldownSec: 8,
       userCooldownSec: 20,
       level: "sub",

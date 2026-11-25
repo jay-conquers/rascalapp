@@ -2,8 +2,19 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { brand } from "../../shared/brand";
 import type { BotSnapshot } from "../../shared/api";
 import type { YoutubeDeskState } from "../../main/youtube/desk";
+import { defaultShoutout, defaultThanks, type ShoutoutSettings, type ThanksSettings } from "../../../packages/bot/src/model";
 import { checksFromTarget, targetFromChecks, type PlatformTarget } from "../../shared/platform/target";
 import { CheckRow } from "./CheckRow";
+
+const THANK_ROWS: { key: keyof ThanksSettings; label: string }[] = [
+  { key: "follow", label: "Follow" },
+  { key: "sub", label: "Subscription" },
+  { key: "resub", label: "Resubscription" },
+  { key: "subgift", label: "Gifted sub" },
+  { key: "cheer", label: "Cheer" },
+  { key: "raid", label: "Raid" },
+  { key: "redemption", label: "Channel point redeem" },
+];
 
 const EMPTY: BotSnapshot = {
   connected: false,
@@ -35,6 +46,9 @@ const EMPTY: BotSnapshot = {
   googleClientSecretSet: false,
   googleClientFromEnv: false,
   youtubeApiPoll: false,
+  quotes: [],
+  thanks: defaultThanks(),
+  shoutout: defaultShoutout(),
 };
 
 const EMPTY_DESK: YoutubeDeskState = {
@@ -63,6 +77,11 @@ export function BotView() {
   const [clientSecret, setClientSecret] = useState("");
   const [commandTwitch, setCommandTwitch] = useState(true);
   const [commandYoutube, setCommandYoutube] = useState(false);
+  const [keywords, setKeywords] = useState("");
+  const [thanks, setThanks] = useState<ThanksSettings>(defaultThanks());
+  const [shoutout, setShoutout] = useState<ShoutoutSettings>(defaultShoutout());
+  const [quoteImport, setQuoteImport] = useState("");
+  const extrasReady = useRef(false);
   const seeded = useRef(false);
   const clientSeeded = useRef(false);
 
@@ -71,6 +90,11 @@ export function BotView() {
     const [next, youtube] = await Promise.all([window.rascal.botState(), window.rascal.youtubeDeskState()]);
     setState(next);
     setDesk(youtube);
+    if (!extrasReady.current) {
+      extrasReady.current = true;
+      setThanks(next.thanks);
+      setShoutout(next.shoutout);
+    }
   }
 
   useEffect(() => {
@@ -249,7 +273,7 @@ export function BotView() {
       <section className="bot-card">
         <h3>Commands</h3>
         <ul className="tts-list">
-          {state.commands.length === 0 ? <li>No custom commands yet. Built-ins: !permit, !timeout, !ban, !unban, !commands.</li> : null}
+          {state.commands.length === 0 ? <li>No custom commands yet. Built-ins: !permit, !timeout, !ban, !unban, !commands, !cmds, !followage, !accountage, !so, !quote.</li> : null}
           {state.commands.map((command) => (
             <li key={command.id}>
               <p className="tts-line">
@@ -264,6 +288,7 @@ export function BotView() {
                 onChange={(platforms) => void run(() => window.rascal!.botSaveCommand({ ...command, platforms }))}
               />
               <p>{command.response}</p>
+              {command.keywords && command.keywords.length > 0 ? <p className="form-note">Keywords: {command.keywords.join(", ")}</p> : null}
               <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => window.rascal!.botDeleteCommand(command.id))}>
                 Delete
               </button>
@@ -291,11 +316,17 @@ export function BotView() {
           </label>
         </div>
         <label>
+          Keywords
+          <input value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="alot, on accident, deez nutz" />
+        </label>
+        <label>
           Response
           <textarea value={response} onChange={(event) => setResponse(event.target.value)} />
         </label>
         <PlatformChecks target={targetFromChecks(commandTwitch, commandYoutube)} disabled={busy} onChange={(platforms) => { const next = checksFromTarget(platforms); setCommandTwitch(next.twitch); setCommandYoutube(next.youtube); }} />
-        <p className="form-note">Variables: {"{user}"} {"{touser}"} {"{count}"} {"{uptime}"} {"{game}"} {"{title}"} {"{followage}"} {"{random:yes|no}"}</p>
+        <p className="form-note">
+          A keyword fires when that word or phrase appears in a normal message. The cooldown above stops it repeating. Variables: {"{user}"} {"{touser}"} {"{1}"} {"{count}"} {"{uptime}"} {"{game}"} {"{title}"} {"{followage}"} {"{random.chatter}"} {"{random:yes|no}"} {"{random:{user} is better|{touser} is better}"}
+        </p>
         <button
           type="button"
           className="primary"
@@ -306,6 +337,7 @@ export function BotView() {
                 name,
                 response,
                 level,
+                keywords: keywords.split(",").map((item) => item.trim()).filter(Boolean),
                 cooldownSec: Number(cooldown) || 0,
                 userCooldownSec: 15,
                 enabled: true,
@@ -315,6 +347,90 @@ export function BotView() {
           }
         >
           Save command
+        </button>
+      </section>
+
+      <section className="bot-card">
+        <h3>Shoutout</h3>
+        <p className="form-note">Mods use !so username. Rascal posts this line with the target's login and the game Helix last had on their channel. A custom !so still works for viewers who are not mods.</p>
+        <label>
+          Shoutout line
+          <textarea value={shoutout.template} onChange={(event) => setShoutout({ ...shoutout, template: event.target.value })} />
+        </label>
+        <CheckRow checked={shoutout.helix} disabled={busy} onChange={(helix) => setShoutout({ ...shoutout, helix })}>
+          Also send a Twitch shoutout when the bot token has moderator:manage:shoutouts
+        </CheckRow>
+        <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => window.rascal!.botSaveExtras({ shoutout }))}>
+          Save shoutout
+        </button>
+      </section>
+
+      <section className="bot-card">
+        <h3>Quotes</h3>
+        <p className="form-note">Everyone can use !quote or !quote 3. Mods can !quote add text and !quote remove 3. Numbers stay put after a removal.</p>
+        <ul className="tts-list">
+          {state.quotes.length === 0 ? <li>No quotes yet.</li> : null}
+          {state.quotes.map((quote) => (
+            <li key={quote.id}>
+              <p className="tts-line">
+                <strong>#{quote.id}</strong>
+                <span>{quote.by}</span>
+              </p>
+              <p>{quote.text}</p>
+            </li>
+          ))}
+        </ul>
+        <label>
+          Import quotes, one JSON list
+          <textarea value={quoteImport} onChange={(event) => setQuoteImport(event.target.value)} placeholder='["first quote", {"text": "second"}]' />
+        </label>
+        <button
+          type="button"
+          className="ghost"
+          disabled={busy}
+          onClick={() => {
+            try {
+              const quotes = JSON.parse(quoteImport) as unknown;
+              if (!Array.isArray(quotes)) {
+                setError("Paste a JSON list of quotes.");
+                return;
+              }
+              void run(() => window.rascal!.botSaveExtras({ quotes })).then(() => setQuoteImport(""));
+            } catch {
+              setError("That quote list could not be read.");
+            }
+          }}
+        >
+          Import quotes
+        </button>
+      </section>
+
+      <section className="bot-card">
+        <h3>Chat thank-yous</h3>
+        <p className="form-note">
+          Off until you turn one on. The bot account posts the line when that notice is shown in chat. A hidden notice, or a duplicate Rascal already dropped, does not get a thank-you. Gifted subs from the same person a few seconds apart become one line.
+        </p>
+        {THANK_ROWS.map((row) => (
+          <div key={row.key}>
+            <CheckRow
+              checked={thanks[row.key].enabled}
+              disabled={busy}
+              onChange={(enabled) => setThanks({ ...thanks, [row.key]: { ...thanks[row.key], enabled } })}
+            >
+              {row.label}
+            </CheckRow>
+            <label>
+              {row.label} line
+              <input
+                value={thanks[row.key].template}
+                onChange={(event) => setThanks({ ...thanks, [row.key]: { ...thanks[row.key], template: event.target.value } })}
+              />
+            </label>
+          </div>
+        ))}
+        <p className="form-note">Variables: {"{user}"} {"{amount}"} {"{count}"}</p>
+        <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => window.rascal!.botSaveExtras({ thanks }))}>
+          Save thank-yous
         </button>
       </section>
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+- A command can list keywords. A keyword or phrase in a normal message fires that command, on a word boundary, ignoring case. The command cooldown stops a busy chat from repeating it. StreamElements keyword phrases such as `on accident` import into this list.
+- `{random.chatter}` picks someone who spoke in the last 10 minutes, skipping known bots and the broadcaster. `{random:one|two}` expands variables inside the choice it picks. Older StreamElements placeholders still work: `$(sender)`, `${1}`, `$(touser)`, and `${random.pick 'a' 'b'}`.
+- Built-ins: `!followage` and `!howlong`, `!accountage` (optional `@name`, otherwise the sender), mod-only `!so`, `!quote` / `!quote add` / `!quote remove`, and `!cmds` as another name for `!commands`. Follow age and account age come from Helix. `!so` posts a configurable line with the target's login and last game, and calls Helix Send a Shoutout only when the token already has `moderator:manage:shoutouts`.
+- Optional thank-you lines for follows, subs, resubs, gifted subs, cheers, raids, and channel-point redeems. Each is off until turned on. A notice that Settings hides, or that Rascal already dropped as a duplicate, does not get one. Gifted subs from the same person a few seconds apart become one line.
+- Quotes and the thank-you and shoutout templates are stored in the bot config, next to commands.
+
 ## 0.8.0
 
 - The Twitch and YouTube checks on the chat box are saved. Leaving the tab, restarting, or YouTube being offline does not clear them. A new install still sends to Twitch only. Offline platforms are skipped until their chat is available, then included again with no re-check.

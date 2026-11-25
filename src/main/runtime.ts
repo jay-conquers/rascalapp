@@ -539,6 +539,10 @@ export class Runtime {
     return this.botOps().saveFilters(input);
   }
 
+  botSaveExtras(input: unknown): Promise<BotSnapshot> {
+    return this.botOps().saveExtras(input);
+  }
+
   botImportSe(jwt = ""): Promise<BotSnapshot> {
     return this.botOps().importSe(jwt);
   }
@@ -596,6 +600,7 @@ export class Runtime {
         saveTimer: (input: unknown) => remote.saveTimer(input),
         deleteTimer: (id: string) => remote.deleteTimer(id),
         saveFilters: (input: unknown) => remote.saveFilters(input),
+        saveExtras: (input: unknown) => remote.saveExtras(input),
         importSe: (jwt: string) => remote.importSe(jwt),
         importJson: (payload: unknown) => remote.importJson(payload),
         exportConfig: () => remote.exportConfig(),
@@ -637,6 +642,10 @@ export class Runtime {
       },
       saveFilters: async (input: unknown) => {
         bot.service.saveFilters(input);
+        return snap();
+      },
+      saveExtras: async (input: unknown) => {
+        bot.service.saveExtras(input);
         return snap();
       },
       importSe: async (jwt: string) => {
@@ -761,6 +770,15 @@ export class Runtime {
       return;
     }
     this.maybeAlert(placed.message);
+    if (placed.message.noticeKind) {
+      getBot()?.service.noteNotice({
+        platform: placed.message.platform,
+        kind: placed.message.noticeKind,
+        user: placed.message.displayName || placed.message.username,
+        amount: placed.message.amount,
+        text: placed.message.plainText,
+      });
+    }
     const key = noticeDedupeKey(placed.message);
     if (key) {
       this.noticeKeys.add(key);

@@ -132,11 +132,11 @@ export class HelixBot {
     return this.request("DELETE", `/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${moderatorId}&user_id=${userId}`);
   }
 
-  async userByLogin(login: string): Promise<{ id: string; login: string; name: string } | null> {
+  async userByLogin(login: string): Promise<{ id: string; login: string; name: string; createdAt: string } | null> {
     const json = await this.requestJson("GET", `/users?login=${encodeURIComponent(login)}`);
     const row = first(json);
     if (!row) return null;
-    return { id: text(row.id), login: text(row.login), name: text(row.display_name) };
+    return { id: text(row.id), login: text(row.login), name: text(row.display_name), createdAt: text(row.created_at) };
   }
 
   async channel(broadcasterId: string): Promise<{ title: string; game: string; startedAt: string }> {
@@ -146,10 +146,24 @@ export class HelixBot {
   }
 
   async followage(broadcasterId: string, userId: string): Promise<string> {
-    const json = await this.requestJson("GET", `/channels/followers?broadcaster_id=${broadcasterId}&user_id=${userId}`);
-    const followed = text(first(json)?.followed_at);
+    const followed = await this.followedAt(broadcasterId, userId);
     if (!followed) return "not following";
     return age(followed);
+  }
+
+  async followedAt(broadcasterId: string, userId: string): Promise<string> {
+    const json = await this.requestJson("GET", `/channels/followers?broadcaster_id=${encodeURIComponent(broadcasterId)}&user_id=${encodeURIComponent(userId)}`);
+    return text(first(json)?.followed_at);
+  }
+
+  /** Helix Send a Shoutout. Needs moderator:manage:shoutouts. A 204 is success. */
+  shoutout(fromBroadcasterId: string, toBroadcasterId: string, moderatorId: string): Promise<void> {
+    const query = new URLSearchParams({
+      from_broadcaster_id: fromBroadcasterId,
+      to_broadcaster_id: toBroadcasterId,
+      moderator_id: moderatorId,
+    });
+    return this.request("POST", `/chat/shoutouts?${query.toString()}`);
   }
 
   private async request(method: string, pathname: string, body?: unknown): Promise<void> {
@@ -163,6 +177,7 @@ export class HelixBot {
       headers: { "Client-Id": this.clientId(), Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    if (response.status === 204) return { data: [] };
     if (!response.ok) throw new Error(`Twitch returned HTTP ${response.status}.`);
     return (await response.json().catch(() => ({}))) as { data?: Record<string, unknown>[] };
   }

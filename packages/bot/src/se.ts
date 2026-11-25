@@ -1,3 +1,4 @@
+import { normalizeKeywords } from "./keywords.ts";
 import { commandName, normalizeCommand, normalizeTimer, type BotCommand, type BotTimer, type TimerMode, type UserLevel } from "./model.ts";
 
 /** Map a StreamElements commands/timers payload. The JWT itself is never read here. */
@@ -27,7 +28,8 @@ function mapCommand(value: unknown): BotCommand | null {
   const response = commandResponse(row);
   if (!name || !response) return null;
   const cooldown = asRecord(row.cooldown);
-  const aliases = uniqueNames([...nameList(row.aliases), ...keywordList(row.keywords)], name);
+  const aliases = uniqueNames(nameList(row.aliases), name);
+  const keywords = normalizeKeywords(row.keywords);
   const online = typeof row.enabledOnline === "boolean" ? row.enabledOnline : true;
   const offline = typeof row.enabledOffline === "boolean" ? row.enabledOffline : true;
   return normalizeCommand({
@@ -39,6 +41,7 @@ function mapCommand(value: unknown): BotCommand | null {
     userCooldownSec: numberOr(cooldown?.user, 15),
     level: mapLevel(row.accessLevel),
     aliases,
+    keywords,
     count: numberOr(row.count, 0),
     platforms: "twitch",
   });
@@ -153,19 +156,6 @@ function responseList(value: unknown): string[] {
 function nameList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => commandName(typeof item === "string" ? item : text(asRecord(item)?.name) || text(asRecord(item)?.command) || text(asRecord(item)?.alias)));
-}
-
-/** Keywords that are already a single command token. Phrases are not glued into a name. */
-function keywordList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const out: string[] = [];
-  for (const item of value) {
-    const raw = typeof item === "string" ? item.trim() : text(asRecord(item)?.name) || text(asRecord(item)?.keyword);
-    if (!/^[a-zA-Z0-9_]{2,40}$/.test(raw)) continue;
-    const name = commandName(raw);
-    if (name) out.push(name);
-  }
-  return out;
 }
 
 function uniqueNames(names: string[], command: string): string[] {
