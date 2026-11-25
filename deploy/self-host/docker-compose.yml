@@ -1,0 +1,52 @@
+# Run from this directory: docker compose up -d
+# The bot listens on the compose network only. Caddy is the public HTTPS door.
+
+services:
+  bot:
+    build:
+      context: ../..
+      dockerfile: packages/bot/Dockerfile
+    env_file:
+      - .env
+    environment:
+      RASCAL_BOT_BIND: 0.0.0.0
+      RASCAL_BOT_PORT: "4788"
+      RASCAL_BOT_DIR: /data
+    volumes:
+      - bot-data:/data
+    expose:
+      - "4788"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4788/healthz').then((res)=>process.exit(res.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  caddy:
+    image: caddy:2
+    depends_on:
+      bot:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  bot-data:
+  caddy-data:
+  caddy-config:

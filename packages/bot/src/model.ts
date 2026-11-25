@@ -180,7 +180,7 @@ export function validateBotServerUrl(value: string): string {
   try {
     url = new URL(value.trim());
   } catch {
-    throw new Error("The bot server URL must be https://your-app.fly.dev.");
+    throw new Error("The bot server URL must be https://bot.example.com, or http://localhost for a server on this computer.");
   }
   const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {

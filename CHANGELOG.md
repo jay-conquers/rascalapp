@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Chat hooks. Each hook in `bot.json` can POST a viewer's command to an address you run. It is off until enabled. A secret signs the body, and the service can optionally return a short chat reply. `allowBroadcaster` lets the streamer's own messages fire that hook. The bot's own posts still do not.
+- The bot can run on a server you control. `PUBLIC_BASE_URL` sets the Twitch and YouTube redirect addresses. See docs/self-hosting.md.
 
 ## 0.8.1
 

@@ -139,7 +139,7 @@ The port is 4777 unless you change it in Settings. The paths stay the same.
 
 ## Self-host the bot
 
-The bot can stay inside the desktop app, or run from `packages/bot` on a server. `deploy/fly` is a Fly.io setup for one small always-on machine in Ashburn (`shared-cpu-1x`, 256 MB, no dedicated IPv4). The app name in `fly.toml` is `rascal`. If that name is taken, use `rascalapp`. The volume is `rascal_bot_data`. The public portal callback is `https://<app-name>.fly.dev/portal/callback`.
+The bot can stay inside the desktop app, or run on a server you control. The step-by-step for your own domain, HTTPS, and OAuth apps is [docs/self-hosting.md](docs/self-hosting.md). `deploy/fly` is an optional Fly.io example for one small always-on machine in Ashburn (`shared-cpu-1x`, 256 MB, no dedicated IPv4). The app name in `fly.toml` is `rascal`. If that name is taken, use `rascalapp`. The volume is `rascal_bot_data`. The public portal callback is `https://<your-host>/portal/callback`.
 
 Nothing in `deploy/fly` is deployed by this repository. The steps, the cost notes, and the secret commands are in [deploy/fly/README.md](deploy/fly/README.md). Put tokens in `fly secrets` or in the volume, not in git.
 

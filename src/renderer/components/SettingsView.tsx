@@ -309,17 +309,17 @@ export function SettingsView({
 
         <section>
           <h3>Bot connection</h3>
-          <p>Embedded mode runs the bot on this computer. Server mode controls one bot on Fly and does not start a second copy.</p>
+          <p>Embedded mode runs the bot on this computer. Server mode controls one bot on a server you run and does not start a second copy. The address must be https, except for localhost.</p>
           <label>
             Mode
             <select value={botMode} onChange={(event) => setBotMode(event.target.value === "server" ? "server" : "embedded")}>
               <option value="embedded">Embedded on this computer</option>
-              <option value="server">Server on Fly</option>
+              <option value="server">Server you run</option>
             </select>
           </label>
           <label>
             Server URL
-            <input value={botUrl} onChange={(event) => setBotUrl(event.target.value)} placeholder="https://your-app.fly.dev" spellCheck={false} />
+            <input value={botUrl} onChange={(event) => setBotUrl(event.target.value)} placeholder="https://bot.example.com" spellCheck={false} />
           </label>
           <label>
             Admin token

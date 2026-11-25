@@ -29,13 +29,12 @@ export function youtubeRedirectUri(port = YOUTUBE_OAUTH_PORT): string {
   return `http://127.0.0.1:${port}${YOUTUBE_OAUTH_PATH}`;
 }
 
-export function createYoutubeAuthRequest(client: YoutubeOAuthClient, port = YOUTUBE_OAUTH_PORT): YoutubeAuthRequest {
+export function createYoutubeAuthRequest(client: YoutubeOAuthClient, port = YOUTUBE_OAUTH_PORT, redirectUri = youtubeRedirectUri(port)): YoutubeAuthRequest {
   const clientId = client.clientId.trim();
   if (!clientId) throw new Error("Add a Google client ID before connecting YouTube.");
   const state = randomBytes(16).toString("hex");
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
-  const redirectUri = youtubeRedirectUri(port);
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);

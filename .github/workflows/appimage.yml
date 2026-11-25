@@ -28,6 +28,13 @@ jobs:
       - name: Build
         run: npm run build
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the bot image
+        run: docker build --file packages/bot/Dockerfile --tag rascal-bot:ci .
+
   appimage:
     runs-on: ubuntu-latest
     steps:

@@ -7,7 +7,6 @@ import {
   createYoutubeAuthRequest,
   exchangeYoutubeCode,
   refreshYoutubeAccessToken,
-  youtubeRedirectUri,
   type YoutubeAuthRequest,
   type YoutubeOAuthClient,
 } from "../../../src/shared/platform/youtube-oauth.ts";
@@ -49,6 +48,7 @@ import { callChatHook } from "./chat-hook-send.ts";
 import { channelIdFromJwt, importStreamElements } from "./se.ts";
 import { flushGiftHold, normalizeThanks, planThankYou, thankKind, type GiftHold } from "./thanks.ts";
 import { BotStore, readYoutubeTokens, type BotTokens, type YoutubeBotTokens } from "./store.ts";
+import { isLoopbackRedirect, youtubePublicRedirect } from "./public-url.ts";
 import { age, HelixBot, pollDevice, startDevice, type DevicePrompt } from "./twitch.ts";
 import { waitForYoutubeCallback } from "./youtube-login.ts";
 
@@ -141,6 +141,11 @@ export class BotService {
   private youtubePrompt: YoutubeAuthRequest | null = null;
   private loginAbort: AbortController | null = null;
   private youtubeLoginAbort: AbortController | null = null;
+  private youtubeCallback: {
+    state: string;
+    resolve: (value: { code: string; state: string }) => void;
+    reject: (err: Error) => void;
+  } | null = null;
   private statusOverride: string | null = null;
   private youtubeNote = "";
   private stopped = false;
@@ -320,7 +325,7 @@ export class BotService {
       youtubeLogin: this.youtubePrompt
         ? { userCode: "", verificationUri: this.youtubePrompt.url, expiresAt: this.youtubePrompt.expiresAt }
         : null,
-      youtubeRedirectUri: youtubeRedirectUri(),
+      youtubeRedirectUri: this.youtubeRedirect(),
       googleClientId: client.clientId,
       googleClientSecretSet: client.clientSecret.length > 0,
       googleClientFromEnv: Boolean(readBrandEnv("GOOGLE_CLIENT_ID")),
@@ -431,10 +436,23 @@ export class BotService {
     this.deps.log("info", "bot logged out");
   }
 
+  youtubeRedirect(): string {
+    return youtubePublicRedirect(this.file.publicUrl);
+  }
+
+  /** The public HTTPS callback lands here. Loopback logins do not. */
+  acceptYoutubeCallback(input: { code: string; state: string; error: string }): boolean {
+    const pending = this.youtubeCallback;
+    if (!pending || !input.state || pending.state !== input.state) return false;
+    if (input.error || !input.code) pending.reject(new Error("The YouTube login was cancelled."));
+    else pending.resolve({ code: input.code, state: input.state });
+    return true;
+  }
+
   async startYoutubeLogin(): Promise<void> {
     if (this.youtubeLoginAbort) return;
     const client = this.google();
-    const request = createYoutubeAuthRequest(client);
+    const request = createYoutubeAuthRequest(client, undefined, this.youtubeRedirect());
     this.youtubePrompt = request;
     this.youtubeNote = "Waiting for Google to approve YouTube.";
     const controller = new AbortController();
@@ -745,9 +763,32 @@ export class BotService {
     }
   }
 
+  private waitForPublicYoutube(state: string, signal: AbortSignal): Promise<{ code: string; state: string }> {
+    return new Promise((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout>;
+      const finish = (err: Error | null, value?: { code: string; state: string }) => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+        if (this.youtubeCallback?.state === state) this.youtubeCallback = null;
+        if (err) reject(err);
+        else if (value) resolve(value);
+      };
+      const onAbort = () => finish(new Error("The YouTube login was cancelled."));
+      timer = setTimeout(() => finish(new Error("The YouTube login timed out. Start it again.")), 5 * 60_000);
+      signal.addEventListener("abort", onAbort);
+      this.youtubeCallback = {
+        state,
+        resolve: (value) => finish(null, value),
+        reject: (err) => finish(err),
+      };
+    });
+  }
+
   private async finishYoutubeLogin(client: YoutubeOAuthClient, request: YoutubeAuthRequest, controller: AbortController): Promise<void> {
     try {
-      const callback = await waitForYoutubeCallback({ signal: controller.signal });
+      const callback = isLoopbackRedirect(request.redirectUri)
+        ? await waitForYoutubeCallback({ signal: controller.signal })
+        : await this.waitForPublicYoutube(request.state, controller.signal);
       if (controller.signal.aborted) return;
       if (callback.state !== request.state || !callback.code) throw new Error("That YouTube login did not match. Start again.");
       const exchanged = await exchangeYoutubeCode(client, request, callback.code, this.fetchImpl());

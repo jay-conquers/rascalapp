@@ -166,7 +166,7 @@ fly machines restart --app rascal
 
 Open Rascal, then Settings, then **Bot connection**.
 
-- Mode: **Server on Fly**
+- Mode: **Server you run**
 - Server URL: `https://rascal.fly.dev`
 - Admin token: the same value as `RASCAL_BOT_API_KEY`
 
