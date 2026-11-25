@@ -67,6 +67,7 @@ export interface RascalApi {
   botSaveTimer(timer: unknown): Promise<BotSnapshot>;
   botDeleteTimer(id: string): Promise<BotSnapshot>;
   botSaveFilters(filters: unknown): Promise<BotSnapshot>;
+  botSaveExtras(patch: unknown): Promise<BotSnapshot>;
   botImportSe(jwt?: string): Promise<BotSnapshot>;
   botImportJson(payload: unknown): Promise<BotSnapshot>;
   botLink(): Promise<{ mode: "embedded" | "server"; serverUrl: string; tokenSet: boolean }>;

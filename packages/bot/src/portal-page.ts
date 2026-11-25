@@ -51,6 +51,7 @@ export function portalPage(): string {
           <label>Cooldown seconds <input id="c-cool" type="number" value="5" /></label>
           <label>User cooldown <input id="c-user" type="number" value="15" /></label>
         </div>
+        <label>Keywords, comma separated <input id="c-keys" placeholder="alot, on accident" /></label>
         <label>Response <textarea id="c-response"></textarea></label>
         <button id="c-save" type="button">Save command</button>
       </section>
@@ -102,7 +103,7 @@ export function portalPage(): string {
       document.getElementById("login").hidden = true;
       document.getElementById("logout").hidden = false;
       document.getElementById("export").hidden = false;
-      document.getElementById("commands").innerHTML = state.commands.map((command) => "<li><strong>!" + escapeHtml(command.name) + "</strong> <span>" + escapeHtml(command.level) + " · " + command.count + "</span><p>" + escapeHtml(command.response) + "</p></li>").join("") || "<li>No commands yet.</li>";
+      document.getElementById("commands").innerHTML = state.commands.map((command) => "<li><strong>!" + escapeHtml(command.name) + "</strong> <span>" + escapeHtml(command.level) + " · " + command.count + "</span><p>" + escapeHtml(command.response) + "</p>" + (command.keywords && command.keywords.length ? "<p>Keywords: " + escapeHtml(command.keywords.join(", ")) + "</p>" : "") + "</li>").join("") || "<li>No commands yet.</li>";
       document.getElementById("timers").innerHTML = state.timers.map((timer) => {
         const messages = (timer.messages && timer.messages.length ? timer.messages : [timer.message]).join("\\n");
         return "<li data-id=\\"" + escapeHtml(timer.id) + "\\"><strong>" + escapeHtml(timer.name) + "</strong> <span>next: " + escapeHtml(timer.message) + "</span>"
@@ -136,7 +137,7 @@ export function portalPage(): string {
     };
     document.getElementById("c-save").onclick = async () => {
       try {
-        const state = await api("/portal/api/commands", { method: "POST", body: JSON.stringify({ name: document.getElementById("c-name").value, response: document.getElementById("c-response").value, level: document.getElementById("c-level").value, cooldownSec: Number(document.getElementById("c-cool").value), userCooldownSec: Number(document.getElementById("c-user").value), enabled: true }) });
+        const state = await api("/portal/api/commands", { method: "POST", body: JSON.stringify({ name: document.getElementById("c-name").value, response: document.getElementById("c-response").value, level: document.getElementById("c-level").value, cooldownSec: Number(document.getElementById("c-cool").value), userCooldownSec: Number(document.getElementById("c-user").value), keywords: document.getElementById("c-keys").value.split(",").map((item) => item.trim()).filter(Boolean), enabled: true }) });
         if (state) paint(state);
       } catch (err) { error.textContent = err.message; }
     };

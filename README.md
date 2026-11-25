@@ -9,7 +9,7 @@ Rascal is a free, open-source streaming desk for Twitch and YouTube. It replaces
 - Stream title, category, and tags for the signed-in Twitch channel.
 - Channel-point redeems over EventSub. Map a reward to a video, a sound, or nothing. Import a Firebot `channel-rewards.json` without writing it back. Rascal only edits rewards it created.
 - On-stream chat and alert pages for OBS.
-- A chat bot: commands, timers, filters, and a moderator portal. Each command, timer, and the filter set can target Twitch, YouTube, or both. Older items stay on Twitch. A timer can run while the stream is live, while it is offline, or both, with a separate interval for each, and it can rotate through several messages. Live and offline come from Twitch and from the YouTube page reader when that channel is live. The bot can post as the signed-in channel or as a separate account on each platform. It can run inside the desktop app or as a separate process.
+- A chat bot: commands, timers, filters, quotes, and a moderator portal. A command can also fire from a keyword or phrase in a normal message. Built-ins cover `!followage`, `!accountage`, mod `!so`, `!quote`, and `!cmds`. Optional thank-you lines for follows, subs, gifts, cheers, raids, and redeems stay off until you turn them on. Each command, timer, and the filter set can target Twitch, YouTube, or both. Older items stay on Twitch. A timer can run while the stream is live, while it is offline, or both, with a separate interval for each, and it can rotate through several messages. Live and offline come from Twitch and from the YouTube page reader when that channel is live. The bot can post as the signed-in channel or as a separate account on each platform. It can run inside the desktop app or as a separate process.
 - A panel for a separate local text-to-speech HTTP service, if you run one. The address is a setting. Rascal does not ship that service.
 
 A fresh install has no channel filled in. Twitch chat follows the channel in Settings, or the account you sign in with when that field is empty. YouTube chat stays off until you paste a channel ID.
@@ -19,9 +19,9 @@ A fresh install has no channel filled in. Twitch chat follows the channel in Set
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.8.0.AppImage
+chmod +x Rascal-0.8.1.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.8.0.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.8.1.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -97,7 +97,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.8.0.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.8.1.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 

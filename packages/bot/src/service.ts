@@ -22,6 +22,7 @@ import {
   emptyMemory,
   expandTemplate,
   normalizeBotFile,
+  normalizeShoutout,
   portalBase,
   normalizeCommand,
   normalizeFilters,
@@ -41,7 +42,10 @@ import {
 } from "./model.ts";
 import { TwitchChatPlatform } from "./platform/twitch-adapter.ts";
 import { YoutubeChatPlatform } from "./platform/youtube-adapter.ts";
+import { accountAgeLine, followageLine } from "./duration.ts";
+import { importQuoteList, normalizeQuotes } from "./quotes.ts";
 import { channelIdFromJwt, importStreamElements } from "./se.ts";
+import { flushGiftHold, normalizeThanks, planThankYou, thankKind, type GiftHold } from "./thanks.ts";
 import { BotStore, readYoutubeTokens, type BotTokens, type YoutubeBotTokens } from "./store.ts";
 import { age, HelixBot, pollDevice, startDevice, type DevicePrompt } from "./twitch.ts";
 import { waitForYoutubeCallback } from "./youtube-login.ts";
@@ -76,6 +80,9 @@ export interface BotSnapshot {
   commands: BotCommand[];
   timers: BotTimer[];
   filters: BotFilters;
+  quotes: BotFile["quotes"];
+  thanks: BotFile["thanks"];
+  shoutout: BotFile["shoutout"];
   log: ModLogEntry[];
   seJwtSet: boolean;
   /** Present so a later build can forward Ask Jeeves lines. Unused in 0.4.0. */
@@ -101,6 +108,24 @@ export interface ChannelTokenBridge {
 }
 
 const EMPTY_FACTS: ChannelFacts = { title: "", game: "", uptime: "offline", followage: "" };
+const CHATTER_MS = 10 * 60_000;
+const BOT_NAMES = new Set([
+  "streamelements",
+  "nightbot",
+  "fossabot",
+  "moobot",
+  "streamlabs",
+  "soundalerts",
+  "wizebot",
+  "sery_bot",
+  "commanderroot",
+  "botisimo",
+  "streamholics",
+  "kofistreambot",
+  "rainmaker",
+  "tangia",
+  "own3d",
+]);
 
 export class BotService {
   private file: BotFile;
@@ -119,6 +144,9 @@ export class BotService {
   private facts: ChannelFacts = { ...EMPTY_FACTS };
   private streamLiveAt = 0;
   private followCache = new Map<string, { at: number; text: string }>();
+  private recentChatters = new Map<string, { name: string; at: number }>();
+  private giftHold: GiftHold | null = null;
+  private giftTimer: ReturnType<typeof setTimeout> | null = null;
   private askJeeves: AskJeevesHook | null = null;
   private bridge: ChannelTokenBridge | null = null;
   private readonly helix: HelixBot;
@@ -209,6 +237,9 @@ export class BotService {
       commands: this.file.commands,
       timers: this.file.timers,
       filters: this.file.filters,
+      quotes: this.file.quotes,
+      thanks: this.file.thanks,
+      shoutout: this.file.shoutout,
     };
   }
 
@@ -219,7 +250,10 @@ export class BotService {
     const filters = row.filters ? normalizeFilters(row.filters) : this.file.filters;
     const channelLogin = typeof row.channelLogin === "string" ? row.channelLogin : this.file.channelLogin;
     const broadcasterId = typeof row.broadcasterId === "string" ? row.broadcasterId : this.file.broadcasterId;
-    this.file = this.store.saveConfig({ ...this.file, commands, timers, filters, channelLogin, broadcasterId });
+    const quotes = Array.isArray(row.quotes) ? (row.replaceQuotes === true ? normalizeQuotes(row.quotes) : importQuoteList(row.quotes, this.file.quotes)) : this.file.quotes;
+    const thanks = row.thanks ? normalizeThanks(row.thanks) : this.file.thanks;
+    const shoutout = row.shoutout ? normalizeShoutout(row.shoutout) : this.file.shoutout;
+    this.file = this.store.saveConfig({ ...this.file, commands, timers, filters, channelLogin, broadcasterId, quotes, thanks, shoutout });
   }
 
   importTokens(payload: unknown): void {
@@ -268,6 +302,9 @@ export class BotService {
       commands: this.file.commands,
       timers: this.file.timers,
       filters: this.file.filters,
+      quotes: this.file.quotes,
+      thanks: this.file.thanks,
+      shoutout: this.file.shoutout,
       log: this.log.slice(-80),
       seJwtSet: this.secrets.seJwt.length > 0,
       askJeevesHook: this.askJeeves !== null,
@@ -425,6 +462,7 @@ export class BotService {
         ...command,
         id: previous?.id ?? command.id,
         aliases: command.aliases.length > 0 ? command.aliases : previous?.aliases ?? [],
+        keywords: Array.isArray(row?.keywords) ? command.keywords ?? [] : previous?.keywords ?? command.keywords ?? [],
         count: previous?.count ?? command.count,
         platforms: row && "platforms" in row ? command.platforms : previous?.platforms ?? command.platforms,
       };
@@ -434,6 +472,34 @@ export class BotService {
 
   deleteCommand(id: string): void {
     this.file = this.store.saveConfig({ ...this.file, commands: this.file.commands.filter((item) => item.id !== id) });
+  }
+
+  saveExtras(input: unknown): void {
+    const row = asRecord(input) ?? {};
+    const thanks = "thanks" in row ? normalizeThanks(row.thanks) : this.file.thanks;
+    const shoutout = "shoutout" in row ? normalizeShoutout(row.shoutout) : this.file.shoutout;
+    let quotes = this.file.quotes;
+    if (Array.isArray(row.quotes)) quotes = row.replaceQuotes === true ? normalizeQuotes(row.quotes) : importQuoteList(row.quotes, this.file.quotes);
+    this.file = this.store.saveConfig({ ...this.file, thanks, shoutout, quotes });
+  }
+
+  /** A notice the desk already kept (toggle on, not a duplicate). The bot may thank them. */
+  noteNotice(input: { platform: string; kind?: string; user: string; amount?: string; text?: string }): void {
+    const kind = thankKind(input.kind);
+    if (!kind || this.stopped) return;
+    const planned = planThankYou({
+      thanks: this.file.thanks,
+      kind,
+      user: input.user,
+      amount: input.amount ?? "",
+      text: input.text ?? "",
+      now: Date.now(),
+      hold: this.giftHold,
+      facts: this.facts,
+    });
+    this.giftHold = planned.hold;
+    if (planned.waitMs > 0) this.armGift(planned.waitMs);
+    if (planned.say) void this.postBot(input.platform === "youtube" ? "youtube" : "twitch", planned.say);
   }
 
   saveTimer(input: unknown, now = Date.now()): void {
@@ -569,6 +635,8 @@ export class BotService {
 
   stop(): void {
     this.stopped = true;
+    if (this.giftTimer) clearTimeout(this.giftTimer);
+    this.giftTimer = null;
     this.cancelLogin();
     this.cancelYoutubeLogin();
     void this.twitch.disconnect();
@@ -679,7 +747,13 @@ export class BotService {
     };
     const facts = await this.channelFacts(message.platform, line.userId);
     const botUserId = message.platform === "youtube" ? this.youtubeSession()?.channelId ?? "" : this.activeTwitch()?.userId ?? "";
-    const decision = decideChat(this.file, this.memory, line, Date.now(), facts, botUserId, message.platform);
+    const now = Date.now();
+    const decision = decideChat(this.file, this.memory, line, now, facts, botUserId, message.platform, { chatters: this.rememberChatter(line, now, botUserId) });
+    if (decision.quotes) this.file = this.store.saveConfig({ ...this.file, quotes: decision.quotes });
+    if (decision.lookup && message.platform === "twitch") {
+      const looked = await this.answerLookup(decision.lookup, line);
+      if (looked) decision.say.push(looked.slice(0, 450));
+    }
     if (decision.countCommandId) {
       const command = this.file.commands.find((item) => item.id === decision.countCommandId);
       if (command) command.count += 1;
@@ -736,6 +810,77 @@ export class BotService {
     } catch (err) {
       this.pushLog({ t: Date.now(), action: "error", user: line.login, text: safeError(err), by: "bot" });
       this.deps.log("error", "bot action failed", { message: safeError(err) });
+    }
+  }
+
+  private rememberChatter(line: ChatLine, now: number, botUserId: string): string[] {
+    const login = line.login.toLowerCase();
+    const botLogin = (this.activeTwitch()?.login ?? "").toLowerCase();
+    const channel = this.file.channelLogin.toLowerCase();
+    const blocked = !login || line.userId === botUserId || login === channel || login === botLogin || BOT_NAMES.has(login);
+    if (!blocked) this.recentChatters.set(login, { name: line.displayName || line.login, at: now });
+    const names: string[] = [];
+    for (const [key, row] of this.recentChatters) {
+      if (now - row.at > CHATTER_MS) this.recentChatters.delete(key);
+      else names.push(row.name);
+    }
+    return names;
+  }
+
+  private async answerLookup(lookup: { kind: "followage" | "accountage" | "shoutout"; login: string }, line: ChatLine): Promise<string> {
+    try {
+      const profile = await this.helix.userByLogin(lookup.login);
+      if (!profile) return `I couldn't find ${lookup.login}.`;
+      const name = profile.name || profile.login;
+      if (lookup.kind === "accountage") return accountAgeLine(name, profile.createdAt, Date.now());
+      if (lookup.kind === "followage") {
+        if (!this.file.broadcasterId) return "The channel id is not set.";
+        const followed = await this.helix.followedAt(this.file.broadcasterId, profile.id);
+        return followageLine(name, followed, Date.now());
+      }
+      const channel = await this.helix.channel(profile.id);
+      const text = expandTemplate(this.file.shoutout.template, {
+        user: line.displayName,
+        touser: profile.login,
+        count: "0",
+        randomPool: "",
+        facts: { ...this.facts, game: channel.game },
+      });
+      const scopes = this.activeTwitch()?.scopes ?? [];
+      const moderatorId = this.activeTwitch()?.userId ?? "";
+      if (this.file.shoutout.helix && scopes.includes("moderator:manage:shoutouts") && this.file.broadcasterId && moderatorId) {
+        try {
+          await this.helix.shoutout(this.file.broadcasterId, profile.id, moderatorId);
+        } catch (err) {
+          this.pushLog({ t: Date.now(), action: "shoutout", user: profile.login, text: safeError(err), by: "bot" });
+        }
+      }
+      return text;
+    } catch (err) {
+      this.deps.log("error", "lookup failed", { message: safeError(err) });
+      return "I couldn't look that up.";
+    }
+  }
+
+  private armGift(waitMs: number): void {
+    if (this.giftTimer) clearTimeout(this.giftTimer);
+    this.giftTimer = setTimeout(() => {
+      this.giftTimer = null;
+      const flushed = flushGiftHold(this.file.thanks, this.giftHold, Date.now(), this.facts, true);
+      this.giftHold = flushed.hold;
+      if (flushed.say) void this.postBot("twitch", flushed.say);
+    }, waitMs);
+    this.giftTimer.unref?.();
+  }
+
+  private async postBot(platformId: string, text: string): Promise<void> {
+    const platform = this.registry.get(platformId);
+    const line = text.trim().slice(0, 450);
+    if (!platform?.capabilities.send || !line || this.stopped) return;
+    try {
+      await platform.sendMessage(line);
+    } catch (err) {
+      this.pushLog({ t: Date.now(), action: "error", user: "", text: safeError(err), by: platformId });
     }
   }
 

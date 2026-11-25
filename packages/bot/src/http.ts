@@ -184,6 +184,11 @@ export async function startHttp(service: BotService, options: { host: string; po
       sendJson(res, 200, service.snapshot(port));
       return;
     }
+    if (method === "POST" && (url.pathname === "/api/extras" || url.pathname === "/portal/api/extras")) {
+      service.saveExtras(body);
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
     if (method === "POST" && url.pathname === "/api/accounts") {
       service.setAccounts(body);
       sendJson(res, 200, service.snapshot(port));

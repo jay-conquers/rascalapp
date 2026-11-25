@@ -1,4 +1,12 @@
 import { normalizePlatformTarget, targetsPlatform, type PlatformTarget } from "../../../src/shared/platform/target.ts";
+import { keywordHits, normalizeKeywords } from "./keywords.ts";
+import { handleQuote, normalizeQuotes, type Quote } from "./quotes.ts";
+import { defaultThanks, normalizeThanks, type ThanksSettings } from "./thanks.ts";
+import { expandTemplate } from "./template.ts";
+
+export { expandTemplate } from "./template.ts";
+export type { Quote } from "./quotes.ts";
+export { defaultThanks, THANK_KINDS, type ThankKind, type ThanksSettings } from "./thanks.ts";
 
 export type UserLevel = "everyone" | "sub" | "vip" | "mod" | "broadcaster";
 export type FilterAction = "delete" | "timeout" | "ban";
@@ -19,9 +27,25 @@ export interface BotCommand {
   userCooldownSec: number;
   level: UserLevel;
   aliases: string[];
+  /**
+   * Words or phrases that fire this command inside a normal message.
+   * Matched on a word boundary, ignoring case. A missing list matches nothing.
+   */
+  keywords?: string[];
   count: number;
   /** Missing or unknown values stay on Twitch, which is how older files behave. */
   platforms: PlatformTarget;
+}
+
+export interface ShoutoutSettings {
+  template: string;
+  /** Try Helix Send a Shoutout when the token has moderator:manage:shoutouts. */
+  helix: boolean;
+}
+
+export interface HelixLookup {
+  kind: "followage" | "accountage" | "shoutout";
+  login: string;
 }
 
 /** When a timer is allowed to post. "both" uses the live schedule and the offline schedule separately. */
@@ -86,6 +110,9 @@ export interface BotFile {
   commands: BotCommand[];
   timers: BotTimer[];
   filters: BotFilters;
+  quotes: Quote[];
+  thanks: ThanksSettings;
+  shoutout: ShoutoutSettings;
 }
 
 export interface ChatLine {
@@ -110,6 +137,10 @@ export interface BotDecision {
   permitSec: number;
   countCommandId: string | null;
   chatLine: boolean;
+  /** Filled in by the service with a Helix result before the line is sent. */
+  lookup: HelixLookup | null;
+  /** The quote list to save, when !quote add or !quote remove changed it. */
+  quotes: Quote[] | null;
 }
 
 export interface ChannelFacts {
@@ -170,6 +201,21 @@ export function defaultAccounts(): BotAccounts {
   return { twitch: "bot", youtube: "bot" };
 }
 
+export function defaultShoutout(): ShoutoutSettings {
+  return {
+    template: "Go follow {target} at twitch.tv/{target}! They were last playing {game}.",
+    helix: true,
+  };
+}
+
+export function normalizeShoutout(value: unknown): ShoutoutSettings {
+  const base = defaultShoutout();
+  const row = asRecord(value);
+  if (!row) return base;
+  const template = typeof row.template === "string" && row.template.trim() ? row.template.trim().slice(0, 450) : base.template;
+  return { template, helix: row.helix !== false };
+}
+
 export function defaultBotFile(): BotFile {
   return {
     channelLogin: "",
@@ -183,6 +229,9 @@ export function defaultBotFile(): BotFile {
     commands: [],
     timers: [],
     filters: defaultFilters(),
+    quotes: [],
+    thanks: defaultThanks(),
+    shoutout: defaultShoutout(),
   };
 }
 
@@ -204,6 +253,9 @@ export function normalizeBotFile(value: unknown): BotFile {
     commands: Array.isArray(row.commands) ? uniqueCommands(row.commands.map(normalizeCommand).filter((item): item is BotCommand => item !== null)) : [],
     timers: Array.isArray(row.timers) ? row.timers.map(normalizeTimer).filter((item): item is BotTimer => item !== null) : [],
     filters: normalizeFilters(row.filters),
+    quotes: normalizeQuotes(row.quotes),
+    thanks: normalizeThanks(row.thanks),
+    shoutout: normalizeShoutout(row.shoutout),
   };
 }
 
@@ -224,6 +276,7 @@ export function normalizeCommand(value: unknown): BotCommand | null {
     userCooldownSec: clampInt(row.userCooldownSec, 0, 86400, 15),
     level: LEVELS.includes(row.level as UserLevel) ? (row.level as UserLevel) : "everyone",
     aliases,
+    keywords: normalizeKeywords(row.keywords),
     count: clampInt(row.count, 0, 1_000_000_000, 0),
     platforms: normalizePlatformTarget(row.platforms),
   };
@@ -358,6 +411,11 @@ export function emptyMemory(): RuntimeMemory {
   return { globalCooldown: new Map(), userCooldown: new Map(), permits: new Map() };
 }
 
+export interface DecideExtra {
+  chatters?: readonly string[];
+  rng?: () => number;
+}
+
 export function decideChat(
   file: BotFile,
   memory: RuntimeMemory,
@@ -366,14 +424,15 @@ export function decideChat(
   facts: ChannelFacts,
   botUserId: string,
   platform: PlatformTarget | string = "twitch",
+  extra: DecideExtra = {},
 ): BotDecision {
   const none = emptyDecision(line);
   if (!line.userId || line.userId === botUserId) return { ...none, chatLine: false };
-  const builtIn = builtInCommand(file, memory, line, now, platform);
+  const builtIn = builtInCommand(file, memory, line, now, platform, extra.rng);
   if (builtIn) return builtIn;
   const filter = targetsPlatform(file.filters.platforms, platform) ? applyFilters(file, memory, line, now) : null;
   if (filter) return filter;
-  const command = matchCommand(file, line.text, platform);
+  const command = matchCommand(file, line.text, platform) ?? matchKeyword(file, line.text, platform);
   if (!command || !command.enabled) return { ...none, chatLine: true };
   if (!levelAllows(command.level, line.roles)) {
     return { ...none, chatLine: true, log: { action: "ignored", user: line.login, text: `!${command.name} needs ${command.level}`, by: "bot" } };
@@ -385,19 +444,24 @@ export function decideChat(
   }
   if (command.cooldownSec > 0) memory.globalCooldown.set(globalKey, now + command.cooldownSec * 1000);
   if (command.userCooldownSec > 0) memory.userCooldown.set(userKey, now + command.userCooldownSec * 1000);
+  const args = commandArgs(line.text);
   const said = expandTemplate(command.response, {
     user: line.displayName,
-    touser: commandArgs(line.text),
+    touser: args,
     count: String(command.count + 1),
     randomPool: "",
     facts,
+    args: args.split(/\s+/).filter(Boolean),
+    chatters: extra.chatters,
+    rng: extra.rng,
   });
+  const viaKeyword = !splitCommand(line.text);
   return {
     ...none,
     say: said ? [said.slice(0, 450)] : [],
     chatLine: true,
     countCommandId: command.id,
-    log: { action: "command", user: line.login, text: `!${command.name}`, by: "bot" },
+    log: { action: "command", user: line.login, text: viaKeyword ? command.name : `!${command.name}`, by: "bot" },
   };
 }
 
@@ -405,26 +469,6 @@ export function dueTimers(file: BotFile, now: number, live: boolean | null = nul
   return file.timers.filter((timer) => {
     const phase = activePhase(timer, live);
     return phase !== null && timerIsDue(timer, now, phase);
-  });
-}
-
-export function expandTemplate(
-  template: string,
-  ctx: { user: string; touser: string; count: string; randomPool: string; facts: ChannelFacts },
-): string {
-  return template.replace(/\{([a-z]+)(?::([^}]+))?\}|\$\(([a-z]+)(?:\s+([^)]+))?\)|\$\{([a-z]+)\}/gi, (full, braceName: string | undefined, braceArg: string | undefined, parenName: string | undefined, parenArg: string | undefined, dollarName: string | undefined) => {
-    const rawName = braceName || parenName || dollarName || "";
-    const rawArg = braceArg || parenArg;
-    const name = rawName.toLowerCase();
-    if (name === "user" || name === "username") return ctx.user;
-    if (name === "touser" || name === "target") return ctx.touser || ctx.user;
-    if (name === "count") return ctx.count;
-    if (name === "uptime") return ctx.facts.uptime || "offline";
-    if (name === "game") return ctx.facts.game || "nothing";
-    if (name === "title") return ctx.facts.title || "untitled";
-    if (name === "followage") return ctx.facts.followage || "unknown";
-    if (name === "random") return pickRandom(rawArg ?? ctx.randomPool);
-    return full;
   });
 }
 
@@ -446,7 +490,7 @@ export function rolesFromBadges(badges: readonly { set_id?: string }[], login: s
   return roles;
 }
 
-function builtInCommand(file: BotFile, memory: RuntimeMemory, line: ChatLine, now: number, platform: string): BotDecision | null {
+function builtInCommand(file: BotFile, memory: RuntimeMemory, line: ChatLine, now: number, platform: string, rng?: () => number): BotDecision | null {
   const parsed = splitCommand(line.text);
   if (!parsed) return null;
   const none = emptyDecision(line);
@@ -472,9 +516,31 @@ function builtInCommand(file: BotFile, memory: RuntimeMemory, line: ChatLine, no
     const seconds = clampInt(Number(rawSeconds), 1, 1209600, 600);
     return { ...none, timeoutSec: seconds, targetLogin: target, chatLine: true, log: { action: "timeout", user: target, text: `${seconds}s ${reason.join(" ")}`.trim(), by: line.login } };
   }
-  if (parsed.name === "commands") {
+  if (parsed.name === "commands" || parsed.name === "cmds") {
     const names = file.commands.filter((command) => command.enabled && targetsPlatform(command.platforms, platform) && levelAllows(command.level, line.roles)).map((command) => `!${command.name}`);
     return { ...none, say: [names.length ? `Commands: ${names.slice(0, 30).join(" ")}` : "No commands yet."], chatLine: true };
+  }
+  if (parsed.name === "followage" || parsed.name === "howlong" || parsed.name === "accountage") {
+    if (platform !== "twitch") return null;
+    const login = mentionLogin(parsed.args.split(/\s+/)[0] ?? "", line.login);
+    const kind = parsed.name === "accountage" ? "accountage" : "followage";
+    return { ...none, lookup: { kind, login }, chatLine: true };
+  }
+  if (parsed.name === "so" || parsed.name === "shoutout") {
+    if (platform !== "twitch" || !levelAllows("mod", line.roles)) return null;
+    const login = mentionLogin(parsed.args.split(/\s+/)[0] ?? "", "");
+    if (!login) return { ...none, say: ["Usage: !so username"], chatLine: true };
+    return { ...none, lookup: { kind: "shoutout", login }, chatLine: true, log: { action: "shoutout", user: login, text: "", by: line.login } };
+  }
+  if (parsed.name === "quote") {
+    const result = handleQuote(file.quotes ?? [], parsed.args, line.login, levelAllows("mod", line.roles), now, rng);
+    return {
+      ...none,
+      say: result.say ? [result.say.slice(0, 450)] : [],
+      quotes: result.quotes,
+      chatLine: true,
+      log: { action: "quote", user: line.login, text: parsed.args.slice(0, 80), by: "bot" },
+    };
   }
   return null;
 }
@@ -524,6 +590,24 @@ function matchCommand(file: BotFile, text: string, platform: string): BotCommand
   );
 }
 
+function matchKeyword(file: BotFile, text: string, platform: string): BotCommand | null {
+  if (text.trim().startsWith("!")) return null;
+  let best: { command: BotCommand; length: number } | null = null;
+  for (const command of file.commands) {
+    if (!command.enabled || !targetsPlatform(command.platforms, platform)) continue;
+    for (const keyword of command.keywords ?? []) {
+      if (!keywordHits(text, keyword)) continue;
+      if (!best || keyword.length > best.length) best = { command, length: keyword.length };
+    }
+  }
+  return best?.command ?? null;
+}
+
+function mentionLogin(value: string, fallback: string): string {
+  const name = commandName(value.replace(/^@/, ""));
+  return name || fallback;
+}
+
 function splitCommand(text: string): { name: string; args: string } | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith("!")) return null;
@@ -549,21 +633,6 @@ function tooMany(text: string, minLength: number, maxPercent: number, hit: (char
   return (hits / pool.length) * 100 >= maxPercent;
 }
 
-function pickRandom(raw: string): string {
-  const arg = raw.trim();
-  const range = arg.match(/^(\d+)\s*-\s*(\d+)$/);
-  if (range) {
-    const min = Number(range[1]);
-    const max = Number(range[2]);
-    const low = Math.min(min, max);
-    const high = Math.max(min, max);
-    return String(low + Math.floor(Math.random() * (high - low + 1)));
-  }
-  const choices = arg.split("|").map((item) => item.trim()).filter(Boolean);
-  if (choices.length === 0) return "";
-  return choices[Math.floor(Math.random() * choices.length)] ?? "";
-}
-
 function emptyDecision(line: ChatLine): BotDecision {
   return {
     say: [],
@@ -578,6 +647,8 @@ function emptyDecision(line: ChatLine): BotDecision {
     permitSec: 0,
     countCommandId: null,
     chatLine: false,
+    lookup: null,
+    quotes: null,
   };
 }
 
