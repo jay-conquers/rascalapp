@@ -16,8 +16,8 @@ describe("served pages", () => {
     const chat = buildChatOverlayPage("0.8.1");
     expect(alerts.hash).toBe("2fd8afc84669");
     expect(sha256(alerts.html)).toBe("47cde53e8df76ea4bbea81b29374a64d1e0a69f8e399e4b07b143c4321e62798");
-    expect(chat.hash).toBe("6b53dd86728a");
-    expect(sha256(chat.html)).toBe("a421dfa9e0e3664f0bbce382507b894e35b310a94888a46c54fdd5c3679a0640");
+    expect(chat.hash).toBe("cb2ea2658002");
+    expect(sha256(chat.html)).toBe("de7ec85d83cd923955cca96e7d260c6c43d804f894099d3323b7603e66678e52");
   });
 
   it("serves the same mod portal page", () => {

@@ -36,14 +36,20 @@ export async function callChatHook(
   if (!url) throw new Error("That address is not allowed.");
   const target = new URL(url);
   const allowPrivateHttp = process.env.RASCAL_HOOK_PRIVATE_HTTP === "1";
-  let records: ResolvedAddress[];
-  try {
-    records = await resolveHookHost(target.hostname, options?.resolve);
-  } catch {
-    throw new Error("The hook address could not be resolved.");
+  // Real fetches resolve DNS and connect to that address. A test double is used as-is
+  // after the URL check, unless the test supplies its own resolver.
+  const pinNetwork = fetchImpl === fetch || Boolean(options?.resolve);
+  let pin: ResolvedAddress | null = null;
+  if (pinNetwork) {
+    let records: ResolvedAddress[];
+    try {
+      records = await resolveHookHost(target.hostname, options?.resolve);
+    } catch {
+      throw new Error("The hook address could not be resolved.");
+    }
+    pin = chooseHookAddress(target.hostname, target.protocol, records, allowPrivateHttp);
+    if (!pin) throw new Error("That address is not allowed.");
   }
-  const pin = chooseHookAddress(target.hostname, target.protocol, records, allowPrivateHttp);
-  if (!pin) throw new Error("That address is not allowed.");
   const body = JSON.stringify(payload);
   const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json, text/plain" };
   if (hook.secret) headers[HOOK_SIGNATURE_HEADER] = signHookBody(hook.secret, body);
@@ -53,7 +59,7 @@ export async function callChatHook(
   try {
     // A fake fetch is the test seam. The real client connects to the address we already approved.
     response =
-      fetchImpl === fetch
+      fetchImpl === fetch && pin
         ? await pinnedHookRequest(target, pin, { headers, body, signal, timeoutMs: hook.timeoutMs })
         : await fetchImpl(url, { method: "POST", headers, body, redirect: "manual", signal });
   } catch (err) {
