@@ -93,6 +93,7 @@ export function BotView() {
   const [hookLevel, setHookLevel] = useState("everyone");
   const [hookReply, setHookReply] = useState<"none" | "chat">("none");
   const [hookEnabled, setHookEnabled] = useState(false);
+  const [hookAllowBroadcaster, setHookAllowBroadcaster] = useState(false);
   const [hookId, setHookId] = useState("");
   const [hookNote, setHookNote] = useState("");
   const extrasReady = useRef(false);
@@ -398,6 +399,7 @@ export function BotView() {
                   setHookLevel(hook.level);
                   setHookReply(hook.reply);
                   setHookEnabled(hook.enabled);
+                  setHookAllowBroadcaster(hook.allowBroadcaster === true);
                 }}
               >
                 Edit
@@ -476,6 +478,9 @@ export function BotView() {
         <CheckRow checked={hookEnabled} disabled={busy} onChange={setHookEnabled}>
           Enabled
         </CheckRow>
+        <CheckRow checked={hookAllowBroadcaster} disabled={busy} onChange={setHookAllowBroadcaster}>
+          Let my own messages trigger this hook
+        </CheckRow>
         {hookNote ? <p className="form-note">{hookNote}</p> : null}
         <button
           type="button"
@@ -496,6 +501,7 @@ export function BotView() {
                 level: hookLevel,
                 reply: hookReply,
                 enabled: hookEnabled,
+                allowBroadcaster: hookAllowBroadcaster,
                 platforms: "all",
               }),
             ).then((ok) => {

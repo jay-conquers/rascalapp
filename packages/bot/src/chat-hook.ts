@@ -25,6 +25,8 @@ export interface ChatHook {
   level: UserLevel;
   /** none posts nothing. chat posts a short reply when the service returns one. */
   reply: "none" | "chat";
+  /** When true, the streamer's own chat lines can fire this hook. Default false. */
+  allowBroadcaster: boolean;
   platforms: PlatformTarget;
 }
 
@@ -48,6 +50,8 @@ export interface HookGate {
   broadcasterId: string;
   publishedAt: number;
   duplicate: boolean;
+  /** This line is the echo of a message Rascal just posted. */
+  sentByRascal?: boolean;
 }
 
 export type HookSkip = "own" | "bot" | "backfill" | "duplicate" | "role" | "cooldown" | "none";
@@ -90,6 +94,7 @@ export function normalizeHook(value: unknown): ChatHook | null {
     userCooldownSec: clamp(row.userCooldownSec ?? row.userCooldown, 0, 86400, 15),
     level: hookLevel(row.level ?? row.roles),
     reply: row.reply === "chat" ? "chat" : "none",
+    allowBroadcaster: row.allowBroadcaster === true,
     platforms: normalizePlatformTarget(row.platforms),
   };
 }
@@ -121,13 +126,40 @@ export function redactHookUrl(value: string): string {
   }
 }
 
+export interface SentLine {
+  platform: string;
+  text: string;
+  at: number;
+}
+
+const SENT_LINE_MS = 120_000;
+
+/** Remember a line Rascal posted, so the echo cannot fire a hook. */
+export function noteOutgoing(sent: readonly SentLine[], platform: string, text: string, now: number): SentLine[] {
+  const clean = text.trim().slice(0, HOOK_REPLY_LIMIT);
+  const next = sent.filter((item) => now - item.at < SENT_LINE_MS && now - item.at >= 0);
+  if (clean) next.push({ platform, text: clean, at: now });
+  return next.slice(-100);
+}
+
+/** One matching echo is consumed, so a later identical line from a person can still fire. */
+export function consumeOutgoing(sent: readonly SentLine[], platform: string, text: string, now: number): { sent: SentLine[]; matched: boolean } {
+  const clean = text.trim().slice(0, HOOK_REPLY_LIMIT);
+  const kept = sent.filter((item) => now - item.at < SENT_LINE_MS && now - item.at >= 0);
+  const index = kept.findIndex((item) => item.platform === platform && item.text === clean);
+  if (index < 0) return { sent: kept, matched: false };
+  kept.splice(index, 1);
+  return { sent: kept, matched: true };
+}
+
 export function decideChatHook(hooks: readonly ChatHook[], line: ChatLine, now: number, memory: RuntimeMemory, gate: HookGate): HookDecision {
-  if (isOwnMessage(line, gate)) return { action: "skip", reason: "own" };
-  if (isBotMessage(line, gate)) return { action: "skip", reason: "bot" };
+  if (gate.sentByRascal) return { action: "skip", reason: "bot" };
+  if (isSeparateBot(line, gate)) return { action: "skip", reason: "bot" };
   if (gate.publishedAt > 0 && now - gate.publishedAt > HOOK_BACKFILL_MS) return { action: "skip", reason: "backfill" };
   if (gate.duplicate) return { action: "skip", reason: "duplicate" };
   const found = findHook(hooks, line, gate.platform);
   if (!found) return { action: "skip", reason: "none" };
+  if (isBroadcasterMessage(line, gate) && !found.hook.allowBroadcaster) return { action: "skip", reason: "own" };
   if (!roleAllows(found.hook.level, line.roles)) return { action: "skip", reason: "role" };
   const globalKey = `hook:${gate.platform}:${found.hook.id}`;
   const userKey = `${globalKey}:${line.userId}`;
@@ -148,7 +180,7 @@ export function buildHookPayload(hook: ChatHook, line: ChatLine, text: string, g
       id: line.userId,
       login: line.login,
       displayName: line.displayName,
-      roles: [...line.roles],
+      roles: payloadRoles(line, gate),
     },
     message: line.text.slice(0, 500),
     text: text.slice(0, 500),
@@ -223,7 +255,13 @@ function splitTrigger(text: string): { name: string; args: string } | null {
   return { name, args: space === -1 ? "" : trimmed.slice(space + 1).trim() };
 }
 
-function isOwnMessage(line: ChatLine, gate: HookGate): boolean {
+function payloadRoles(line: ChatLine, gate: HookGate): string[] {
+  const roles = [...line.roles];
+  if (isBroadcasterMessage(line, gate) && !roles.includes("broadcaster")) roles.push("broadcaster");
+  return roles;
+}
+
+function isBroadcasterMessage(line: ChatLine, gate: HookGate): boolean {
   const login = line.login.toLowerCase();
   const channel = gate.channelLogin.toLowerCase();
   if (channel && login === channel) return true;
@@ -231,10 +269,20 @@ function isOwnMessage(line: ChatLine, gate: HookGate): boolean {
   return line.roles.includes("broadcaster");
 }
 
-function isBotMessage(line: ChatLine, gate: HookGate): boolean {
+function isBotIdentity(line: ChatLine, gate: HookGate): boolean {
   if (gate.botUserId && line.userId === gate.botUserId) return true;
   const bot = gate.botLogin.toLowerCase();
   return Boolean(bot) && line.login.toLowerCase() === bot;
+}
+
+/** The bot account is a different login from the streamer, so every line from it is the bot speaking. */
+function isSeparateBot(line: ChatLine, gate: HookGate): boolean {
+  if (!isBotIdentity(line, gate)) return false;
+  if (gate.botUserId && gate.broadcasterId && gate.botUserId === gate.broadcasterId) return false;
+  const bot = gate.botLogin.toLowerCase();
+  const channel = gate.channelLogin.toLowerCase();
+  if (bot && channel && bot === channel) return false;
+  return true;
 }
 
 function roleAllows(required: UserLevel, roles: readonly UserLevel[]): boolean {
