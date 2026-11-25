@@ -3,7 +3,7 @@ import { brand } from "../../shared/brand";
 import { NOTICE_LABELS, type FeedToggles, type NoticeKind } from "../../shared/feed-toggles";
 import { defaultChatAlert, type ChatAlertSettings } from "../../shared/chat-alert";
 import { playChatChime } from "../chat-sound";
-import { MODERATE_READ_SCOPES } from "../../shared/scopes";
+import { CHATTER_SCOPE, MODERATE_MANAGE_SCOPES, MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { CheckRow } from "./CheckRow";
 import type { AuthState, ConnectionStatus, Settings } from "../../shared/types";
 
@@ -16,6 +16,9 @@ const SCOPE_REASONS = [
   ["channel:read:redemptions", "Hear channel point redeems"],
   ["channel:manage:redemptions", "Create rewards this app owns"],
   ["moderator:read:followers", "Show new follows in the desk"],
+  [MODERATE_MANAGE_SCOPES[0], "Delete a chat message from this desk"],
+  [MODERATE_MANAGE_SCOPES[1], "Timeout, ban, and unban from this desk"],
+  [CHATTER_SCOPE, "Suggest Twitch chatters when you type @"],
   ...MODERATE_READ_SCOPES.map((scope) => [scope, "Private mod log (channel.moderate)"] as const),
 ] as const;
 

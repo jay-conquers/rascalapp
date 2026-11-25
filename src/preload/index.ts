@@ -11,6 +11,8 @@ const api: RascalApi = {
     return () => ipcRenderer.removeListener("app:event", wrapped);
   },
   sendChat: (text, destinations) => ipcRenderer.invoke("app:send-chat", text, destinations),
+  moderate: (command) => ipcRenderer.invoke("app:moderate", command),
+  mentions: (query) => ipcRenderer.invoke("app:mentions", query),
   searchCategories: (query) => ipcRenderer.invoke("app:search-categories", query),
   updateStream: (update) => ipcRenderer.invoke("app:update-stream", update),
   updateSettings: (patch) => ipcRenderer.invoke("app:update-settings", patch),

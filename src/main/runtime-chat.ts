@@ -2,6 +2,15 @@ import { TWITCH_MESSAGE_MAX } from "../shared/defaults";
 import { noticeEnabled, placeNotice } from "../shared/feed-toggles";
 import { indexChannelEmotes } from "../shared/twitch-emotes";
 import { shouldPlayChatAlert, type AlertIdentity } from "../shared/chat-alert";
+import { mentionSuggestions, type MentionRoster } from "../shared/mentions";
+import {
+  describeDeskMod,
+  hasChatterScope,
+  moderationOffer,
+  parseModerationCommand,
+  type ModerationCommand,
+  type ModerationContext,
+} from "../shared/moderation";
 import { redactError } from "../shared/redact";
 import type { CategoryHit, ChatMessage, ModAction, StreamInfo, StreamUpdate } from "../shared/types";
 import { getBot } from "./stages/bot";
@@ -80,7 +89,50 @@ export class RuntimeChat extends RuntimeCore {
   }
 
 
+  mentions(query: string): MentionRoster {
+    const directories = this.platforms.list().flatMap((platform) => {
+      if (!platform.chatters || platform.mentionsOpen?.() !== true) return [];
+      return [platform.chatters()];
+    });
+    return {
+      active: directories.map((directory) => ({ id: directory.id, label: directory.label })),
+      suggestions: mentionSuggestions(directories, query, 8),
+    };
+  }
+
+
+  async moderate(input: unknown): Promise<void> {
+    const command = parseModerationCommand(input);
+    const message = this.bus.messages.find((item) => item.id === command.messageId);
+    if (!message) throw new Error("That message is no longer in the chat.");
+    const offer = moderationOffer(message, this.moderationContext());
+    if (command.action === "delete") {
+      if (!offer.delete.enabled) throw new Error(offer.delete.reason);
+      await this.deleteMessage(message);
+      this.recordMod(message, command);
+      this.bus.delete(message.id);
+      return;
+    }
+    if (command.action === "timeout") {
+      if (!offer.timeout.enabled) throw new Error(offer.timeout.reason);
+      await this.banMessageUser(message, command.seconds ?? null);
+      this.recordMod(message, command);
+      return;
+    }
+    if (command.action === "ban") {
+      if (!offer.ban.enabled) throw new Error(offer.ban.reason);
+      await this.banMessageUser(message, null);
+      this.recordMod(message, command);
+      return;
+    }
+    if (!offer.unban.enabled) throw new Error(offer.unban.reason);
+    await this.unbanMessageUser(message);
+    this.recordMod(message, command);
+  }
+
+
   protected acceptChat(message: ChatMessage): void {
+    this.rememberChatter(message);
     const feed = this.settings.load().feed;
     if (message.noticeKind && !noticeEnabled(feed, message.noticeKind)) return;
     const placed = placeNotice(this.bus.messages, message);
@@ -222,6 +274,35 @@ export class RuntimeChat extends RuntimeCore {
   }
 
 
+  protected armChatterPoll(): void {
+    if (this.chatterTimer) return;
+    void this.refreshChatters();
+    this.chatterTimer = setInterval(() => {
+      void this.refreshChatters();
+    }, 60_000);
+  }
+
+
+  protected disarmChatterPoll(): void {
+    if (this.chatterTimer) clearInterval(this.chatterTimer);
+    this.chatterTimer = null;
+    this.listedTwitch = [];
+  }
+
+
+  protected async refreshChatters(): Promise<void> {
+    const auth = this.auth.state();
+    if (!auth.loggedIn || !auth.userId || !hasChatterScope(auth.scopes)) return;
+    if (!this.chatChannel()) return;
+    try {
+      const broadcasterId = await this.twitchBroadcasterId();
+      this.listedTwitch = await this.helix.listChatters(broadcasterId, auth.userId);
+    } catch (err) {
+      this.log.error("chatters refresh failed", { message: redactError(err) });
+    }
+  }
+
+
   protected armViewerPoll(): void {
     if (this.viewerTimer) return;
     this.viewerTimer = setInterval(() => {
@@ -241,6 +322,107 @@ export class RuntimeChat extends RuntimeCore {
     this.disarmStreamPoll();
     this.stream = null;
     this.emit({ type: "stream", stream: null });
+  }
+
+
+  private modSeq = 0;
+
+  private rememberChatter(message: ChatMessage): void {
+    if (message.kind === "system" && !message.noticeKind) return;
+    const name = message.displayName.trim();
+    const login = message.username.trim();
+    if (!name && !login) return;
+    this.session.note(message.platform, { name: name || login, login: login || undefined });
+  }
+
+
+  private moderationContext(): ModerationContext {
+    const auth = this.auth.state();
+    const settings = this.settings.load();
+    const desk = this.youtubeSend.state();
+    const ready = this.youtubeSend.sendReadiness();
+    const channel = this.chatChannel();
+    const sameLogin = Boolean(auth.login && channel && auth.login.toLowerCase() === channel);
+    return {
+      twitch: {
+        loggedIn: auth.loggedIn,
+        scopes: auth.scopes,
+        login: auth.login,
+        userId: auth.userId,
+        channelLogin: channel,
+        broadcasterId: this.roomId && /^\d+$/.test(this.roomId) ? this.roomId : sameLogin ? auth.userId : null,
+      },
+      youtube: {
+        canModerate: ready.canSend && desk.connected,
+        live: this.status.youtube.state === "live" || Boolean(this.status.youtube.videoId),
+        channelId: settings.youtubeChannelId.trim(),
+        accountChannelId: desk.channelId,
+      },
+    };
+  }
+
+
+  private async twitchBroadcasterId(): Promise<string> {
+    if (this.roomId && /^\d+$/.test(this.roomId)) return this.roomId;
+    const user = this.requireUser();
+    const channel = this.chatChannel();
+    if (!channel || channel === user.login.toLowerCase()) return user.userId;
+    if (this.broadcasterCache?.login === channel) return this.broadcasterCache.id;
+    const id = await this.helix.getUserId(channel);
+    this.broadcasterCache = { login: channel, id };
+    return id;
+  }
+
+
+  private async deleteMessage(message: ChatMessage): Promise<void> {
+    if (message.platform === "twitch") {
+      const user = this.requireUser();
+      await this.helix.deleteChatMessage(await this.twitchBroadcasterId(), user.userId, message.id);
+      return;
+    }
+    await this.youtubeSend.deleteLiveMessage(message.id);
+  }
+
+
+  private async banMessageUser(message: ChatMessage, seconds: number | null): Promise<void> {
+    if (!message.authorId) throw new Error("This message has no user id.");
+    if (message.platform === "twitch") {
+      const user = this.requireUser();
+      await this.helix.banUser(await this.twitchBroadcasterId(), user.userId, message.authorId, seconds, "");
+      return;
+    }
+    await this.youtubeSend.banLiveUser(message.authorId, seconds, this.status.youtube.videoId);
+  }
+
+
+  private async unbanMessageUser(message: ChatMessage): Promise<void> {
+    if (!message.authorId) throw new Error("This message has no user id.");
+    if (message.platform === "twitch") {
+      const user = this.requireUser();
+      await this.helix.unbanUser(await this.twitchBroadcasterId(), user.userId, message.authorId);
+      return;
+    }
+    await this.youtubeSend.unbanLiveUser(message.authorId);
+  }
+
+
+  private recordMod(message: ChatMessage, command: ModerationCommand): void {
+    const action = command.action;
+    const durationSeconds = action === "timeout" ? command.seconds ?? null : null;
+    const actor = message.platform === "twitch" ? this.auth.state().login || "A moderator" : this.youtubeSend.state().account || "A moderator";
+    const target = message.displayName || message.username;
+    this.pushMod({
+      id: `desk-${action}-${message.id}-${Date.now()}-${this.modSeq++}`,
+      platform: message.platform,
+      channel: message.channel,
+      timestamp: Date.now(),
+      action,
+      actor,
+      target,
+      durationSeconds,
+      reason: "",
+      summary: describeDeskMod({ platform: message.platform, actor, target, action, durationSeconds }),
+    });
   }
 
 }

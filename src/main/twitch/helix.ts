@@ -1,4 +1,5 @@
 import { TWITCH_TITLE_MAX } from "../../shared/defaults";
+import { chatterPageCursor, parseChatterRows, type ChatterName } from "../../shared/mentions";
 import { redact } from "../../shared/redact";
 import type { CategoryHit, StreamInfo, StreamUpdate } from "../../shared/types";
 import { asRecord } from "../../shared/record";
@@ -63,6 +64,79 @@ export class Helix {
   async updateStream(userId: string, update: StreamUpdate): Promise<void> {
     const body = buildChannelPatch(update);
     await this.request("PATCH", `/channels?broadcaster_id=${encodeURIComponent(userId)}`, body);
+  }
+
+  /**
+   * Delete one chat message. message_id is a query parameter.
+   * Omitting it asks Twitch to clear the whole room, so this refuses an empty id.
+   */
+  async deleteChatMessage(broadcasterId: string, moderatorId: string, messageId: string): Promise<void> {
+    if (!messageId.trim()) throw new Error("Choose a message to delete.");
+    const query = new URLSearchParams({
+      broadcaster_id: broadcasterId,
+      moderator_id: moderatorId,
+      message_id: messageId,
+    });
+    await this.request("DELETE", `/moderation/chat?${query.toString()}`);
+  }
+
+  /** Timeout when durationSeconds is set. Ban when it is null. */
+  async banUser(
+    broadcasterId: string,
+    moderatorId: string,
+    userId: string,
+    durationSeconds: number | null,
+    reason: string,
+  ): Promise<void> {
+    const data: { user_id: string; duration?: number; reason?: string } = { user_id: userId };
+    if (durationSeconds !== null) data.duration = durationSeconds;
+    const trimmed = reason.trim();
+    if (trimmed) data.reason = trimmed.slice(0, 500);
+    const query = new URLSearchParams({ broadcaster_id: broadcasterId, moderator_id: moderatorId });
+    await this.request("POST", `/moderation/bans?${query.toString()}`, { data });
+  }
+
+  async unbanUser(broadcasterId: string, moderatorId: string, userId: string): Promise<void> {
+    const query = new URLSearchParams({
+      broadcaster_id: broadcasterId,
+      moderator_id: moderatorId,
+      user_id: userId,
+    });
+    await this.request("DELETE", `/moderation/bans?${query.toString()}`);
+  }
+
+  /**
+   * Helix Get Chatters. Pages of up to 1000 until the cursor runs out.
+   * A repeated cursor stops the walk so a bad page cannot loop.
+   */
+  async listChatters(broadcasterId: string, moderatorId: string): Promise<ChatterName[]> {
+    if (!/^\d+$/.test(broadcasterId) || !/^\d+$/.test(moderatorId)) return [];
+    const out: ChatterName[] = [];
+    const seen = new Set<string>();
+    const cursors = new Set<string>();
+    let cursor = "";
+    for (let page = 0; page < 20; page += 1) {
+      const query = new URLSearchParams({
+        broadcaster_id: broadcasterId,
+        moderator_id: moderatorId,
+        first: "1000",
+      });
+      if (cursor) query.set("after", cursor);
+      const json = await this.request("GET", `/chat/chatters?${query.toString()}`);
+      const rows = parseChatterRows(json.data);
+      for (const chatter of rows) {
+        const key = (chatter.login || chatter.name).toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(chatter);
+      }
+      const next = chatterPageCursor(json);
+      if (rows.length === 0) break;
+      if (!next || cursors.has(next)) break;
+      cursors.add(next);
+      cursor = next;
+    }
+    return out;
   }
 
   async sendChat(broadcasterId: string, senderId: string, message: string): Promise<void> {

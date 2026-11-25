@@ -214,6 +214,41 @@ describe("mocked youtube api", () => {
     const insert = calls.find((call) => call.method === "POST" && call.url.includes("/liveChat/messages"));
     expect(insert?.body).toContain("hello there");
     expect(JSON.stringify(calls)).not.toContain("token-not-logged");
+    const timeout = calls.find((call) => call.method === "POST" && call.url.includes("/liveChat/bans"));
+    expect(JSON.parse(timeout?.body ?? "{}")).toEqual({
+      snippet: {
+        liveChatId: "chat-9",
+        type: "temporary",
+        banDurationSeconds: 30,
+        bannedUserDetails: { channelId: "UCviewer00000000000000001" },
+      },
+    });
+  });
+
+  it("bans permanently without a duration and deletes a ban by id", async () => {
+    const calls: { url: string; method: string; body?: string }[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ url, method, body: typeof init?.body === "string" ? init.body : undefined });
+      if (method === "POST") return json({ id: "ban-permanent" });
+      return json({});
+    };
+    const api = new YoutubeDataApi({ token: async () => "token-not-logged", fetchImpl });
+    expect(await api.banUser("chat-9", "UCviewer00000000000000001", null)).toBe("ban-permanent");
+    await api.unban("ban-permanent");
+    const ban = calls.find((call) => call.method === "POST");
+    expect(JSON.parse(ban?.body ?? "{}")).toEqual({
+      snippet: {
+        liveChatId: "chat-9",
+        type: "permanent",
+        bannedUserDetails: { channelId: "UCviewer00000000000000001" },
+      },
+    });
+    const removed = calls.find((call) => call.method === "DELETE");
+    expect(removed?.url).toContain("/liveChat/bans");
+    expect(removed?.url).toContain("id=ban-permanent");
+    expect(removed?.body).toBeUndefined();
   });
 
   it("treats quotaExceeded as a pause, not a token problem", async () => {

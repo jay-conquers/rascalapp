@@ -70,6 +70,9 @@ describe("twitch device login", () => {
     expect(calls[0]?.body).toContain("user%3Aread%3Achat");
     expect(calls[0]?.body).toContain("moderator%3Aread%3Awarnings");
     expect(calls[0]?.body).toContain("moderator%3Aread%3Afollowers");
+    expect(calls[0]?.body).toContain("moderator%3Amanage%3Achat_messages");
+    expect(calls[0]?.body).toContain("moderator%3Amanage%3Abanned_users");
+    expect(calls[0]?.body).toContain("moderator%3Aread%3Achatters");
     expect(tokens.current?.login).toBe("examplechannel");
     expect(tokens.current?.accessToken).toBe("access-TESTTOKEN");
     expectPrivateMode(tokens.file, 0o600);

@@ -1,11 +1,24 @@
 import { useEffect, useRef, useState } from "react";
+import { showsAuthorName } from "../../shared/chat-author";
+import type { DeskModerationAction, ModerationOffer } from "../../shared/moderation";
 import type { ChatMessage, EmoteSegment, Segment } from "../../shared/types";
 import { TwitchMark, YouTubeMark } from "./icons";
+import { ModMenu } from "./ModMenu";
 
-export function ChatFeed({ messages }: { messages: ChatMessage[] }) {
+export function ChatFeed({
+  messages,
+  offerFor,
+  onModerate,
+}: {
+  messages: ChatMessage[];
+  offerFor?: (message: ChatMessage) => ModerationOffer;
+  onModerate?: (message: ChatMessage, command: { action: DeskModerationAction; seconds?: number }) => Promise<void>;
+}) {
   const scroller = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
   const [pending, setPending] = useState(0);
+  const [menu, setMenu] = useState<{ message: ChatMessage; x: number; y: number } | null>(null);
   const lastId = messages[messages.length - 1]?.id ?? "";
 
   useEffect(() => {
@@ -27,6 +40,41 @@ export function ChatFeed({ messages }: { messages: ChatMessage[] }) {
     if (next) setPending(0);
   }
 
+  useEffect(() => {
+    if (!menu) return;
+    function onPointer(event: MouseEvent): void {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) return;
+      setMenu(null);
+    }
+    function onKey(event: KeyboardEvent): void {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setMenu(null);
+    }
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
+
+  function place(event: { clientX: number; clientY: number }): { x: number; y: number } {
+    const maxX = Math.max(8, window.innerWidth - 248);
+    const maxY = Math.max(8, window.innerHeight - 320);
+    return {
+      x: Math.min(Math.max(8, event.clientX), maxX),
+      y: Math.min(Math.max(8, event.clientY), maxY),
+    };
+  }
+
+  function openMenu(event: { clientX: number; clientY: number; preventDefault: () => void }, message: ChatMessage): void {
+    if (!offerFor || !onModerate) return;
+    event.preventDefault();
+    setMenu({ message, ...place(event) });
+  }
+
   function jump(): void {
     const el = scroller.current;
     if (!el) return;
@@ -44,9 +92,28 @@ export function ChatFeed({ messages }: { messages: ChatMessage[] }) {
             <p>Twitch chat joins on its own. YouTube chat attaches when the channel goes live.</p>
           </div>
         ) : (
-          messages.map((message) => <MessageRow key={message.id} message={message} />)
+          messages.map((message) => (
+            <MessageRow
+              key={message.id}
+              message={message}
+              onOpen={(event) => openMenu(event, message)}
+              canModerate={Boolean(offerFor && onModerate)}
+            />
+          ))
         )}
       </div>
+      {menu && offerFor && onModerate ? (
+        <div ref={menuRef}>
+          <ModMenu
+            message={menu.message}
+            offer={offerFor(menu.message)}
+            x={menu.x}
+            y={menu.y}
+            onModerate={(command) => onModerate(menu.message, command)}
+            onClose={() => setMenu(null)}
+          />
+        </div>
+      ) : null}
       {pending > 0 && (
         <button className="jump" type="button" onClick={jump}>
           {pending} new · jump to latest
@@ -56,13 +123,31 @@ export function ChatFeed({ messages }: { messages: ChatMessage[] }) {
   );
 }
 
-function MessageRow({ message }: { message: ChatMessage }) {
+function MessageRow({
+  message,
+  onOpen,
+  canModerate,
+}: {
+  message: ChatMessage;
+  onOpen: (event: { clientX: number; clientY: number; preventDefault: () => void; button: number }) => void;
+  canModerate: boolean;
+}) {
   const time = new Date(message.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const platformLabel = message.platform === "twitch" ? "Twitch" : "YouTube";
+  const named = showsAuthorName(message);
   return (
     <article
       className={`msg kind-${message.kind}${message.noticeKind ? ` notice-${message.noticeKind}` : ""}${message.deskOnly ? " desk-only" : ""}${message.deleted ? " deleted" : ""}`}
       data-platform={message.platform}
+      onClick={(event) => {
+        if (!canModerate || event.button !== 0) return;
+        if (window.getSelection()?.toString()) return;
+        onOpen(event);
+      }}
+      onContextMenu={(event) => {
+        if (!canModerate) return;
+        onOpen(event);
+      }}
     >
       <span className={`platform ${message.platform}`} title={platformLabel} aria-label={platformLabel}>
         {message.platform === "twitch" ? <TwitchMark /> : <YouTubeMark />}
@@ -70,10 +155,25 @@ function MessageRow({ message }: { message: ChatMessage }) {
       <div className="msg-main">
         {message.notice && <p className="notice">{message.notice}</p>}
         <div className="msg-line">
-          {message.kind !== "system" || message.segments.length > 0 ? (
-            <span className="who" style={{ color: message.color }}>
+          {named ? (
+            <button
+              type="button"
+              className="who who-button"
+              data-testid="author-name"
+              style={{ color: message.color }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!canModerate) return;
+                onOpen(event);
+              }}
+              onContextMenu={(event) => {
+                event.stopPropagation();
+                if (!canModerate) return;
+                onOpen(event);
+              }}
+            >
               {message.displayName}
-            </span>
+            </button>
           ) : null}
           <span className="badges">
             {message.badges.map((badge) => (

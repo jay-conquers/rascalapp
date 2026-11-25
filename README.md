@@ -20,9 +20,9 @@ A fresh install has no channel filled in. Twitch chat follows the channel in Set
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.8.1.AppImage
+chmod +x Rascal-0.9.0.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.8.1.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.9.0.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -98,7 +98,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.8.1.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.9.0.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 
@@ -113,7 +113,9 @@ npx electron-builder --mac dmg --publish never
 
 The chat column shows Twitch subs, resubs, gifted subs, raids, and cheers when chat sends them. Cheers are the bits messages already in IRC. Follows, watch streaks, and mod anniversaries come from EventSub (`channel.follow` v2 and `channel.chat.notification`). YouTube Super Chats, Super Stickers, memberships, gifted memberships, and member milestones come from the page reader. Channel point redeems show the reward name, who redeemed it, and any text they typed. Each of those, and the private mod log, has a switch in Settings. They default to on.
 
-A login from 0.7.0 does not include the new scopes. Rascal keeps reading chat. Settings names the missing scopes and asks you to log in again. Approve the device code when you want the mod log, follows, watch streaks, and mod anniversaries. The scopes added in 0.8.0 are `user:read:chat`, `moderator:read:followers`, and the moderator read set required by `channel.moderate` v2: `moderator:read:blocked_terms`, `moderator:read:chat_settings`, `moderator:read:unban_requests`, `moderator:read:banned_users`, `moderator:read:chat_messages`, `moderator:read:warnings`, `moderator:read:moderators`, and `moderator:read:vips`. `channel:read:redemptions` was already requested.
+A login from 0.7.0 does not include the new scopes. Rascal keeps reading chat. Settings names the missing scopes and asks you to log in again. Approve the device code when you want the mod log, follows, watch streaks, and mod anniversaries. The scopes added in 0.8.0 are `user:read:chat`, `moderator:read:followers`, and the moderator read set required by `channel.moderate` v2: `moderator:read:blocked_terms`, `moderator:read:chat_settings`, `moderator:read:unban_requests`, `moderator:read:banned_users`, `moderator:read:chat_messages`, `moderator:read:warnings`, `moderator:read:moderators`, and `moderator:read:vips`. `channel:read:redemptions` was already requested. 0.9.0 also asks for `moderator:manage:chat_messages`, `moderator:manage:banned_users`, and `moderator:read:chatters`. Log out and back in once. Until then, chat still works, and deletes, timeouts, bans, and the Twitch chatter list stay off.
+
+Click or right-click a chat message or a name to delete it, time that viewer out, ban, or unban. Twitch uses your login. YouTube uses the connected account on the live chat. The broadcaster's own account is left alone, and a ban asks first.
 
 The mod log is a panel in Rascal's own window. It lists Twitch timeouts, bans, unbans, message deletes, warnings, chat clears, chat mode changes, and mod or unmod, with who did it and the duration or reason when Twitch sent them. It is not posted to Twitch or YouTube chat, and it is not drawn on the alert or chat overlay. YouTube's page reader reports deleted messages and removed authors, and ban or timeout banners when the text says so. It usually does not name the moderator, and a removed author is not labeled as a ban unless the banner says banned.
 

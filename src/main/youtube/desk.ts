@@ -39,6 +39,8 @@ export class YoutubeDesk {
   private failBot: ((err: Error) => void) | null = null;
   private note = "";
   private readonly chats = new Map<string, string>();
+  /** Ban ids returned by liveChatBans.insert, keyed by the banned channel. YouTube has no list method. */
+  private readonly bans = new Map<string, string>();
   private readonly store: BotStore;
   private log: Logger | null;
   private fetchImpl: typeof fetch;
@@ -135,7 +137,33 @@ export class YoutubeDesk {
     this.store.clearDeskYoutubeTokens();
     this.note = "YouTube account logged out.";
     this.chats.clear();
+    this.bans.clear();
     this.onChange?.();
+  }
+
+  async deleteLiveMessage(messageId: string): Promise<void> {
+    if (!messageId.trim()) throw new Error("Choose a message to delete.");
+    await this.api().deleteMessage(messageId);
+  }
+
+  /** Temporary ban when seconds is set. Permanent ban when it is null. */
+  async banLiveUser(channelId: string, seconds: number | null, videoId: string | undefined): Promise<void> {
+    const api = this.api();
+    const liveChatId = await this.lookupChat(api, videoId, false);
+    if (!liveChatId) throw new Error("YouTube is not live, so this chat cannot be moderated.");
+    const banId = await api.banUser(liveChatId, channelId, seconds);
+    if (banId) this.bans.set(channelId, banId);
+  }
+
+  async unbanLiveUser(channelId: string): Promise<void> {
+    const banId = this.bans.get(channelId);
+    if (!banId) {
+      throw new Error(
+        "YouTube can only lift a timeout or ban created in this session. The Data API deletes a ban by the id returned when it was created.",
+      );
+    }
+    await this.api().unban(banId);
+    this.bans.delete(channelId);
   }
 
   async send(text: string, videoId: string | undefined): Promise<void> {
