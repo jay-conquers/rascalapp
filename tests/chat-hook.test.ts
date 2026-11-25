@@ -10,8 +10,10 @@ import { callChatHook, signHookBody } from "../packages/bot/src/chat-hook-send";
 import {
   buildHookPayload,
   checkHookUrl,
+  consumeOutgoing,
   decideChatHook,
   normalizeHook,
+  noteOutgoing,
   parseHookReply,
   redactHookUrl,
   type ChatHook,
@@ -66,6 +68,30 @@ describe("chat hook matching", () => {
     const mods = hook({ level: "mod", cooldownSec: 0 });
     expect(decideChatHook([mods], line("!ask secret"), 5_000, emptyMemory(), gate)).toEqual({ action: "skip", reason: "role" });
     expect(decideChatHook([mods], line("!ask secret", ["everyone", "mod"]), 5_000, emptyMemory(), gate).action).toBe("fire");
+  });
+
+  it("lets the streamer's own line through only when allowBroadcaster is set", () => {
+    const memory = emptyMemory();
+    const off = hook({ cooldownSec: 0 });
+    const on = hook({ cooldownSec: 0, allowBroadcaster: true });
+    const mine = line("!ask from me", ["everyone"], "mychannel");
+    expect(decideChatHook([off], mine, 5_000, memory, gate)).toMatchObject({ reason: "own" });
+    const fired = decideChatHook([on], mine, 5_000, memory, gate);
+    expect(fired.action).toBe("fire");
+    if (fired.action === "fire") {
+      expect(buildHookPayload(fired.hook, mine, fired.text, gate, 5_000).user.roles).toContain("broadcaster");
+    }
+    const sameAccount = { ...gate, botUserId: "42", botLogin: "mychannel" };
+    expect(decideChatHook([on], mine, 5_000, memory, sameAccount).action).toBe("fire");
+    expect(decideChatHook([on], mine, 5_000, memory, { ...sameAccount, sentByRascal: true })).toMatchObject({ reason: "bot" });
+    const botLine = line("!ask from the bot", ["everyone"], "rascalbot");
+    expect(decideChatHook([on], botLine, 5_000, memory, gate)).toMatchObject({ reason: "bot" });
+    expect(decideChatHook([on], line("!ask old"), 30_000, memory, { ...gate, publishedAt: 1_000 })).toMatchObject({ reason: "backfill" });
+    expect(decideChatHook([on], line("!ask again"), 5_000, memory, { ...gate, duplicate: true })).toMatchObject({ reason: "duplicate" });
+    let sent = noteOutgoing([], "twitch", "heard you", 1_000);
+    const echo = consumeOutgoing(sent, "twitch", "heard you", 2_000);
+    expect(echo.matched).toBe(true);
+    expect(consumeOutgoing(echo.sent, "twitch", "heard you", 3_000).matched).toBe(false);
   });
 
   it("skips the streamer, the bot, history, and a duplicate", () => {
@@ -145,5 +171,6 @@ describe("chat hook settings", () => {
     expect(html).toContain('type="password"');
     expect(html).toContain("Save hook");
     expect(html).toContain("press Test");
+    expect(html).toContain("Let my own messages trigger this hook");
   });
 });

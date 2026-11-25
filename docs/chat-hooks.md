@@ -29,7 +29,11 @@ When Reply is "Post the service reply in chat", a JSON body `{"reply": "hello"}`
 
 Use `https://` for a service on another computer. `http://` is only accepted for `localhost` or `127.0.0.1`. Redirects are not followed.
 
-Rascal skips the streamer's own messages, the bot account's messages, a duplicate of a message it already saw, and chat history older than about 12 seconds. The command cooldown and the per-viewer cooldown are the ones on the hook.
+Rascal skips the streamer's own messages unless that hook sets `allowBroadcaster` to true. The bot account's messages, a duplicate of a message it already saw, and chat history older than about 12 seconds are always skipped. A line Rascal itself just posted is skipped too, including when the bot posts as the streamer's account, so a reply cannot call the hook again. The command cooldown and the per-viewer cooldown are the ones on the hook.
+
+```json
+{ "name": "reader", "trigger": "ask", "url": "http://127.0.0.1:8787/", "allowBroadcaster": true }
+```
 
 ## Example receiver
 

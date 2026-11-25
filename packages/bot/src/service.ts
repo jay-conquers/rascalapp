@@ -44,7 +44,7 @@ import { TwitchChatPlatform } from "./platform/twitch-adapter.ts";
 import { YoutubeChatPlatform } from "./platform/youtube-adapter.ts";
 import { accountAgeLine, followageLine } from "./duration.ts";
 import { importQuoteList, normalizeQuotes } from "./quotes.ts";
-import { buildHookPayload, decideChatHook, normalizeHook, normalizeHooks, redactHookUrl, sampleHookPayload } from "./chat-hook.ts";
+import { buildHookPayload, consumeOutgoing, decideChatHook, normalizeHook, normalizeHooks, noteOutgoing, redactHookUrl, sampleHookPayload, type SentLine } from "./chat-hook.ts";
 import { callChatHook } from "./chat-hook-send.ts";
 import { channelIdFromJwt, importStreamElements } from "./se.ts";
 import { flushGiftHold, normalizeThanks, planThankYou, thankKind, type GiftHold } from "./thanks.ts";
@@ -149,6 +149,7 @@ export class BotService {
   private followCache = new Map<string, { at: number; text: string }>();
   private recentChatters = new Map<string, { name: string; at: number }>();
   private seenHookIds = new Set<string>();
+  private outgoing: SentLine[] = [];
   private giftHold: GiftHold | null = null;
   private giftTimer: ReturnType<typeof setTimeout> | null = null;
   private askJeeves: AskJeevesHook | null = null;
@@ -665,7 +666,7 @@ export class BotService {
         if (!text.trim()) continue;
         for (const platform of targets) {
           try {
-            await platform.sendMessage(text);
+            await this.say(platform, text);
           } catch (err) {
             this.pushLog({ t: now, action: "error", user: "", text: safeError(err), by: platform.id });
           }
@@ -821,6 +822,7 @@ export class BotService {
       broadcasterId: message.platform === "youtube" ? this.file.youtubeChannelId : this.file.broadcasterId,
       publishedAt: message.publishedAt,
       duplicate: this.rememberHookMessage(message.messageId),
+      sentByRascal: this.echoOfOurs(message.platform, line, now, botUserId),
     };
     const hookDecision = decideChatHook(this.file.hooks, line, now, this.memory, gate);
     if (hookDecision.action === "fire") void this.dispatchHook(platform, hookDecision.hook, line, hookDecision.text, now, gate);
@@ -850,7 +852,7 @@ export class BotService {
     try {
       const result = await callChatHook(hook, buildHookPayload(hook, line, text, gate, now), this.fetchImpl());
       this.pushLog({ t: Date.now(), action: "hook", user: line.login, text: `${hook.name} HTTP ${result.status} ${result.ms}ms`, by: platform.id });
-      if (result.reply && !this.stopped && platform.capabilities.send) await platform.sendMessage(result.reply);
+      if (result.reply && !this.stopped && platform.capabilities.send) await this.say(platform, result.reply);
     } catch (err) {
       const detail = hookError(err);
       this.pushLog({ t: Date.now(), action: "hook", user: line.login, text: `${hook.name} failed: ${detail}`, by: platform.id });
@@ -895,7 +897,7 @@ export class BotService {
         }
       }
       for (const text of decision.say) {
-        if (platform.capabilities.send) await platform.sendMessage(text);
+        if (platform.capabilities.send) await this.say(platform, text);
       }
     } catch (err) {
       this.pushLog({ t: Date.now(), action: "error", user: line.login, text: safeError(err), by: "bot" });
@@ -963,12 +965,35 @@ export class BotService {
     this.giftTimer.unref?.();
   }
 
+  private async say(platform: ChatPlatform, text: string): Promise<void> {
+    this.outgoing = noteOutgoing(this.outgoing, platform.id, text, Date.now());
+    await platform.sendMessage(text);
+  }
+
+  /** A line Rascal just posted, coming back from the same account. A viewer's copy is left alone. */
+  private echoOfOurs(platform: string, line: ChatLine, now: number, botUserId: string): boolean {
+    const botLogin = (platform === "youtube" ? "" : this.activeTwitch()?.login ?? "").toLowerCase();
+    const channel = (platform === "youtube" ? "" : this.file.channelLogin).toLowerCase();
+    const broadcasterId = platform === "youtube" ? this.file.youtubeChannelId : this.file.broadcasterId;
+    const login = line.login.toLowerCase();
+    const fromAccount =
+      (botUserId && line.userId === botUserId) ||
+      (broadcasterId && line.userId === broadcasterId) ||
+      (channel && login === channel) ||
+      (botLogin && login === botLogin) ||
+      line.roles.includes("broadcaster");
+    if (!fromAccount) return false;
+    const taken = consumeOutgoing(this.outgoing, platform, line.text, now);
+    this.outgoing = taken.sent;
+    return taken.matched;
+  }
+
   private async postBot(platformId: string, text: string): Promise<void> {
     const platform = this.registry.get(platformId);
     const line = text.trim().slice(0, 450);
     if (!platform?.capabilities.send || !line || this.stopped) return;
     try {
-      await platform.sendMessage(line);
+      await this.say(platform, line);
     } catch (err) {
       this.pushLog({ t: Date.now(), action: "error", user: "", text: safeError(err), by: platformId });
     }
