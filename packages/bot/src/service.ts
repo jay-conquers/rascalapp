@@ -911,29 +911,23 @@ export class BotService {
         if (!platform.capabilities.timeout) {
           this.pushLog({ t: Date.now(), action: "unsupported", user: decision.targetLogin, text: "timeout", by: platform.id });
         } else {
-          const userId = await this.actionUser(platform, decision, line, platform.id !== "twitch");
+          const userId = await this.actionUser(platform, decision, line);
           if (userId) await platform.timeoutUser(userId, decision.timeoutSec, decision.log?.text ?? "");
         }
       }
       if (decision.ban) {
         if (!platform.capabilities.ban) {
           this.pushLog({ t: Date.now(), action: "unsupported", user: decision.targetLogin, text: "ban", by: platform.id });
-        } else if (platform.id === "twitch") {
-          const userId = (await platform.lookupUser(decision.targetLogin)) || "";
-          if (userId) await platform.banUser(userId, decision.log?.text ?? "");
         } else {
-          const userId = decision.targetUserId || (await platform.lookupUser(decision.targetLogin)) || "";
+          const userId = await this.actionUser(platform, decision, line);
           if (userId) await platform.banUser(userId, decision.log?.text ?? "");
         }
       }
       if (decision.unban) {
         if (!platform.capabilities.unban) {
           this.pushLog({ t: Date.now(), action: "unsupported", user: decision.targetLogin, text: "unban", by: platform.id });
-        } else if (platform.id === "twitch") {
-          const userId = (await platform.lookupUser(decision.targetLogin)) || "";
-          if (userId) await platform.unbanUser(userId);
         } else {
-          const userId = (await platform.lookupUser(decision.targetLogin)) || decision.targetUserId || "";
+          const userId = await this.actionUser(platform, decision, line);
           if (userId) await platform.unbanUser(userId);
         }
       }
@@ -1195,8 +1189,11 @@ export class BotService {
     ];
   }
 
-  private async actionUser(platform: ChatPlatform, decision: BotDecision, line: ChatLine, preferNamed: boolean): Promise<string> {
-    if (!preferNamed) return decision.targetUserId || (await platform.lookupUser(decision.targetLogin)) || "";
+  /**
+   * A built-in command copies the sender's id into the decision, then names the real target.
+   * When those two people differ, the named login is the one to act on.
+   */
+  private async actionUser(platform: ChatPlatform, decision: BotDecision, line: ChatLine): Promise<string> {
     const named = decision.targetLogin && decision.targetLogin.toLowerCase() !== line.login.toLowerCase();
     if (named) return (await platform.lookupUser(decision.targetLogin)) || "";
     return decision.targetUserId || (await platform.lookupUser(decision.targetLogin)) || "";

@@ -121,6 +121,10 @@ describe("twitch chat through the bot", () => {
     const log = fixture.service.snapshot(0).log;
     expect(log.map((entry) => entry.action)).toEqual(["ban", "ban", "unban"]);
     expect(log[1]).toMatchObject({ user: "troll", text: "", by: "coolmod" });
+
+    socket.receive(twitchChat({ ...coolmod, text: "!timeout troll 30 spam" }));
+    await until(() => fixture.sent("api.twitch.tv/helix/moderation/bans", "POST").length === 3, "mod timeout");
+    expect(bodyOf(fixture.sent("api.twitch.tv/helix/moderation/bans", "POST")[2])).toEqual({ data: { user_id: "666", reason: "30s spam", duration: 30 } });
   });
 
   it("ignores a mod command from a viewer and lets a permit through the link filter", async () => {
@@ -264,6 +268,11 @@ describe("youtube chat through the bot", () => {
     expect(fixture.sent("www.googleapis.com/youtube/v3/liveChat/messages", "DELETE")[0]?.query.get("id")).toBe("yt-spam");
     expect(bodyOf(fixture.sent("www.googleapis.com/youtube/v3/liveChat/bans", "POST")[0])).toEqual({
       snippet: { liveChatId: YT_CHAT, type: "temporary", bannedUserDetails: { channelId: "UCtroll00000000000000001" }, banDurationSeconds: 45 },
+    });
+    fixture.service.ingestYoutube(youtubeMessage({ authorId: "UCmod0000000000000000001", name: "Cool Mod", text: "!ban Troll", badges: ["mod"] }));
+    await until(() => fixture.sent("www.googleapis.com/youtube/v3/liveChat/bans", "POST").length === 2, "named youtube ban");
+    expect(bodyOf(fixture.sent("www.googleapis.com/youtube/v3/liveChat/bans", "POST")[1])).toEqual({
+      snippet: { liveChatId: YT_CHAT, type: "permanent", bannedUserDetails: { channelId: "UCtroll00000000000000001" } },
     });
   });
 
