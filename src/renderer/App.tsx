@@ -20,6 +20,7 @@ import { twitchLink, youtubeLink, type SendTargets } from "../shared/send-target
 import { defaultChatAlert } from "../shared/chat-alert";
 import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
+import { StatusPill } from "./components/StatusPill";
 
 export function App() {
   const [ready, setReady] = useState(false);
@@ -185,9 +186,9 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <RascalMark />
-          <div>
+          <div className="brand-copy">
             <strong>{brand.displayName}</strong>
-            <span>{shownChannel ? `#${shownChannel}` : "No channel"}</span>
+            <span title={shownChannel ? `#${shownChannel}` : "No channel"}>{shownChannel ? `#${shownChannel}` : "No channel"}</span>
           </div>
         </div>
         <div className="pills">
@@ -379,19 +380,3 @@ export function App() {
   );
 }
 
-function StatusPill({ label, state, detail, viewers }: { label: string; state: string; detail: string; viewers?: number | null }) {
-  const watching = typeof viewers === "number" ? `${viewers.toLocaleString("en-US")} watching` : "";
-  return (
-    <p className={`pill state-${state}`} title={watching ? `${detail} · ${watching}` : detail}>
-      <i />
-      <span>{label}</span>
-      <em>{shortDetail(detail)}</em>
-      {watching ? <strong className="viewers">{watching}</strong> : null}
-    </p>
-  );
-}
-
-function shortDetail(detail: string): string {
-  const clean = detail.replace(/\s+/g, " ").trim();
-  return clean.length > 42 ? `${clean.slice(0, 40)}…` : clean;
-}

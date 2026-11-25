@@ -65,22 +65,34 @@ img { max-width: 100%; }
   border-bottom: 1px solid var(--line);
   background: linear-gradient(#14161c, #101218);
 }
-.brand { display: flex; align-items: center; gap: 10px; min-width: 160px; }
-.brand svg { width: 26px; height: 26px; display: block; }
-.brand strong { display: block; letter-spacing: 0.01em; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 200px; }
+.brand svg { width: 26px; height: 26px; display: block; flex: none; }
+.brand-copy { min-width: 0; }
+.brand strong, .brand span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brand strong { letter-spacing: 0.01em; }
 .brand span { color: var(--muted); font-size: 12px; }
-.pills { display: flex; gap: 8px; flex: 1; min-width: 0; }
+.pills { display: flex; gap: 8px; flex: 1 1 0; min-width: 0; overflow: hidden; }
 .pill {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 5px 10px;
   border-radius: 999px;
   background: #0e1015;
   border: 1px solid var(--line);
   font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  container-type: inline-size;
 }
 .pill i {
   width: 8px;
@@ -89,18 +101,23 @@ img { max-width: 100%; }
   background: var(--faint);
   flex: none;
 }
-.pill em {
-  color: var(--muted);
-  font-style: normal;
+.pill-name, .pill-detail {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pill-name { flex: none; }
+.pill-detail {
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-style: normal;
 }
 .pill.state-connected i, .pill.state-live i { background: var(--ok); }
 .pill.state-offline i { background: var(--faint); }
 .pill.state-connecting i, .pill.state-reconnecting i { background: var(--gold); }
 .pill.state-error i { background: var(--danger); }
-.top-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.top-actions { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: nowrap; justify-content: flex-end; }
 .icon-button {
   width: 34px;
   height: 34px;
@@ -182,7 +199,23 @@ img { max-width: 100%; }
 .msg.notice-watch-streak, .msg.notice-mod-anniversary, .msg.notice-milestone { box-shadow: inset 3px 0 0 #5eead4; }
 .msg.notice-redemption { box-shadow: inset 3px 0 0 #fb923c; background: rgba(251, 146, 60, 0.08); }
 .msg.desk-only { background: rgba(251, 146, 60, 0.05); }
-.pill .viewers { font-variant-numeric: tabular-nums; color: var(--cream); font-size: 12px; }
+.pill .viewers {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--cream);
+  font-size: 12px;
+  white-space: nowrap;
+}
+/* The pill is the container. Narrow chips drop the status line, then the word "watching", then the name. */
+@container (max-width: 160px) {
+  .pill-detail { display: none; }
+}
+@container (max-width: 120px) {
+  .viewer-word { display: none; }
+}
+@container (max-width: 72px) {
+  .pill-name { display: none; }
+}
 .toggle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }
 .feed-wrap { position: relative; min-height: 0; }
 .feed {
@@ -791,7 +824,8 @@ label.check-row {
 
 @media (max-width: 920px) {
   .topbar { flex-wrap: wrap; }
-  .pills { order: 3; width: 100%; }
+  .pills { order: 3; flex: 1 0 100%; width: 100%; }
+  .top-actions { flex-wrap: wrap; max-width: 100%; }
   .scope-list li { grid-template-columns: 1fr; }
   .overlay-layout, .tts-columns, .tts-address { grid-template-columns: 1fr; }
   .redeems { overflow: auto; }

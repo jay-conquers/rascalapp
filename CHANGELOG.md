@@ -8,6 +8,7 @@
 - Typing `@` in the chat box suggests names from the platforms that are connected and checked. Twitch merges Helix chatters with people who spoke this session. YouTube has no viewer list, so it uses people who spoke this session. A second platform shows a small marker on each name.
 - The mod log's empty state says "No moderation actions yet." The Twitch login hint appears only when that login is missing the moderator read scopes. The YouTube note appears only when YouTube chat is connected.
 - Channel-point redeems with no typed message show who redeemed them. Follows and other notices that name a viewer show that name too.
+- Viewer counts in the header stay on one line inside the pill. A long label ellipsizes, and a narrow window shows the dot and the number instead of spilling into the buttons.
 - The bot state no longer includes `askJeevesHook`. A `bot.json` that still has that key loads without it. The speech panel no longer shows that row.
 - A moderator's `!timeout` on Twitch, and `!ban` on YouTube, now act on the named user. They used to act on the moderator who typed the command.
 - Chat hooks. Each hook in `bot.json` can POST a viewer's command to an address you run. It is off until enabled. A secret signs the body, and the service can optionally return a short chat reply. `allowBroadcaster` lets the streamer's own messages fire that hook. The bot's own posts still do not.
