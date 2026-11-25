@@ -18,6 +18,7 @@ import {
   redactHookUrl,
   type ChatHook,
 } from "../packages/bot/src/chat-hook";
+import type { ResolvedAddress } from "../packages/bot/src/hook-guard";
 import { emptyMemory, type ChatLine } from "../packages/bot/src/model";
 import { BotService } from "../packages/bot/src/service";
 import { BotStore } from "../packages/bot/src/store";
@@ -48,6 +49,8 @@ function hook(patch: Partial<ChatHook> = {}): ChatHook {
   if (!base) throw new Error("hook fixture failed");
   return { ...base, ...patch };
 }
+
+const resolvePublic = async (): Promise<ResolvedAddress[]> => [{ address: "93.184.216.34", family: 4 }];
 
 function line(text: string, roles: ChatLine["roles"] = ["everyone"], login = "viewer"): ChatLine {
   return { messageId: "m1", userId: login, login, displayName: login, text, roles };
@@ -118,7 +121,7 @@ describe("chat hook delivery", () => {
       expect(init?.redirect).toBe("manual");
       return new Response(JSON.stringify({ reply: "heard hello" }), { status: 200, headers: { "content-type": "application/json" } });
     };
-    const result = await callChatHook(data, payload, fetchImpl);
+    const result = await callChatHook(data, payload, fetchImpl, { resolve: resolvePublic });
     expect(seen).toBe(signHookBody("topsecret", body));
     expect(result.reply).toBe("heard hello");
     expect(parseHookReply("plain answer", "text/plain")).toBe("plain answer");
@@ -136,9 +139,9 @@ describe("chat hook delivery", () => {
           reject(error);
         });
       });
-    await expect(callChatHook(data, payload, hanging)).rejects.toThrow(/timed out/);
+    await expect(callChatHook(data, payload, hanging, { resolve: resolvePublic })).rejects.toThrow(/timed out/);
     const redirect: typeof fetch = async () => new Response(null, { status: 302, headers: { location: "https://other.example/steal" } });
-    await expect(callChatHook(data, payload, redirect)).rejects.toThrow(/redirect/);
+    await expect(callChatHook(data, payload, redirect, { resolve: resolvePublic })).rejects.toThrow(/redirect/);
     expect(checkHookUrl("http://example.com/hook")).toBe("");
     expect(checkHookUrl("http://127.0.0.1:8787/hook")).toContain("127.0.0.1:8787");
     expect(checkHookUrl("https://user:pass@hooks.example/in")).toBe("");

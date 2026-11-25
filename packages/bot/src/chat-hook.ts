@@ -1,4 +1,13 @@
+import crypto from "node:crypto";
 import { normalizeKeywords } from "./keywords.ts";
+import {
+  classifyLiteral,
+  isAmbiguousIp,
+  isBlockedHookName,
+  isSingleLabel,
+  literalAllowed,
+  normalizeHost,
+} from "./hook-guard.ts";
 import type { ChatLine, RuntimeMemory, UserLevel } from "./model.ts";
 import { normalizePlatformTarget, targetsPlatform, type PlatformTarget } from "../../../src/shared/platform/target.ts";
 
@@ -100,9 +109,10 @@ export function normalizeHook(value: unknown): ChatHook | null {
 }
 
 /**
- * https anywhere, or http for this machine.
- * Set RASCAL_HOOK_PRIVATE_HTTP=1 to also allow http to a private address or a single-label
- * name such as another container. Link-local addresses stay blocked.
+ * https to a public name, or http for this machine.
+ * Set RASCAL_HOOK_PRIVATE_HTTP=1 to also allow http to an RFC1918 address or a
+ * single-label name such as another container. Link-local, metadata, and
+ * non-canonical IP spellings stay blocked. The connect path checks DNS again.
  */
 export function checkHookUrl(value: string, allowPrivateHttp = process.env.RASCAL_HOOK_PRIVATE_HTTP === "1"): string {
   const text = value.trim();
@@ -114,22 +124,15 @@ export function checkHookUrl(value: string, allowPrivateHttp = process.env.RASCA
     return "";
   }
   if (url.username || url.password) return "";
-  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-  if (url.protocol === "http:" && (local || (allowPrivateHttp && isPrivateHookHost(url.hostname)))) return url.toString();
+  if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+  const hostname = normalizeHost(url.hostname);
+  if (!hostname || isBlockedHookName(hostname) || isAmbiguousIp(hostname)) return "";
+  const literal = classifyLiteral(hostname);
+  if (literal) return literalAllowed(literal, url.protocol, allowPrivateHttp) ? url.toString() : "";
   if (url.protocol === "https:") return url.toString();
+  if (hostname === "localhost") return url.toString();
+  if (allowPrivateHttp && isSingleLabel(hostname)) return url.toString();
   return "";
-}
-
-function isPrivateHookHost(hostname: string): boolean {
-  if (hostname === "localhost" || hostname === "metadata" || hostname === "metadata.google.internal") return false;
-  if (/^[a-z0-9-]+$/i.test(hostname)) return true;
-  const parts = hostname.split(".").map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
-  const [a, b] = parts;
-  if (a === 10) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  return false;
 }
 
 /** Origin and path only. Query strings stay out of logs. */
@@ -328,7 +331,7 @@ function triggerName(value: string): string {
 
 function slug(value: string): string {
   const clean = value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
-  return clean || `hook${Math.random().toString(36).slice(2, 8)}`;
+  return clean || `hook${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function clamp(value: unknown, min: number, max: number, fallback: number): number {

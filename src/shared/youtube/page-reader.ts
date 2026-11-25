@@ -286,11 +286,22 @@ async function openLiveChat(live: LiveHit, fetchImpl: typeof fetch, signal: Abor
   };
 }
 
+/**
+ * A fixed consent cookie so YouTube returns the watch page instead of the
+ * consent wall. It is not a login session: there is no SID, HSID, SSID,
+ * SAPISID, or LOGIN_INFO. Every install sends the same value.
+ */
+export const YOUTUBE_CONSENT_COOKIE =
+  "CONSENT=YES+cb.20210328-17-p0.en+FX+667; SOCS=CAISNQgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwODI2LjA4X3AxGgJlbiACGgYIgLC_sAY";
+
+export function youtubePageHeaders(): Record<string, string> {
+  return pageHeaders();
+}
+
 function pageHeaders(): Record<string, string> {
   return {
     "User-Agent": browserUserAgent(),
     "Accept-Language": "en-US,en;q=0.9",
-    Cookie:
-      "CONSENT=YES+cb.20210328-17-p0.en+FX+667; SOCS=CAISNQgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwODI2LjA4X3AxGgJlbiACGgYIgLC_sAY",
+    Cookie: YOUTUBE_CONSENT_COOKIE,
   };
 }

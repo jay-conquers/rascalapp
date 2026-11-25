@@ -38,7 +38,7 @@ docker compose logs -f bot
 
 The bot container has no published host port. It listens on the compose network. Caddy publishes 80 and 443 and proxies to `bot:4788`. Check `https://bot.example.com/healthz`. A healthy process returns `{"ok":true,"service":"rascal-bot"}`.
 
-The image runs as root inside the container so the data volume is writable the first time it starts. Only Caddy is reachable from the network.
+The container starts as root only long enough to give `/data` to the image's `node` user, then the bot listens as that user. Only Caddy is reachable from the network. Caddy still starts as root so it can bind ports 80 and 443.
 
 ## 4. Twitch application
 

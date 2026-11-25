@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ircWireLine } from "../src/main/twitch/irc";
 import { IrcFramer, parseIrcLine, unescapeTag } from "../src/shared/parsers/twitch-irc";
 
 const PRIVMSG =
@@ -89,5 +90,11 @@ describe("twitch irc tags", () => {
     const segments = parseIrcLine(line).message?.segments ?? [];
     expect(segments.filter((segment) => segment.type === "emote")).toHaveLength(1);
     expect(segments[0]).toMatchObject({ type: "emote", text: "Kappa" });
+  });
+
+  it("refuses to write an IRC line that contains another command", () => {
+    expect(ircWireLine("PONG :tmi.twitch.tv")).toBe("PONG :tmi.twitch.tv\r\n");
+    expect(ircWireLine("PONG :tmi.twitch.tv\r\nPRIVMSG #examplechannel :owned")).toBeNull();
+    expect(ircWireLine("JOIN #example\nPART #example")).toBeNull();
   });
 });

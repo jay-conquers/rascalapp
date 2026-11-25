@@ -29,6 +29,7 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+    # Starts as root only to hand /data to the node user. The bot then listens as that user.
 
   caddy:
     image: caddy:2

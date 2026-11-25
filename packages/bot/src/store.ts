@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
@@ -173,8 +174,12 @@ function secretFromEnv(suffix: string): string {
   return value.length >= 16 ? value : "";
 }
 
+export function generateSecret(): string {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
 function randomKey(): string {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  return generateSecret();
 }
 
 function writePrivate(file: string, value: unknown): void {

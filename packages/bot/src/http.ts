@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import { brand, readBrandEnv } from "../../../src/shared/brand.ts";
+import { redact } from "../../../src/shared/redact.ts";
+import { classifyIp } from "./hook-guard.ts";
 import { PORTAL_SCOPES } from "./model.ts";
 import { portalPage } from "./portal-page.ts";
 import type { BotService } from "./service.ts";
@@ -16,19 +18,50 @@ interface PendingLogin {
   expiresAt: number;
 }
 
-export async function startHttp(service: BotService, options: { host: string; port: number; clientId: () => string; fetchImpl?: typeof fetch }): Promise<{ port: number; close: () => Promise<void> }> {
+const SESSION_MS = 12 * 60 * 60 * 1000;
+const OAUTH_COOKIE = `${brand.portalCookie}_oauth`;
+const DEFAULT_BODY_LIMIT = 1_048_576;
+const DEFAULT_RATE_LIMIT = 600;
+const MAX_PENDING = 64;
+
+export interface HttpOptions {
+  host: string;
+  port: number;
+  clientId: () => string;
+  fetchImpl?: typeof fetch;
+  bodyLimit?: number;
+  /** Requests per minute for one client address. */
+  rateLimit?: number;
+  now?: () => number;
+}
+
+export async function startHttp(service: BotService, options: HttpOptions): Promise<{ port: number; close: () => Promise<void> }> {
   const pending = new Map<string, PendingLogin>();
+  const sessions = new Map<string, Session>();
+  const buckets = new Map<string, number[]>();
   const fetchImpl = options.fetchImpl ?? fetch;
+  const bodyLimit = options.bodyLimit ?? DEFAULT_BODY_LIMIT;
+  const rateLimit = options.rateLimit ?? DEFAULT_RATE_LIMIT;
+  const now = options.now ?? (() => Date.now());
   const server = http.createServer((req, res) => {
     void handle(req, res).catch((err) => {
-      if (!res.writableEnded) sendJson(res, 500, { error: err instanceof Error ? err.message : "Bot request failed." });
+      if (res.writableEnded) return;
+      const status = errorStatus(err);
+      sendJson(res, status, { error: status === 413 ? "Request body is too large." : publicError(err) });
     });
   });
+  server.requestTimeout = 30_000;
+  server.headersTimeout = 20_000;
+  server.maxHeadersCount = 100;
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const url = new URL(req.url ?? "/", `http://${options.host}`);
+    const url = requestTarget(req, options.host);
     const method = (req.method ?? "GET").toUpperCase();
     const port = serverPort(server, options.port);
+    if (tooMany(buckets, clientAddress(req), rateLimit, now())) {
+      sendJson(res, 429, { error: "Too many requests." });
+      return;
+    }
     if (method === "GET" && redirectLoopbackPortal(req, res, service.snapshot(port).redirectUri, port)) return;
     if (method === "GET" && (url.pathname === "/health" || url.pathname === "/healthz")) {
       sendJson(res, 200, { ok: true, service: brand.botHealthService });
@@ -36,7 +69,12 @@ export async function startHttp(service: BotService, options: { host: string; po
     }
     if (method === "GET" && url.pathname === "/portal") {
       const html = portalPage();
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Length": Buffer.byteLength(html) });
+      res.writeHead(200, {
+        ...baseHeaders(),
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": portalCsp(),
+        "Content-Length": Buffer.byteLength(html),
+      });
       res.end(html);
       return;
     }
@@ -46,10 +84,16 @@ export async function startHttp(service: BotService, options: { host: string; po
         sendJson(res, 400, { error: "Set the Twitch client ID before using the portal." });
         return;
       }
+      sweep(sessions, pending, now());
+      while (pending.size >= MAX_PENDING) {
+        const oldest = pending.keys().next().value;
+        if (!oldest) break;
+        pending.delete(oldest);
+      }
       const state = crypto.randomBytes(16).toString("hex");
       const verifier = crypto.randomBytes(32).toString("base64url");
       const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
-      pending.set(state, { verifier, expiresAt: Date.now() + 10 * 60 * 1000 });
+      pending.set(state, { verifier, expiresAt: now() + 10 * 60 * 1000 });
       const redirect = service.snapshot(serverPort(server, options.port)).redirectUri;
       const authorize = new URL("https://id.twitch.tv/oauth2/authorize");
       authorize.searchParams.set("client_id", clientId);
@@ -59,14 +103,18 @@ export async function startHttp(service: BotService, options: { host: string; po
       authorize.searchParams.set("state", state);
       authorize.searchParams.set("code_challenge", challenge);
       authorize.searchParams.set("code_challenge_method", "S256");
-      res.writeHead(302, { Location: authorize.toString() });
+      res.writeHead(302, {
+        Location: authorize.toString(),
+        "Cache-Control": "no-store",
+        "Set-Cookie": cookieHeader(OAUTH_COOKIE, state, redirect, 600),
+      });
       res.end();
       return;
     }
     if (method === "GET" && url.pathname === "/youtube/callback") {
       const redirect = service.youtubeRedirect();
       if (requestHostname(req) !== new URL(redirect).hostname.toLowerCase()) {
-        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+        res.writeHead(400, { ...baseHeaders(), "Content-Type": "text/plain; charset=utf-8" });
         res.end("Open the YouTube login from its public address.");
         return;
       }
@@ -75,36 +123,52 @@ export async function startHttp(service: BotService, options: { host: string; po
       const error = url.searchParams.get("error") ?? "";
       const accepted = service.acceptYoutubeCallback({ code, state, error });
       const page = accepted && !error ? "YouTube is connected. You can close this window." : "That YouTube login was not waiting. Start it again from Rascal.";
-      res.writeHead(accepted ? 200 : 400, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      res.writeHead(accepted ? 200 : 400, { ...baseHeaders(), "Content-Type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><title>YouTube</title><p>${page}</p>`);
       return;
     }
     if (method === "GET" && url.pathname === "/portal/callback") {
       const code = url.searchParams.get("code") ?? "";
       const state = url.searchParams.get("state") ?? "";
-      if (!portalHostMatches(req, service.snapshot(port).redirectUri)) {
+      const redirect = service.snapshot(port).redirectUri;
+      if (!portalHostMatches(req, redirect)) {
         sendJson(res, 400, { error: "Open the portal on its public address and log in again." });
+        return;
+      }
+      const cookieState = readCookie(req, OAUTH_COOKIE);
+      if (!cookieState || !secretsMatch(cookieState, state)) {
+        sendJson(res, 400, { error: "That login expired. Start again." });
         return;
       }
       const flow = pending.get(state);
       pending.delete(state);
-      if (!flow || flow.expiresAt < Date.now() || !code) {
+      if (!flow || flow.expiresAt < now() || !code) {
         sendJson(res, 400, { error: "That login expired. Start again." });
         return;
       }
-      const redirect = service.snapshot(serverPort(server, options.port)).redirectUri;
       const session = await finishPortalLogin(service, options.clientId(), flow.verifier, code, redirect, fetchImpl);
-      const cookie = signSession(service.sessionSecret(), session);
-      res.writeHead(302, { Location: "/portal", "Set-Cookie": portalCookie(cookie, service.snapshot(port).redirectUri, 43200) });
+      const cookie = issueSession(sessions, session, now(), service.sessionSecret());
+      res.writeHead(302, {
+        Location: "/portal",
+        "Cache-Control": "no-store",
+        "Set-Cookie": [cookieHeader(brand.portalCookie, cookie, redirect, SESSION_MS / 1000), cookieHeader(OAUTH_COOKIE, "", redirect, 0)],
+      });
       res.end();
       return;
     }
     if (method === "POST" && url.pathname === "/portal/logout") {
-      res.writeHead(302, { Location: "/portal", "Set-Cookie": portalCookie("", service.snapshot(port).redirectUri, 0) });
+      const redirect = service.snapshot(port).redirectUri;
+      const id = openSession(readCookie(req, brand.portalCookie), service.sessionSecret());
+      if (id) sessions.delete(id);
+      res.writeHead(302, {
+        Location: "/portal",
+        "Cache-Control": "no-store",
+        "Set-Cookie": [cookieHeader(brand.portalCookie, "", redirect, 0), cookieHeader(OAUTH_COOKIE, "", redirect, 0)],
+      });
       res.end();
       return;
     }
-    const portalSession = sessionUser(req, service.sessionSecret());
+    const portalSession = readSession(sessions, openSession(readCookie(req, brand.portalCookie), service.sessionSecret()) ?? "", now());
     const local = authorizedLocal(req, service.apiKey());
     if (url.pathname.startsWith("/portal/api/")) {
       if (!portalSession) {
@@ -119,7 +183,17 @@ export async function startHttp(service: BotService, options: { host: string; po
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    const body = method === "GET" ? {} : await readBody(req);
+    if (method !== "GET" && overLimit(req, bodyLimit)) {
+      sendJson(res, 413, { error: "Request body is too large." });
+      req.destroy();
+      return;
+    }
+    const body = method === "GET" ? {} : await readBody(req, bodyLimit);
+    if (body === "too-big") {
+      if (!res.writableEnded) sendJson(res, 413, { error: "Request body is too large." });
+      req.destroy();
+      return;
+    }
     if (method === "POST" && (url.pathname === "/api/login" || url.pathname === "/portal/api/login")) {
       await service.startLogin();
       sendJson(res, 200, service.snapshot(port));
@@ -235,6 +309,7 @@ export async function startHttp(service: BotService, options: { host: string; po
   await listen(server, options.port, options.host);
   const port = serverPort(server, options.port);
   const timer = setInterval(() => {
+    sweep(sessions, pending, now());
     void service.tick();
   }, 5000);
   timer.unref?.();
@@ -248,8 +323,17 @@ export async function startHttp(service: BotService, options: { host: string; po
   };
 }
 
+/** Hash both sides so the compare does not leak the length or the bytes of the expected secret. */
+export function secretsMatch(presented: string, expected: string): boolean {
+  if (!presented || !expected) return false;
+  const left = crypto.createHash("sha256").update(presented).digest();
+  const right = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(left, right);
+}
+
 async function finishPortalLogin(service: BotService, clientId: string, verifier: string, code: string, redirect: string, fetchImpl: typeof fetch): Promise<Session> {
   const snap = service.snapshot(0);
+  // The client secret stays in this server-side request to Twitch. It is not written to the response, the snapshot, or the log.
   const tokenRes = await fetchImpl("https://id.twitch.tv/oauth2/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -272,7 +356,7 @@ async function finishPortalLogin(service: BotService, clientId: string, verifier
   if (!user?.id || !user.login) throw new Error("Twitch did not identify that login.");
   const allowed = user.id === snap.broadcasterId || user.login.toLowerCase() === snap.channelLogin.toLowerCase() || (await moderates(fetchImpl, headers, user.id, snap));
   if (!allowed) throw new Error("That Twitch account is not a moderator of this channel.");
-  return { userId: user.id, login: user.login, expiresAt: Date.now() + 12 * 60 * 60 * 1000 };
+  return { userId: user.id, login: user.login, expiresAt: 0 };
 }
 
 async function moderates(fetchImpl: typeof fetch, headers: Record<string, string>, userId: string, snap: { broadcasterId: string; channelLogin: string }): Promise<boolean> {
@@ -286,13 +370,55 @@ function twitchClientSecret(): string {
   return readBrandEnv("TWITCH_CLIENT_SECRET") || process.env.TWITCH_CLIENT_SECRET || "";
 }
 
+function issueSession(sessions: Map<string, Session>, user: { userId: string; login: string }, nowMs: number, secret: string): string {
+  const id = crypto.randomBytes(32).toString("base64url");
+  sessions.set(id, { userId: user.userId, login: user.login, expiresAt: nowMs + SESSION_MS });
+  return sealSession(id, secret);
+}
+
+function sealSession(id: string, secret: string): string {
+  const sig = crypto.createHmac("sha256", secret).update(id).digest("base64url");
+  return `${id}.${sig}`;
+}
+
+function openSession(cookie: string, secret: string): string | null {
+  if (!secret || cookie.length < 40 || cookie.length > 200) return null;
+  const dot = cookie.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const id = cookie.slice(0, dot);
+  const sig = cookie.slice(dot + 1);
+  const expected = crypto.createHmac("sha256", secret).update(id).digest("base64url");
+  if (!secretsMatch(sig, expected)) return null;
+  return id;
+}
+
+function readSession(sessions: Map<string, Session>, id: string, nowMs: number): Session | null {
+  if (id.length < 32) return null;
+  const session = sessions.get(id);
+  if (!session) return null;
+  if (!Number.isFinite(session.expiresAt) || session.expiresAt <= nowMs) {
+    sessions.delete(id);
+    return null;
+  }
+  return session;
+}
+
+function sweep(sessions: Map<string, Session>, pending: Map<string, PendingLogin>, nowMs: number): void {
+  for (const [id, session] of sessions) {
+    if (session.expiresAt <= nowMs) sessions.delete(id);
+  }
+  for (const [state, flow] of pending) {
+    if (flow.expiresAt <= nowMs) pending.delete(state);
+  }
+}
+
 function redirectLoopbackPortal(req: http.IncomingMessage, res: http.ServerResponse, redirectUri: string, port: number): boolean {
   if (new URL(redirectUri).hostname !== "localhost") return false;
-  const path = (req.url ?? "/").split("?")[0] ?? "";
-  if (path !== "/portal" && path !== "/portal/" && path !== "/portal/login" && path !== "/portal/callback") return false;
+  const url = requestTarget(req, "localhost");
+  if (url.pathname !== "/portal" && url.pathname !== "/portal/" && url.pathname !== "/portal/login" && url.pathname !== "/portal/callback") return false;
   const host = requestHostname(req);
   if (host === "localhost" || (host !== "127.0.0.1" && host !== "::1")) return false;
-  const dest = new URL(req.url ?? "/", `http://localhost:${port}`);
+  const dest = new URL(`${url.pathname}${url.search}`, `http://localhost:${port}`);
   res.writeHead(302, { Location: dest.toString(), "Cache-Control": "no-store" });
   res.end();
   return true;
@@ -302,13 +428,13 @@ function portalHostMatches(req: http.IncomingMessage, redirectUri: string): bool
   return requestHostname(req) === new URL(redirectUri).hostname.toLowerCase();
 }
 
-function portalCookie(value: string, redirectUri: string, maxAge: number): string {
+function cookieHeader(name: string, value: string, redirectUri: string, maxAge: number): string {
   const secure = new URL(redirectUri).protocol === "https:" ? "; Secure" : "";
-  return `${brand.portalCookie}=${value}; HttpOnly; SameSite=Lax; Path=/${secure}; Max-Age=${maxAge}`;
+  return `${name}=${value}; HttpOnly; SameSite=Lax; Path=/${secure}; Max-Age=${maxAge}`;
 }
 
 function requestHostname(req: http.IncomingMessage): string {
-  const raw = req.headers.host ?? "";
+  const raw = headerValue(req.headers.host);
   if (raw.startsWith("[")) {
     const end = raw.indexOf("]");
     return (end === -1 ? raw : raw.slice(1, end)).toLowerCase();
@@ -316,69 +442,153 @@ function requestHostname(req: http.IncomingMessage): string {
   return (raw.split(":")[0] ?? "").toLowerCase();
 }
 
+function requestTarget(req: http.IncomingMessage, host: string): URL {
+  const raw = req.url ?? "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return new URL("/invalid", `http://${host}`);
+  return new URL(raw, `http://${host}`);
+}
+
 function authorizedLocal(req: http.IncomingMessage, apiKey: string): boolean {
-  const header = req.headers.authorization ?? "";
+  const header = headerValue(req.headers.authorization);
   const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const a = Buffer.from(presented);
-  const b = Buffer.from(apiKey);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
-function signSession(secret: string, session: Session): string {
-  const payload = Buffer.from(JSON.stringify(session)).toString("base64url");
-  const sig = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
-  return `${payload}.${sig}`;
-}
-
-function sessionUser(req: http.IncomingMessage, secret: string): Session | null {
-  const cookie = readCookie(req, brand.portalCookie);
-  const dot = cookie.lastIndexOf(".");
-  if (dot <= 0) return null;
-  const payload = cookie.slice(0, dot);
-  const sig = cookie.slice(dot + 1);
-  const expected = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
-  const left = Buffer.from(sig);
-  const right = Buffer.from(expected);
-  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
-  try {
-    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Session;
-    if (!session.userId || !session.login || session.expiresAt < Date.now()) return null;
-    return session;
-  } catch {
-    return null;
-  }
+  return secretsMatch(presented, apiKey);
 }
 
 function readCookie(req: http.IncomingMessage, name: string): string {
-  const raw = req.headers.cookie ?? "";
+  const raw = headerValue(req.headers.cookie);
   for (const part of raw.split(";")) {
-    const [key, value] = part.trim().split("=");
-    if (key === name) return value ?? "";
+    const separator = part.indexOf("=");
+    if (separator <= 0) continue;
+    const key = part.slice(0, separator).trim();
+    if (key === name) return part.slice(separator + 1).trim();
   }
   return "";
 }
 
-function readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+function overLimit(req: http.IncomingMessage, limit: number): boolean {
+  const declared = req.headers["content-length"];
+  if (Array.isArray(declared)) return true;
+  if (typeof declared !== "string" || !declared) return false;
+  const length = Number(declared);
+  return !Number.isFinite(length) || length < 0 || length > limit;
+}
+
+function readBody(req: http.IncomingMessage, limit: number): Promise<Record<string, unknown> | "too-big"> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let size = 0;
+    let failed = false;
+    req.on("data", (chunk: Buffer) => {
+      if (failed) return;
+      size += chunk.length;
+      if (size > limit) {
+        failed = true;
+        resolve("too-big");
+        req.pause();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
+      if (failed) return;
+      if (chunks.length === 0) {
+        resolve({});
+        return;
+      }
       try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+        resolve(parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {});
       } catch {
         resolve({});
       }
     });
+    req.on("error", () => {
+      if (!failed) resolve({});
+    });
   });
+}
+
+function tooMany(buckets: Map<string, number[]>, ip: string, limit: number, nowMs: number): boolean {
+  const recent = (buckets.get(ip) ?? []).filter((at) => nowMs - at < 60_000);
+  if (recent.length >= limit) {
+    buckets.set(ip, recent);
+    return true;
+  }
+  recent.push(nowMs);
+  buckets.set(ip, recent);
+  if (buckets.size > 2000) {
+    const oldest = buckets.keys().next().value;
+    if (oldest) buckets.delete(oldest);
+  }
+  return false;
+}
+
+function clientAddress(req: http.IncomingMessage): string {
+  const peer = stripMapped(req.socket.remoteAddress ?? "");
+  const kind = peer ? classifyIp(peer) : "blocked";
+  // Caddy and Fly connect from a private address and set X-Forwarded-For.
+  // A public client cannot pick its own bucket by sending that header.
+  if (kind === "loopback" || kind === "private") {
+    const forwarded = headerValue(req.headers["x-forwarded-for"]).split(",")[0]?.trim() ?? "";
+    if (forwarded && forwarded.length <= 80 && !/[\s/]/.test(forwarded)) return forwarded;
+  }
+  return peer || "unknown";
+}
+
+function stripMapped(address: string): string {
+  return address.startsWith("::ffff:") ? address.slice("::ffff:".length) : address;
+}
+
+function headerValue(value: string | string[] | undefined): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value[0] ?? "";
+  return "";
 }
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function errorStatus(err: unknown): number {
+  if (err && typeof err === "object" && "statusCode" in err && (err as { statusCode?: number }).statusCode === 413) return 413;
+  return 500;
+}
+
+function publicError(err: unknown): string {
+  if (!(err instanceof Error) || !err.message) return "Bot request failed.";
+  return redact(err.message);
+}
+
+function portalCsp(): string {
+  return [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    "connect-src 'self'",
+    "img-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+function baseHeaders(): Record<string, string> {
+  return {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+  };
+}
+
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Content-Length": Buffer.byteLength(payload) });
+  res.writeHead(status, {
+    ...baseHeaders(),
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(payload),
+  });
   res.end(payload);
 }
 

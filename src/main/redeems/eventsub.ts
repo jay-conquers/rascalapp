@@ -1,3 +1,4 @@
+import { isTwitchEventSubUrl } from "../../shared/eventsub-url";
 import { asRecord } from "../../shared/record";
 
 export interface EventSubRedemption {
@@ -105,7 +106,7 @@ export class EventSubClient {
 
   private open(url: string): void {
     if (this.stopped) return;
-    if (!url.startsWith("wss://")) {
+    if (!isTwitchEventSubUrl(url)) {
       this.deps.log.error("ignored eventsub reconnect url");
       return;
     }

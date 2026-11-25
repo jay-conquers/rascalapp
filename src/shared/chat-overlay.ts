@@ -1,4 +1,4 @@
-import { overlayEmoteAllowed } from "./emote-url";
+import { overlayEmoteAllowed, safeEmoteUrl } from "./emote-url";
 import type { ChatBadge, ChatMessage, Platform } from "./types";
 import { asRecord } from "./record";
 
@@ -358,7 +358,8 @@ function badgeImages(badges: ChatBadge[], badgeUrl?: (badge: ChatBadge) => strin
   const images: { url: string }[] = [];
   for (const badge of badges) {
     const resolved = badgeUrl ? badgeUrl(badge) : badge.imageUrl;
-    if (resolved && resolved.startsWith("https://") && !images.some((item) => item.url === resolved)) images.push({ url: resolved });
+    const safe = resolved ? safeEmoteUrl(resolved) : null;
+    if (safe && !images.some((item) => item.url === safe)) images.push({ url: safe });
   }
   return images;
 }

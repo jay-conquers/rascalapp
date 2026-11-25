@@ -48,6 +48,7 @@ describe("twitch helix badges", () => {
     expect(catalog.imageFor({ kind: "member", label: "MEMBER", imageUrl: "https://yt3.ggpht.com/member" })).toBe(
       "https://yt3.ggpht.com/member",
     );
+    expect(catalog.imageFor({ kind: "other", label: "X", imageUrl: "https://evil.example/badge.png" })).toBeNull();
     catalog.stop();
   });
 });

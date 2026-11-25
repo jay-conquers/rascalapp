@@ -65,7 +65,7 @@ openssl rand -hex 24
 openssl rand -hex 24
 ```
 
-The first value is the admin token. The same string is pasted into Rascal later. The second is the portal session secret.
+The first value is the admin token. The same string is pasted into Rascal later. The second signs portal cookies. A cookie also has to match a login the process still remembers, so the secret alone cannot mint a session. Logins last 12 hours, logout drops them, and a restart drops them too.
 
 ```bash
 fly secrets set --app rascal --config deploy/fly/fly.toml \
@@ -143,7 +143,7 @@ Drop `--with-se` if there is no StreamElements JWT.
 
 Then connect the bot account from Rascal (next step). That runs Twitch's device-code login and stores the new session on the volume. That is the bootstrap path.
 
-To reuse the session already on this computer instead, copy the token file once and fix its permissions. This sends the refresh token over SSH. Do not paste it into chat.
+To reuse the session already on this computer instead, copy the token file once and fix its permissions. This sends the refresh token over SSH. Do not paste it into chat. `node deploy/fly/push-config.mjs --with-tokens` can upload that file over the bot API instead. It refuses a plain `http://` URL, prints a warning that the refresh token will live on the server, and warns if the local file is readable by other accounts. Prefer the device login above. Do not put the token in the command line.
 
 ```bash
 fly ssh console --app rascal
