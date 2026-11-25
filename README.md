@@ -11,6 +11,7 @@ Rascal is a free, open-source streaming desk for Twitch and YouTube. It replaces
 - On-stream chat and alert pages for OBS.
 - A chat bot: commands, timers, filters, quotes, and a moderator portal. A command can also fire from a keyword or phrase in a normal message. Built-ins cover `!followage`, `!accountage`, mod `!so`, `!quote`, and `!cmds`. Optional thank-you lines for follows, subs, gifts, cheers, raids, and redeems stay off until you turn them on. Each command, timer, and the filter set can target Twitch, YouTube, or both. Older items stay on Twitch. A timer can run while the stream is live, while it is offline, or both, with a separate interval for each, and it can rotate through several messages. Live and offline come from Twitch and from the YouTube page reader when that channel is live. The bot can post as the signed-in channel or as a separate account on each platform. It can run inside the desktop app or as a separate process.
 - A panel for a separate local text-to-speech HTTP service, if you run one. The address is a setting. Rascal does not ship that service.
+- Chat hooks. A command such as `!ask` can POST the viewer's message to an address you run. The hook is off until you enable it. A secret signs the body with `X-Rascal-Signature`. The service can stay quiet or return a short chat reply. See [docs/chat-hooks.md](docs/chat-hooks.md).
 
 A fresh install has no channel filled in. Twitch chat follows the channel in Settings, or the account you sign in with when that field is empty. YouTube chat stays off until you paste a channel ID.
 

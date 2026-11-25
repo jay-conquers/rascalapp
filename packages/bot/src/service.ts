@@ -44,6 +44,8 @@ import { TwitchChatPlatform } from "./platform/twitch-adapter.ts";
 import { YoutubeChatPlatform } from "./platform/youtube-adapter.ts";
 import { accountAgeLine, followageLine } from "./duration.ts";
 import { importQuoteList, normalizeQuotes } from "./quotes.ts";
+import { buildHookPayload, decideChatHook, normalizeHook, normalizeHooks, redactHookUrl, sampleHookPayload } from "./chat-hook.ts";
+import { callChatHook } from "./chat-hook-send.ts";
 import { channelIdFromJwt, importStreamElements } from "./se.ts";
 import { flushGiftHold, normalizeThanks, planThankYou, thankKind, type GiftHold } from "./thanks.ts";
 import { BotStore, readYoutubeTokens, type BotTokens, type YoutubeBotTokens } from "./store.ts";
@@ -83,6 +85,7 @@ export interface BotSnapshot {
   quotes: BotFile["quotes"];
   thanks: BotFile["thanks"];
   shoutout: BotFile["shoutout"];
+  hooks: BotFile["hooks"];
   log: ModLogEntry[];
   seJwtSet: boolean;
   /** Present so a later build can forward Ask Jeeves lines. Unused in 0.4.0. */
@@ -145,6 +148,7 @@ export class BotService {
   private streamLiveAt = 0;
   private followCache = new Map<string, { at: number; text: string }>();
   private recentChatters = new Map<string, { name: string; at: number }>();
+  private seenHookIds = new Set<string>();
   private giftHold: GiftHold | null = null;
   private giftTimer: ReturnType<typeof setTimeout> | null = null;
   private askJeeves: AskJeevesHook | null = null;
@@ -240,6 +244,7 @@ export class BotService {
       quotes: this.file.quotes,
       thanks: this.file.thanks,
       shoutout: this.file.shoutout,
+      hooks: this.file.hooks,
     };
   }
 
@@ -253,7 +258,8 @@ export class BotService {
     const quotes = Array.isArray(row.quotes) ? (row.replaceQuotes === true ? normalizeQuotes(row.quotes) : importQuoteList(row.quotes, this.file.quotes)) : this.file.quotes;
     const thanks = row.thanks ? normalizeThanks(row.thanks) : this.file.thanks;
     const shoutout = row.shoutout ? normalizeShoutout(row.shoutout) : this.file.shoutout;
-    this.file = this.store.saveConfig({ ...this.file, commands, timers, filters, channelLogin, broadcasterId, quotes, thanks, shoutout });
+    const hooks = Array.isArray(row.hooks) ? normalizeHooks(row.hooks) : this.file.hooks;
+    this.file = this.store.saveConfig({ ...this.file, commands, timers, filters, channelLogin, broadcasterId, quotes, thanks, shoutout, hooks });
   }
 
   importTokens(payload: unknown): void {
@@ -305,6 +311,7 @@ export class BotService {
       quotes: this.file.quotes,
       thanks: this.file.thanks,
       shoutout: this.file.shoutout,
+      hooks: this.file.hooks.map((hook) => ({ ...hook, secret: "", secretSet: hook.secret.length > 0 })),
       log: this.log.slice(-80),
       seJwtSet: this.secrets.seJwt.length > 0,
       askJeevesHook: this.askJeeves !== null,
@@ -472,6 +479,46 @@ export class BotService {
 
   deleteCommand(id: string): void {
     this.file = this.store.saveConfig({ ...this.file, commands: this.file.commands.filter((item) => item.id !== id) });
+  }
+
+  saveHook(input: unknown): void {
+    const hook = normalizeHook(input);
+    if (!hook) throw new Error("A hook needs a name, a command such as !ask, and an https address. http is only allowed for localhost.");
+    const row = asRecord(input);
+    const index = this.file.hooks.findIndex((item) => item.id === hook.id || item.name.toLowerCase() === hook.name.toLowerCase());
+    const hooks = [...this.file.hooks];
+    if (index >= 0) {
+      const previous = hooks[index];
+      const clearSecret = row?.clearSecret === true;
+      hooks[index] = {
+        ...hook,
+        id: previous?.id ?? hook.id,
+        secret: clearSecret ? "" : hook.secret || previous?.secret || "",
+        keywords: Array.isArray(row?.keywords) ? hook.keywords : previous?.keywords ?? hook.keywords,
+      };
+    } else hooks.push(hook);
+    this.file = this.store.saveConfig({ ...this.file, hooks: hooks.slice(0, 20) });
+  }
+
+  deleteHook(id: string): void {
+    this.file = this.store.saveConfig({ ...this.file, hooks: this.file.hooks.filter((item) => item.id !== id) });
+  }
+
+  async testHook(id: string): Promise<{ ok: boolean; status: number; ms: number; detail: string }> {
+    const hook = this.file.hooks.find((item) => item.id === id);
+    if (!hook) throw new Error("That hook is not saved.");
+    const started = Date.now();
+    try {
+      const result = await callChatHook(hook, sampleHookPayload(hook), this.fetchImpl());
+      const detail = result.reply ? result.reply.slice(0, 120) : "No chat reply.";
+      this.pushLog({ t: Date.now(), action: "hook", user: "", text: `${hook.name} test HTTP ${result.status} ${result.ms}ms`, by: "bot" });
+      return { ok: true, status: result.status, ms: result.ms, detail };
+    } catch (err) {
+      const detail = hookError(err);
+      this.pushLog({ t: Date.now(), action: "hook", user: "", text: `${hook.name} test failed: ${detail}`, by: "bot" });
+      this.deps.log("error", "chat hook test failed", { hook: hook.name, url: redactHookUrl(hook.url), message: detail });
+      return { ok: false, status: 0, ms: Date.now() - started, detail };
+    }
   }
 
   saveExtras(input: unknown): void {
@@ -765,7 +812,50 @@ export class BotService {
       this.file.timers = this.file.timers.map((timer) => (targetsPlatform(timer.platforms, message.platform) ? countTimerLine(timer, live) : timer));
     }
     if (decision.log) this.pushLog({ t: Date.now(), ...decision.log });
+    const gate = {
+      platform: message.platform,
+      channel: message.platform === "youtube" ? this.file.youtubeChannelId : this.file.channelLogin,
+      botUserId,
+      botLogin: message.platform === "youtube" ? "" : this.activeTwitch()?.login ?? "",
+      channelLogin: message.platform === "youtube" ? "" : this.file.channelLogin,
+      broadcasterId: message.platform === "youtube" ? this.file.youtubeChannelId : this.file.broadcasterId,
+      publishedAt: message.publishedAt,
+      duplicate: this.rememberHookMessage(message.messageId),
+    };
+    const hookDecision = decideChatHook(this.file.hooks, line, now, this.memory, gate);
+    if (hookDecision.action === "fire") void this.dispatchHook(platform, hookDecision.hook, line, hookDecision.text, now, gate);
     await this.execute(platform, decision, line);
+  }
+
+  private rememberHookMessage(id: string): boolean {
+    const key = id.trim();
+    if (!key) return false;
+    if (this.seenHookIds.has(key)) return true;
+    this.seenHookIds.add(key);
+    if (this.seenHookIds.size > 500) {
+      const first = this.seenHookIds.values().next().value;
+      if (first) this.seenHookIds.delete(first);
+    }
+    return false;
+  }
+
+  private async dispatchHook(
+    platform: ChatPlatform,
+    hook: BotFile["hooks"][number],
+    line: ChatLine,
+    text: string,
+    now: number,
+    gate: { platform: string; channel: string; botUserId: string; botLogin: string; channelLogin: string; broadcasterId: string; publishedAt: number; duplicate: boolean },
+  ): Promise<void> {
+    try {
+      const result = await callChatHook(hook, buildHookPayload(hook, line, text, gate, now), this.fetchImpl());
+      this.pushLog({ t: Date.now(), action: "hook", user: line.login, text: `${hook.name} HTTP ${result.status} ${result.ms}ms`, by: platform.id });
+      if (result.reply && !this.stopped && platform.capabilities.send) await platform.sendMessage(result.reply);
+    } catch (err) {
+      const detail = hookError(err);
+      this.pushLog({ t: Date.now(), action: "hook", user: line.login, text: `${hook.name} failed: ${detail}`, by: platform.id });
+      this.deps.log("error", "chat hook failed", { hook: hook.name, url: redactHookUrl(hook.url), message: detail });
+    }
   }
 
   private async execute(platform: ChatPlatform, decision: BotDecision, line: ChatLine): Promise<void> {
@@ -1066,6 +1156,12 @@ export class BotService {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hookError(err: unknown): string {
+  const message = err instanceof Error ? err.message : "";
+  if (message.startsWith("The hook ") || message.startsWith("That address ")) return message.slice(0, 180);
+  return "The hook did not answer.";
 }
 
 function safeError(err: unknown): string {

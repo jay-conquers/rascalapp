@@ -275,6 +275,19 @@ function registerIpc(runtime: Runtime): void {
   );
   ipcMain.handle("app:bot-filters", (_event, filters: unknown) => guard(() => runtime.botSaveFilters(filters)));
   ipcMain.handle("app:bot-extras", (_event, patch: unknown) => guard(() => runtime.botSaveExtras(patch)));
+  ipcMain.handle("app:bot-hook", (_event, hook: unknown) => guard(() => runtime.botSaveHook(hook)));
+  ipcMain.handle("app:bot-hook-delete", (_event, id: unknown) =>
+    guard(() => {
+      if (typeof id !== "string") throw new Error("Missing hook.");
+      return runtime.botDeleteHook(id);
+    }),
+  );
+  ipcMain.handle("app:bot-hook-test", (_event, id: unknown) =>
+    guard(() => {
+      if (typeof id !== "string") throw new Error("Missing hook.");
+      return runtime.botTestHook(id);
+    }),
+  );
   ipcMain.handle("app:bot-import-se", (_event, jwt: unknown) =>
     guard(() => {
       if (jwt !== undefined && jwt !== null && typeof jwt !== "string") throw new Error("Paste the StreamElements JWT.");

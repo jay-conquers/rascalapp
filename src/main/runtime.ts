@@ -543,6 +543,18 @@ export class Runtime {
     return this.botOps().saveExtras(input);
   }
 
+  botSaveHook(input: unknown): Promise<BotSnapshot> {
+    return this.botOps().saveHook(input);
+  }
+
+  botDeleteHook(id: string): Promise<BotSnapshot> {
+    return this.botOps().deleteHook(id);
+  }
+
+  botTestHook(id: string): Promise<{ ok: boolean; status: number; ms: number; detail: string }> {
+    return this.botOps().testHook(id);
+  }
+
   botImportSe(jwt = ""): Promise<BotSnapshot> {
     return this.botOps().importSe(jwt);
   }
@@ -601,6 +613,9 @@ export class Runtime {
         deleteTimer: (id: string) => remote.deleteTimer(id),
         saveFilters: (input: unknown) => remote.saveFilters(input),
         saveExtras: (input: unknown) => remote.saveExtras(input),
+        saveHook: (input: unknown) => remote.saveHook(input),
+        deleteHook: (id: string) => remote.deleteHook(id),
+        testHook: (id: string) => remote.testHook(id),
         importSe: (jwt: string) => remote.importSe(jwt),
         importJson: (payload: unknown) => remote.importJson(payload),
         exportConfig: () => remote.exportConfig(),
@@ -648,6 +663,15 @@ export class Runtime {
         bot.service.saveExtras(input);
         return snap();
       },
+      saveHook: async (input: unknown) => {
+        bot.service.saveHook(input);
+        return snap();
+      },
+      deleteHook: async (id: string) => {
+        bot.service.deleteHook(id);
+        return snap();
+      },
+      testHook: async (id: string) => bot.service.testHook(id),
       importSe: async (jwt: string) => {
         await bot.service.importSe(jwt);
         return snap();

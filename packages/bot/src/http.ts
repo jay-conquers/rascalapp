@@ -189,6 +189,20 @@ export async function startHttp(service: BotService, options: { host: string; po
       sendJson(res, 200, service.snapshot(port));
       return;
     }
+    if (method === "POST" && (url.pathname === "/api/hooks" || url.pathname === "/portal/api/hooks")) {
+      service.saveHook(body);
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
+    if (method === "POST" && (url.pathname === "/api/hooks/delete" || url.pathname === "/portal/api/hooks/delete")) {
+      service.deleteHook(typeof body.id === "string" ? body.id : "");
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
+    if (method === "POST" && (url.pathname === "/api/hooks/test" || url.pathname === "/portal/api/hooks/test")) {
+      sendJson(res, 200, await service.testHook(typeof body.id === "string" ? body.id : ""));
+      return;
+    }
     if (method === "POST" && url.pathname === "/api/accounts") {
       service.setAccounts(body);
       sendJson(res, 200, service.snapshot(port));
