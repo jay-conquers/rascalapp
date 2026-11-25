@@ -38,7 +38,6 @@ const EMPTY: BotSnapshot = {
   },
   log: [],
   seJwtSet: false,
-  askJeevesHook: false,
   platforms: [],
   youtubeLogin: null,
   youtubeRedirectUri: "http://127.0.0.1:4799/youtube/callback",
@@ -157,7 +156,7 @@ export function BotView() {
       <header className="redeem-bar">
         <div>
           <h2>Bot</h2>
-          <p>Commands, timers, and filters can run on Twitch, YouTube, or both. Ask Jeeves stays in tts-queue.</p>
+          <p>Commands, timers, and filters can run on Twitch, YouTube, or both.</p>
         </div>
         <p className={state.connected ? "tts-up" : "tts-down"}>{state.connected ? `Connected as ${state.botLogin}` : "Not connected"}</p>
       </header>

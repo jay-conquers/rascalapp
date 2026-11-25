@@ -52,6 +52,13 @@ describe("bot.json", () => {
     expect(normalizeBotFile(loaded)).toEqual(loaded);
   });
 
+  it("drops a legacy askJeevesHook key instead of keeping it", () => {
+    const loaded = normalizeBotFile({ askJeevesHook: true, channelLogin: "Ace" });
+    expect(Object.keys(loaded)).not.toContain("askJeevesHook");
+    expect(JSON.stringify(loaded).toLowerCase()).not.toContain("jeeves");
+    expect(loaded.channelLogin).toBe("ace");
+  });
+
   it("falls back to defaults for a missing, empty, or non-object file", () => {
     const defaults = normalizeBotFile(undefined);
     for (const value of [null, [], "text", 7, {}]) expect(normalizeBotFile(value)).toEqual(defaults);

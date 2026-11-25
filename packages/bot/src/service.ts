@@ -87,8 +87,6 @@ export interface BotSnapshot {
   hooks: BotFile["hooks"];
   log: ModLogEntry[];
   seJwtSet: boolean;
-  /** Present so a later build can forward Ask Jeeves lines. Unused in 0.4.0. */
-  askJeevesHook: boolean;
   platforms: PlatformSection[];
   youtubeLogin: BotLoginPrompt | null;
   youtubeRedirectUri: string;
@@ -96,10 +94,6 @@ export interface BotSnapshot {
   googleClientSecretSet: boolean;
   googleClientFromEnv: boolean;
   youtubeApiPoll: boolean;
-}
-
-export interface AskJeevesHook {
-  (line: { user: string; text: string; platform: "twitch" }): void;
 }
 
 export interface ChannelTokenBridge {
@@ -156,7 +150,6 @@ export class BotService {
   private outgoing: SentLine[] = [];
   private giftHold: GiftHold | null = null;
   private giftTimer: ReturnType<typeof setTimeout> | null = null;
-  private askJeeves: AskJeevesHook | null = null;
   private bridge: ChannelTokenBridge | null = null;
   private readonly helix: HelixBot;
   private readonly twitch: TwitchChatPlatform;
@@ -221,11 +214,6 @@ export class BotService {
   /** The desk passes its live token store so a "post as my channel" choice shares that login. */
   setChannelTokenBridge(bridge: ChannelTokenBridge | null): void {
     this.bridge = bridge;
-  }
-
-  /** Later integration point for the separate tts-queue Ask Jeeves feature. */
-  setAskJeeves(hook: AskJeevesHook | null): void {
-    this.askJeeves = hook;
   }
 
   apiKey(): string {
@@ -319,7 +307,6 @@ export class BotService {
       hooks: this.file.hooks.map((hook) => ({ ...hook, secret: "", secretSet: hook.secret.length > 0 })),
       log: this.log.slice(-80),
       seJwtSet: this.secrets.seJwt.length > 0,
-      askJeevesHook: this.askJeeves !== null,
       platforms: this.platformSections(),
       youtubeLogin: this.youtubePrompt
         ? { userCode: "", verificationUri: this.youtubePrompt.url, expiresAt: this.youtubePrompt.expiresAt }
@@ -845,7 +832,6 @@ export class BotService {
     if (decision.countCommandId) {
       const command = this.file.commands.find((item) => item.id === decision.countCommandId);
       if (command) command.count += 1;
-      if (command?.name === "askjeeves" && message.platform === "twitch") this.askJeeves?.({ user: line.displayName, text: line.text, platform: "twitch" });
       this.file = this.store.saveConfig(this.file);
     }
     if (decision.chatLine) {

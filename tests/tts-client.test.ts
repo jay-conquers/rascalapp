@@ -35,7 +35,7 @@ describe("tts client", () => {
       expect(read.state.queue[0]?.user).toBe("bee");
       expect(read.state.queue[0]?.text).toBe("next");
       expect(read.state.pending[0]?.id).toBe("p1");
-      expect(read.state.status.askjeeves).toBe("idle");
+      expect(read.state.status).toEqual({ twitch: "live", youtube: "off", youtube_subs: "on" });
     }
     expect(await client.skip()).toEqual({ ok: true });
     expect(await client.pause()).toEqual({ ok: true });

@@ -384,7 +384,6 @@ describe("bot state and editing", () => {
     const snap = service.snapshot(4788);
     expect(Object.keys(snap).sort()).toEqual(
       [
-        "askJeevesHook",
         "botLogin",
         "broadcasterId",
         "channelLogin",
@@ -426,7 +425,6 @@ describe("bot state and editing", () => {
       hooks: [],
       log: [],
       seJwtSet: false,
-      askJeevesHook: false,
       youtubeLogin: null,
       youtubeRedirectUri: "http://127.0.0.1:4799/youtube/callback",
       googleClientId: "",

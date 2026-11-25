@@ -243,6 +243,7 @@ export function normalizeBotFile(value: unknown): BotFile {
   const row = asRecord(value);
   const base = defaultBotFile();
   if (!row) return base;
+  // A legacy askJeevesHook flag is ignored. The saved file keeps only the keys below.
   return {
     channelLogin: cleanLogin(row.channelLogin) || base.channelLogin,
     broadcasterId: digits(row.broadcasterId),

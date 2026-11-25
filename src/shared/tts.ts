@@ -17,7 +17,7 @@ export interface TtsRecent {
 export interface TtsState {
   paused: boolean;
   hold: boolean;
-  status: { twitch: string; youtube: string; askjeeves: string; youtube_subs: string };
+  status: { twitch: string; youtube: string; youtube_subs: string };
   overlays_connected: number;
   current: TtsItem | null;
   queue: TtsItem[];
@@ -60,7 +60,6 @@ export function parseTtsState(value: unknown): TtsState | null {
     status: {
       twitch: text(status.twitch),
       youtube: text(status.youtube),
-      askjeeves: text(status.askjeeves),
       youtube_subs: text(status.youtube_subs),
     },
     overlays_connected: numberOr(row.overlays_connected),
