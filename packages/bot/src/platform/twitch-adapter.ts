@@ -1,4 +1,4 @@
-import { badgesForRoles, normalizeTwitchChatFields } from "../../../../src/shared/platform/normalize.ts";
+import { normalizeTwitchChatFields } from "../../../../src/shared/platform/normalize.ts";
 import type { ChatPlatform, NormalizedChatMessage, PlatformCapabilities, PlatformLiveStatus } from "../../../../src/shared/platform/types.ts";
 import type { ChatLine } from "../model.ts";
 import { chatSubscription, HelixBot, parseChatFrame } from "../twitch.ts";
@@ -153,8 +153,4 @@ function fromLine(line: ChatLine, channelId: string): NormalizedChatMessage {
     displayName: line.displayName,
     roles: line.roles,
   });
-}
-
-export function twitchBadges(roles: ChatLine["roles"]): ReturnType<typeof badgesForRoles> {
-  return badgesForRoles(roles);
 }

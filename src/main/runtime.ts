@@ -1,7 +1,7 @@
 import path from "node:path";
 import { brand } from "../shared/brand";
 import { TWITCH_MESSAGE_MAX } from "../shared/defaults";
-import { noticeDedupeKey, noticeEnabled, placeNotice } from "../shared/feed-toggles";
+import { noticeEnabled, placeNotice } from "../shared/feed-toggles";
 import { indexChannelEmotes } from "../shared/twitch-emotes";
 import { shouldPlayChatAlert, type AlertIdentity } from "../shared/chat-alert";
 import { redactError } from "../shared/redact";
@@ -69,7 +69,6 @@ export class Runtime {
   private streamTimer: NodeJS.Timeout | null = null;
   private viewerTimer: NodeJS.Timeout | null = null;
   private readonly modLog: ModAction[] = [];
-  private readonly noticeKeys = new Set<string>();
   private scopeNoted = false;
   private roomId: string | null = null;
   private lastAlertAt: number | null = null;
@@ -802,14 +801,6 @@ export class Runtime {
         amount: placed.message.amount,
         text: placed.message.plainText,
       });
-    }
-    const key = noticeDedupeKey(placed.message);
-    if (key) {
-      this.noticeKeys.add(key);
-      if (this.noticeKeys.size > 500) {
-        const first = this.noticeKeys.values().next().value;
-        if (first) this.noticeKeys.delete(first);
-      }
     }
     this.bus.push(placed.message);
   }

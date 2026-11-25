@@ -51,7 +51,6 @@ export {
   dueTimers,
   emptyMemory,
   levelAllows,
-  rolesFromBadges,
   timerIsDue,
   timerMessage,
 } from "./engine.ts";

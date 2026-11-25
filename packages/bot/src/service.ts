@@ -20,7 +20,6 @@ import {
   decideChat,
   emptyMemory,
   expandTemplate,
-  normalizeBotFile,
   normalizeShoutout,
   portalBase,
   normalizeCommand,
@@ -1234,8 +1233,4 @@ function safeError(err: unknown): string {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
-
-export function loadBotFile(value: unknown): BotFile {
-  return normalizeBotFile(value);
 }

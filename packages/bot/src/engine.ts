@@ -143,16 +143,6 @@ export function levelAllows(required: UserLevel, roles: readonly UserLevel[]): b
   return roles.includes("sub") || roles.includes("vip") || roles.includes("mod");
 }
 
-export function rolesFromBadges(badges: readonly { set_id?: string }[], login: string, channel: string): UserLevel[] {
-  const roles: UserLevel[] = ["everyone"];
-  const sets = new Set(badges.map((badge) => (badge.set_id ?? "").toLowerCase()));
-  if (sets.has("subscriber") || sets.has("founder")) roles.push("sub");
-  if (sets.has("vip")) roles.push("vip");
-  if (sets.has("moderator")) roles.push("mod");
-  if (sets.has("broadcaster") || login.toLowerCase() === channel.toLowerCase()) roles.push("broadcaster");
-  return roles;
-}
-
 function builtInCommand(file: BotFile, memory: RuntimeMemory, line: ChatLine, now: number, platform: string, rng?: () => number): BotDecision | null {
   const parsed = splitCommand(line.text);
   if (!parsed) return null;

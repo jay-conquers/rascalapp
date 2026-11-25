@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
 import { chmodPrivate } from "../../../src/shared/private-mode.ts";
-import { defaultBotFile, normalizeBotFile, type BotFile } from "./model.ts";
+import { normalizeBotFile, type BotFile } from "./model.ts";
 
 export interface BotTokens {
   clientId: string;
@@ -165,10 +165,6 @@ export class BotStore {
   saveSecrets(secrets: BotSecrets): void {
     writePrivate(this.secretFile, secrets);
   }
-}
-
-export function emptyConfig(): BotFile {
-  return defaultBotFile();
 }
 
 function secretFromEnv(suffix: string): string {

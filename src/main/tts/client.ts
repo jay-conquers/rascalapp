@@ -1,8 +1,6 @@
 import { brand } from "../../shared/brand";
 import { parseTtsState, safeTtsId, type TtsState } from "../../shared/tts";
 
-export type TtsResult<T> = { ok: true; state?: T } | { ok: false; error: string };
-
 /**
  * HTTP client for a local tts-queue service.
  * The desk never writes that service's config or unit file.
