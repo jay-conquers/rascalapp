@@ -1,0 +1,8 @@
+{
+  "twitchClientId": "abc1234567890xyz",
+  "twitchChannel": "examplechannel",
+  "youtubeChannelId": "UCexamplechannel00000001",
+  "overlayPort": 4777,
+  "alwaysOnTop": true,
+  "windowBounds": { "x": 10, "y": 20, "width": 1200, "height": 800 }
+}

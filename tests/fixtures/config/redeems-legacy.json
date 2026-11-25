@@ -1,0 +1,9 @@
+{
+  "soundFolder": "/home/tester/Streaming/Sounds",
+  "mappings": [
+    { "rewardId": "abc", "title": "  Hydrate  ", "action": "sound", "filePath": "/home/tester/Streaming/Sounds/water.mp3", "volume": 150, "enabled": true },
+    { "rewardId": "def", "title": "Clip", "action": "video", "filePath": "/home/tester/clip.mp4", "volume": "70", "maxDurationMs": 12000.4, "placement": { "preset": "bottom-right", "sizePercent": 30, "marginPercent": 3.25 } },
+    { "title": "No reward id yet", "action": "dance", "volume": null, "maxDurationMs": -1 },
+    { "title": "   " }
+  ]
+}

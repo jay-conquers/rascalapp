@@ -1,0 +1,134 @@
+{
+  "channelLogin": "examplechannel",
+  "broadcasterId": "42",
+  "youtubeChannelId": "",
+  "accounts": {
+    "twitch": "bot",
+    "youtube": "bot"
+  },
+  "youtubeApiPoll": false,
+  "portalPort": 4788,
+  "bindHost": "127.0.0.1",
+  "publicUrl": "",
+  "commands": [
+    {
+      "id": "so",
+      "name": "so",
+      "response": "Go see {touser}",
+      "enabled": true,
+      "cooldownSec": 5,
+      "userCooldownSec": 15,
+      "level": "mod",
+      "aliases": [
+        "shout"
+      ],
+      "keywords": [],
+      "count": 12,
+      "platforms": "twitch"
+    },
+    {
+      "id": "lurk",
+      "name": "lurk",
+      "response": "{user} is lurking",
+      "enabled": false,
+      "cooldownSec": 0,
+      "userCooldownSec": 30,
+      "level": "everyone",
+      "aliases": [],
+      "keywords": [],
+      "count": 0,
+      "platforms": "twitch"
+    }
+  ],
+  "timers": [
+    {
+      "id": "socials",
+      "name": "Socials",
+      "enabled": true,
+      "messages": [
+        "Follow on twitter"
+      ],
+      "messageIndex": 0,
+      "message": "Follow on twitter",
+      "mode": "both",
+      "intervalSec": 900,
+      "minChatLines": 3,
+      "linesSince": 2,
+      "lastFiredAt": 1700000000000,
+      "offlineIntervalSec": 900,
+      "offlineMinChatLines": 3,
+      "offlineLinesSince": 0,
+      "offlineLastFiredAt": 0,
+      "platforms": "twitch"
+    }
+  ],
+  "filters": {
+    "blacklist": [
+      {
+        "word": "badword",
+        "action": "timeout",
+        "timeoutSec": 120
+      }
+    ],
+    "whitelist": [
+      "clip"
+    ],
+    "links": {
+      "enabled": true,
+      "action": "delete",
+      "timeoutSec": 30
+    },
+    "caps": {
+      "enabled": false,
+      "minLength": 20,
+      "maxPercent": 80,
+      "action": "delete",
+      "timeoutSec": 30
+    },
+    "symbols": {
+      "enabled": false,
+      "minLength": 20,
+      "maxPercent": 70,
+      "action": "delete",
+      "timeoutSec": 30
+    },
+    "permitSec": 60,
+    "platforms": "twitch"
+  },
+  "quotes": [],
+  "thanks": {
+    "follow": {
+      "enabled": false,
+      "template": "Thanks for the follow, {user}!"
+    },
+    "sub": {
+      "enabled": false,
+      "template": "Thanks for subscribing, {user}!"
+    },
+    "resub": {
+      "enabled": false,
+      "template": "Thanks for resubscribing, {user}! {amount}"
+    },
+    "subgift": {
+      "enabled": false,
+      "template": "Thanks {user} for the gift!"
+    },
+    "cheer": {
+      "enabled": false,
+      "template": "Thanks for the cheer, {user}! {amount}"
+    },
+    "raid": {
+      "enabled": false,
+      "template": "Welcome raiders from {user}! {amount}"
+    },
+    "redemption": {
+      "enabled": false,
+      "template": "Thanks for the redeem, {user}!"
+    }
+  },
+  "shoutout": {
+    "template": "Go follow {target} at twitch.tv/{target}! They were last playing {game}.",
+    "helix": true
+  },
+  "hooks": []
+}

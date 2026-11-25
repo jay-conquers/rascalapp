@@ -1,0 +1,43 @@
+{
+  "twitchClientId": "",
+  "twitchChannel": "",
+  "youtubeChannelId": "",
+  "overlayPort": 4777,
+  "alwaysOnTop": false,
+  "autoImportFirebot": true,
+  "feed": {
+    "emotes": {
+      "bttv": true,
+      "ffz": true,
+      "seventv": true
+    },
+    "notices": {
+      "sub": true,
+      "resub": true,
+      "subgift": true,
+      "raid": true,
+      "cheer": true,
+      "follow": true,
+      "watch-streak": true,
+      "mod-anniversary": true,
+      "redemption": true,
+      "superchat": true,
+      "supersticker": true,
+      "membership": true,
+      "gifted-membership": true,
+      "milestone": true
+    },
+    "modLog": true
+  },
+  "sendTargets": {
+    "twitch": true,
+    "youtube": false
+  },
+  "chatAlert": {
+    "enabled": false,
+    "volume": 0.7,
+    "cooldownMs": 2000,
+    "notices": false,
+    "soundPath": ""
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "soundFolder": "/home/tester/Streaming/Sounds",
+  "mappings": [
+    {
+      "rewardId": "abc",
+      "title": "Hydrate",
+      "action": "sound",
+      "filePath": "/home/tester/Streaming/Sounds/water.mp3",
+      "volume": 100,
+      "maxDurationMs": null,
+      "enabled": true,
+      "placement": {
+        "preset": "center",
+        "sizePercent": 100,
+        "marginPercent": 2,
+        "customX": 0,
+        "customY": 0,
+        "customUnit": "percent"
+      }
+    },
+    {
+      "rewardId": "def",
+      "title": "Clip",
+      "action": "video",
+      "filePath": "/home/tester/clip.mp4",
+      "volume": 70,
+      "maxDurationMs": 12000,
+      "enabled": true,
+      "placement": {
+        "preset": "bottom-right",
+        "sizePercent": 30,
+        "marginPercent": 3.3,
+        "customX": 0,
+        "customY": 0,
+        "customUnit": "percent"
+      }
+    },
+    {
+      "rewardId": "",
+      "title": "No reward id yet",
+      "action": "none",
+      "filePath": "",
+      "volume": 0,
+      "maxDurationMs": null,
+      "enabled": true,
+      "placement": {
+        "preset": "center",
+        "sizePercent": 100,
+        "marginPercent": 2,
+        "customX": 0,
+        "customY": 0,
+        "customUnit": "percent"
+      }
+    }
+  ]
+}

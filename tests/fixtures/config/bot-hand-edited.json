@@ -1,0 +1,41 @@
+{
+  "channelLogin": " #ExampleChannel ",
+  "broadcasterId": 42,
+  "youtubeChannelId": "UCtoo-short",
+  "accounts": { "twitch": "channel", "youtube": "robot" },
+  "youtubeApiPoll": "yes",
+  "portalPort": 80,
+  "bindHost": "0.0.0.0",
+  "publicUrl": "  https://bot.example.com/  ",
+  "commands": [
+    { "name": "!Hello", "response": "hi", "cooldownSec": "30", "userCooldownSec": -5, "level": "admin", "aliases": ["!HI", "hello", 7, "h-i"], "keywords": ["ALOT", "https://nope", "a", "two  words", "alot"], "count": "9", "platforms": "kick" },
+    { "name": "hello", "response": "duplicate name is dropped" },
+    { "name": "!!!", "response": "no usable name" },
+    { "id": "Long-ID With Spaces", "name": "long", "response": "x", "cooldownSec": 999999 },
+    "not an object",
+    null
+  ],
+  "timers": [
+    { "name": "Rotating", "messages": [{ "message": "first" }, { "text": "second", "enabled": false }, "  third  ", "", { "content": "fourth" }], "mode": "sometimes", "intervalSec": 5, "minChatLines": 9999, "messageIndex": 7 },
+    { "name": "Empty", "messages": [], "message": "" },
+    { "name": "Legacy", "message": "only one", "intervalSec": "120", "lastFiredAt": "yesterday" }
+  ],
+  "filters": {
+    "blacklist": [{ "word": "a", "action": "ban" }, { "word": "  BadWord  ", "action": "explode", "timeoutSec": 0 }, { "word": 5 }],
+    "whitelist": ["Clip", "clip", "x", 7],
+    "links": { "enabled": "true", "action": "ban", "timeoutSec": 99999999 },
+    "caps": { "enabled": true, "minLength": 1, "maxPercent": 500 },
+    "permitSec": 1,
+    "platforms": "everywhere"
+  },
+  "quotes": ["plain string quote", { "quote": "uses the quote key", "by": "ace" }, { "id": 5, "message": "message key with id" }, { "id": 5, "text": "duplicate id is dropped" }, { "text": "   " }, 9],
+  "thanks": { "follow": { "enabled": true }, "raid": { "enabled": "yes", "template": "  Raid {user}  " }, "unknown": { "enabled": true } },
+  "shoutout": { "template": "   " },
+  "hooks": [
+    { "name": "Reader Hook", "command": "!Ask", "url": "https://hooks.example/in?token=keep", "timeout_ms": 100, "cooldown": "2", "userCooldown": 3, "roles": "mods", "reply": "chat", "enabled": true },
+    { "name": "Reader Hook", "trigger": "ask2", "url": "https://hooks.example/second" },
+    { "name": "local", "trigger": "loc", "url": "http://127.0.0.1:8787/hook", "level": "subscriber" },
+    { "name": "remote http", "trigger": "bad", "url": "http://example.com/hook" },
+    { "name": "creds", "trigger": "bad2", "url": "https://user:pass@hooks.example/in" }
+  ]
+}
