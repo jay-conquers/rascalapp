@@ -5,7 +5,13 @@ export const MAX_CHAT_MESSAGES = 500;
 export const TWITCH_TITLE_MAX = 140;
 export const TWITCH_MESSAGE_MAX = 500;
 
-/** YouTube's public web client key, read from the live chat page when present. */
+/**
+ * YouTube's public Innertube key from the youtube.com web client.
+ * It is not a Rascal credential and it is not a user's Google key. The live
+ * chat page normally includes its own copy; this is only the fallback when
+ * that copy is missing. The same value ships in YouTube's public JavaScript.
+ * It cannot read a Google account. Quota for it belongs to Google, not the streamer.
+ */
 export const YOUTUBE_WEB_API_KEY_FALLBACK = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
 export const YOUTUBE_CLIENT_VERSION_FALLBACK = "2.20251120.01.00";
 

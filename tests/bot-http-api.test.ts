@@ -224,11 +224,18 @@ describe("mod portal", () => {
       code_challenge_method: "S256",
     });
     const state = authorize.searchParams.get("state") ?? "";
+    const oauth = String(login.headers["set-cookie"]?.[0] ?? "");
+    expect(oauth.startsWith(`rascal_portal_oauth=${state}`)).toBe(true);
+    expect(oauth).toContain("HttpOnly");
     expect(await call(port, { path: `/portal/callback?code=c&state=${state}`, host: "evil.example" })).toMatchObject({
       status: 400,
       json: { error: "Open the portal on its public address and log in again." },
     });
-    const ok = await call(port, { path: `/portal/callback?code=c&state=${state}` });
+    expect(await call(port, { path: `/portal/callback?code=c&state=${state}` })).toMatchObject({
+      status: 400,
+      json: { error: "That login expired. Start again." },
+    });
+    const ok = await call(port, { path: `/portal/callback?code=c&state=${state}`, headers: { Cookie: oauth.split(";")[0] ?? "" } });
     expect(ok.status).toBe(302);
     expect(await call(port, { path: `/portal/callback?code=c&state=${state}` })).toMatchObject({ status: 400, json: { error: "That login expired. Start again." } });
     expect(ok.headers.location).toBe("/portal");
@@ -258,8 +265,10 @@ describe("mod portal", () => {
         return portalApis(request);
       },
     });
-    const state = new URL(String((await call(port, { path: "/portal/login" })).headers.location)).searchParams.get("state") ?? "";
-    expect(await call(port, { path: `/portal/callback?code=c&state=${state}` })).toMatchObject({ status: 500, json: { error: "That Twitch account is not a moderator of this channel." } });
+    const login = await call(port, { path: "/portal/login" });
+    const state = new URL(String(login.headers.location)).searchParams.get("state") ?? "";
+    const oauth = String(login.headers["set-cookie"]?.[0] ?? "").split(";")[0] ?? "";
+    expect(await call(port, { path: `/portal/callback?code=c&state=${state}`, headers: { Cookie: oauth } })).toMatchObject({ status: 500, json: { error: "That Twitch account is not a moderator of this channel." } });
     const noClient = await serve({}, "");
     expect(await call(noClient.port, { path: "/portal/login" })).toMatchObject({ status: 400, json: { error: "Set the Twitch client ID before using the portal." } });
   });

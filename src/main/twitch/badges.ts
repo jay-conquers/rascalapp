@@ -1,3 +1,4 @@
+import { safeEmoteUrl } from "../../shared/emote-url";
 import { redactError } from "../../shared/redact";
 import type { ChatBadge } from "../../shared/types";
 import { indexHelixBadges } from "../../shared/twitch-badges";
@@ -20,10 +21,10 @@ export class BadgeCatalog {
   ) {}
 
   imageFor(badge: ChatBadge): string | null {
-    if (badge.imageUrl && badge.imageUrl.startsWith("https://")) return badge.imageUrl;
+    if (badge.imageUrl) return safeEmoteUrl(badge.imageUrl);
     if (!badge.set || !badge.version) return null;
     const url = this.channel[`${badge.set}/${badge.version}`] ?? this.global[`${badge.set}/${badge.version}`];
-    return url && url.startsWith("https://") ? url : null;
+    return safeEmoteUrl(url);
   }
 
   async loadGlobal(): Promise<void> {

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { normalizeHooks, type ChatHook } from "./chat-hook.ts";
 import { normalizeKeywords } from "./keywords.ts";
 import { normalizeQuotes, type Quote } from "./quotes.ts";
@@ -418,7 +419,7 @@ function finiteTime(value: unknown): number {
 
 function slugId(value: string): string {
   const clean = value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
-  return clean || `id${Math.random().toString(36).slice(2, 8)}`;
+  return clean || `id${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function cleanLogin(value: unknown): string {

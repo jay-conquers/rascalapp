@@ -1,3 +1,4 @@
+import { isTwitchEventSubUrl } from "../../shared/eventsub-url";
 import { applyWordEmotes, type WordEmote } from "../../shared/word-emotes";
 import { filterWordEmotes, type EmoteFlags, type FeedToggles } from "../../shared/feed-toggles";
 import { chatFromFollow, chatFromNotification, modActionFromModerate } from "../../shared/parsers/eventsub-events";
@@ -64,7 +65,7 @@ export class NoticeSocket {
 
   private open(url: string): void {
     if (this.stopped) return;
-    if (!url.startsWith("wss://eventsub.wss.twitch.tv/")) {
+    if (!isTwitchEventSubUrl(url)) {
       this.deps.log.error("ignored eventsub reconnect url");
       return;
     }

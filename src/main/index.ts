@@ -56,6 +56,9 @@ async function boot(): Promise<void> {
     win.focus();
   });
   await app.whenReady();
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
+    callback(false);
+  });
   registerAppProtocol();
   if (!readBrandEnv("RENDERER_URL")) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -121,19 +124,25 @@ function createWindow(runtime: Runtime): void {
       preload: path.join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      nodeIntegrationInWorker: false,
+      nodeIntegrationInSubFrames: false,
       sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
       backgroundThrottling: false,
     },
   });
   win.setAlwaysOnTop(settings.alwaysOnTop, "floating");
   win.once("ready-to-show", () => win?.show());
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  win.webContents.on("will-navigate", (event, url) => {
+  const blockNavigation = (event: { preventDefault: () => void }, url: string) => {
     const devUrl = readBrandEnv("RENDERER_URL");
     if (url.startsWith(`${brand.protocol}://app/`)) return;
     if (devUrl && url.startsWith(devUrl)) return;
     event.preventDefault();
-  });
+  };
+  win.webContents.on("will-navigate", blockNavigation);
+  win.webContents.on("will-redirect", blockNavigation);
   win.webContents.on("render-process-gone", () => {
     if (win && !win.isDestroyed()) void win.loadURL(`${brand.protocol}://app/index.html`);
   });

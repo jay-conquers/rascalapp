@@ -66,6 +66,7 @@ describe("chat overlay renderer", () => {
           badges: [
             { kind: "owner", label: "OWNER" },
             { kind: "member", label: "MEMBER", imageUrl: "https://yt3.ggpht.com/member-badge" },
+            { kind: "other", label: "X", imageUrl: "https://evil.example/badge.png" },
           ],
           color: "#ff8a4a",
         }),

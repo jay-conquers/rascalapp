@@ -5,8 +5,10 @@ import type { Duplex } from "node:stream";
 import { brand } from "../shared/brand";
 import type { ChatMessage } from "../shared/types";
 import type { Logger } from "./logger";
+import { isAllowedOverlayOrigin, isLoopbackHost } from "./loopback-guard";
 
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+const MAX_CLIENTS = 40;
 
 export type RouteHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean | void> | boolean | void;
 
@@ -122,13 +124,16 @@ export class OverlayServer {
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
-      const url = new URL(req.url ?? "/", `http://${this.host}`);
+      if (!this.allowRequest(req, res)) return;
+      const raw = req.url ?? "/";
+      if (!raw.startsWith("/") || raw.startsWith("//")) {
+        sendText(res, 400, "Bad request");
+        return;
+      }
+      const url = new URL(raw, `http://${this.host}`);
       const method = (req.method ?? "GET").toUpperCase();
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
       if (method === "OPTIONS") {
-        res.writeHead(204);
+        res.writeHead(204, { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
         res.end();
         return;
       }
@@ -170,7 +175,29 @@ export class OverlayServer {
     }
   }
 
+  private allowRequest(req: IncomingMessage, res: ServerResponse): boolean {
+    const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
+    const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+    if (!isLoopbackHost(host) || !isAllowedOverlayOrigin(origin, this.port)) {
+      sendText(res, 403, "Forbidden");
+      return false;
+    }
+    return true;
+  }
+
   private upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+    const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
+    const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+    if (!isLoopbackHost(host) || !isAllowedOverlayOrigin(origin, this.port)) {
+      socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 9\r\n\r\nForbidden");
+      socket.destroy();
+      return;
+    }
+    if (this.clients.size >= MAX_CLIENTS) {
+      socket.write("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+      socket.destroy();
+      return;
+    }
     const url = new URL(req.url ?? "/", `http://${this.host}`);
     if (
       url.pathname !== "/ws" &&
@@ -363,6 +390,17 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(payload),
     "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
   });
   res.end(payload);
+}
+
+function sendText(res: ServerResponse, status: number, body: string): void {
+  res.writeHead(status, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body),
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.end(body);
 }

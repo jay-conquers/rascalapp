@@ -27,7 +27,7 @@ If the hook has a secret, Rascal adds `X-Rascal-Signature: sha256=<hex>`. The he
 
 When Reply is "Post the service reply in chat", a JSON body `{"reply": "hello"}` or a plain text body is posted, cut off at 450 characters. `reply` mode `none` does not post anything. Errors stay out of chat and show in the bot log as the hook name and a short reason. The log does not include the secret or the query string of the address.
 
-Use `https://` for a service on another computer. `http://` is only accepted for `localhost` or `127.0.0.1`. Redirects are not followed.
+Use `https://` for a service on another computer. `http://` is only accepted for `localhost`, `127.0.0.1`, or `[::1]`. Set `RASCAL_HOOK_PRIVATE_HTTP=1` to also allow `http://` to an RFC1918 address or a single-label name such as another container. Link-local addresses, cloud metadata, and decimal, octal, or hex IP spellings stay blocked. Before connecting, Rascal resolves the name and refuses the call if any address is not allowed for that URL, then connects to the address it checked. Redirects are not followed.
 
 Rascal skips the streamer's own messages unless that hook sets `allowBroadcaster` to true. The bot account's messages, a duplicate of a message it already saw, and chat history older than about 12 seconds are always skipped. A line Rascal itself just posted is skipped too, including when the bot posts as the streamer's account, so a reply cannot call the hook again. The command cooldown and the per-viewer cooldown are the ones on the hook.
 
@@ -38,7 +38,7 @@ Rascal skips the streamer's own messages unless that hook sets `allowBroadcaster
 ## Example receiver
 
 ```js
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 
 const secret = process.env.HOOK_SECRET ?? "";
@@ -48,9 +48,9 @@ createServer((req, res) => {
   req.on("end", () => {
     const raw = Buffer.concat(chunks);
     if (secret) {
-      const expect = Buffer.from("sha256=" + createHmac("sha256", secret).update(raw).digest("hex"));
-      const got = Buffer.from(String(req.headers["x-rascal-signature"] ?? ""));
-      if (got.length !== expect.length || !timingSafeEqual(got, expect)) {
+      const expect = createHash("sha256").update("sha256=" + createHmac("sha256", secret).update(raw).digest("hex")).digest();
+      const got = createHash("sha256").update(String(req.headers["x-rascal-signature"] ?? "")).digest();
+      if (!timingSafeEqual(got, expect)) {
         res.writeHead(401).end();
         return;
       }

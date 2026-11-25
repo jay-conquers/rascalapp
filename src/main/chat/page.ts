@@ -142,7 +142,7 @@ const pageTemplate = `<!doctype html>
         const badges = document.createElement("span");
         badges.className = "badges";
         for (const badge of line.badges) {
-          if (!badge.url || badge.url.indexOf("https://") !== 0) continue;
+          if (!badge.url || !safeOverlayImage(badge.url)) continue;
           const image = document.createElement("img");
           image.className = "badge";
           image.alt = "";

@@ -180,9 +180,16 @@ export class TwitchIrc {
   }
 
   private write(socket: tls.TLSSocket, line: string): void {
-    if (socket.destroyed) return;
-    socket.write(`${line}\r\n`);
+    const wire = ircWireLine(line);
+    if (!wire || socket.destroyed) return;
+    socket.write(wire);
   }
+}
+
+/** One IRC command. CR, LF, or NUL would let a value become a second command. */
+export function ircWireLine(line: string): string | null {
+  if (!line || /[\u0000\r\n]/.test(line)) return null;
+  return `${line}\r\n`;
 }
 
 function normalizeChannel(channel: string): string {
