@@ -1,5 +1,6 @@
 import { brand } from "../../../src/shared/brand.ts";
 import { BOT_SCOPES, type ChatLine, type UserLevel } from "./model.ts";
+import { asRecord } from "../../../src/shared/record.ts";
 
 export interface DevicePrompt {
   userCode: string;
@@ -202,6 +203,3 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

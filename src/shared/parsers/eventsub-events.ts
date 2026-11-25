@@ -3,6 +3,7 @@ import type { NoticeKind } from "../feed-toggles";
 import type { ChatMessage, ModAction, ModActionKind, Segment } from "../types";
 import { colorForName } from "../emote-url";
 import { twitchEmoteUrl } from "../twitch-emotes";
+import { asRecord } from "../record";
 
 export { twitchEmoteUrl } from "../twitch-emotes";
 
@@ -369,9 +370,6 @@ function positiveInt(value: unknown): number | null {
   return null;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;

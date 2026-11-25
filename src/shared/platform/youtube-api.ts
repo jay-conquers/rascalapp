@@ -2,6 +2,7 @@ import { redact } from "../redact";
 import type { NormalizedChatMessage } from "./types";
 import { normalizeYoutubeLiveChatItem } from "./normalize";
 import { YOUTUBE_QUOTA_COSTS, type YoutubeQuotaMeter } from "./youtube-quota";
+import { asRecord } from "../record";
 
 const API = "https://www.googleapis.com/youtube/v3";
 
@@ -272,6 +273,3 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

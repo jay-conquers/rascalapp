@@ -1,6 +1,7 @@
 import { TWITCH_TITLE_MAX } from "../../shared/defaults";
 import { redact } from "../../shared/redact";
 import type { CategoryHit, StreamInfo, StreamUpdate } from "../../shared/types";
+import { asRecord } from "../../shared/record";
 
 interface HelixDeps {
   clientId: () => string;
@@ -269,9 +270,6 @@ function first(body: HelixBody): Record<string, unknown> | null {
   return asRecord(row);
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function str(value: unknown): string {
   return typeof value === "string" ? value : "";

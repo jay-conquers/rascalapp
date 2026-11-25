@@ -1,3 +1,5 @@
+import { asRecord } from "../../shared/record";
+
 export interface EventSubRedemption {
   redemptionId: string;
   rewardId: string;
@@ -175,9 +177,6 @@ export class EventSubClient {
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;

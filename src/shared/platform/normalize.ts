@@ -1,4 +1,5 @@
 import type { ChatRole, NormalizedBadge, NormalizedChatMessage, NormalizedChatUser } from "./types.ts";
+import { asRecord } from "../record";
 
 /** Desk chat line from the page reader. The id and author channel id are the ones the Data API delete and ban calls use. */
 export function normalizeYoutubeReaderMessage(message: {
@@ -145,6 +146,3 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

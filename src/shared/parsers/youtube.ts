@@ -2,6 +2,7 @@ import { colorForName, safeEmoteUrl } from "../emote-url";
 import type { NoticeKind } from "../feed-toggles";
 import { clipPlain } from "../plain";
 import type { ChatBadge, ChatMessage, ModAction, Segment } from "../types";
+import { asRecord } from "../record";
 
 export interface LiveContinuation {
   token: string;
@@ -571,9 +572,6 @@ function textOf(value: unknown): string {
   return "";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;

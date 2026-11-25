@@ -3,6 +3,7 @@ import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
 import { chmodPrivate } from "../../../src/shared/private-mode.ts";
 import { normalizeBotFile, type BotFile } from "./model.ts";
+import { asRecord } from "../../../src/shared/record.ts";
 
 export interface BotTokens {
   clientId: string;
@@ -215,6 +216,3 @@ export function readYoutubeTokens(value: unknown): YoutubeBotTokens | null {
   };
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

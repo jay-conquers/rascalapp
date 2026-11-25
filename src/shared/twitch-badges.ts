@@ -1,4 +1,5 @@
 /** Index Helix `Get Global Chat Badges` / `Get Channel Chat Badges` into set/version image URLs. */
+import { asRecord } from "./record";
 export function indexHelixBadges(payload: unknown): Record<string, string> {
   const data = asRecord(payload)?.data;
   if (!Array.isArray(data)) return {};
@@ -21,6 +22,3 @@ function https(value: unknown): string {
   return typeof value === "string" && value.startsWith("https://") ? value : "";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

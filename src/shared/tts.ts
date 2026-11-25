@@ -1,3 +1,5 @@
+import { asRecord } from "./record";
+
 export interface TtsItem {
   id: string;
   platform: string;
@@ -142,6 +144,3 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}

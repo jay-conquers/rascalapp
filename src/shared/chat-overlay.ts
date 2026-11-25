@@ -1,5 +1,6 @@
 import { overlayEmoteAllowed } from "./emote-url";
 import type { ChatBadge, ChatMessage, Platform } from "./types";
+import { asRecord } from "./record";
 
 export const DEFAULT_TTS_BASE = "http://127.0.0.1:17761";
 export const DEFAULT_FONT = "Noto Sans, Liberation Sans, DejaVu Sans, sans-serif";
@@ -470,6 +471,3 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
   return Math.min(max, Math.max(min, number));
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
