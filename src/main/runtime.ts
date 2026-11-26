@@ -1,4 +1,5 @@
 import { brand } from "../shared/brand";
+import { isPlatformEnabled } from "../shared/platform/selection";
 import { redactError } from "../shared/redact";
 import type { RedeemMapping, RedeemSnapshot } from "../shared/redeems";
 import type { ChatOverlayFile } from "../shared/chat-overlay";
@@ -19,13 +20,11 @@ export class Runtime extends RuntimeBot {
     await startStages(this.stageContext());
     this.registerEmoteRoute();
     void this.emotes.loadGlobals();
-    void this.badges.loadGlobal();
-    for (const platform of this.platforms.list()) platform.start();
-    this.armViewerPoll();
-    void this.refreshViewers();
+    if (isPlatformEnabled(settings.platforms, "twitch")) void this.badges.loadGlobal();
+    this.syncEnabledPlatforms();
     this.publishYoutubeSend();
     await this.auth.restore();
-    if (this.auth.state().loggedIn) {
+    if (this.auth.state().loggedIn && isPlatformEnabled(this.settings.load().platforms, "twitch")) {
       try {
         await this.refreshStream(true);
       } catch (err) {
@@ -33,6 +32,7 @@ export class Runtime extends RuntimeBot {
       }
       this.armStreamPoll();
     }
+    await this.syncBotPlatforms();
     this.log.info(`${brand.slug} started`, {
       version: this.version,
       overlayPort: port,

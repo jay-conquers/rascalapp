@@ -3,6 +3,7 @@ import { noticeEnabled, placeNotice } from "../shared/feed-toggles";
 import { indexChannelEmotes } from "../shared/twitch-emotes";
 import { shouldPlayChatAlert, type AlertIdentity } from "../shared/chat-alert";
 import { mentionSuggestions, type MentionRoster } from "../shared/mentions";
+import { isPlatformEnabled, type PlatformSelection } from "../shared/platform/selection";
 import {
   describeDeskMod,
   hasChatterScope,
@@ -14,15 +15,21 @@ import {
 import { redactError } from "../shared/redact";
 import type { CategoryHit, ChatMessage, ModAction, StreamInfo, StreamUpdate } from "../shared/types";
 import { getBot } from "./stages/bot";
+import { getChatOverlay } from "./stages/chat";
+import { getRedeemEngine } from "./stages/redemptions";
 import { RuntimeCore } from "./runtime-core";
 
 export class RuntimeChat extends RuntimeCore {
   async sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean }): Promise<void> {
     const message = text.replace(/\r/g, "").trim();
     if (!message) throw new Error("Message is empty.");
-    const twitch = destinations ? destinations.twitch === true : true;
-    const youtube = destinations?.youtube === true;
-    if (!twitch && !youtube) throw new Error("Pick Twitch or YouTube.");
+    const selection = this.settings.load().platforms;
+    const askedTwitch = destinations ? destinations.twitch === true : true;
+    const askedYoutube = destinations?.youtube === true;
+    if (!askedTwitch && !askedYoutube) throw new Error("Pick Twitch or YouTube.");
+    const twitch = askedTwitch && isPlatformEnabled(selection, "twitch");
+    const youtube = askedYoutube && isPlatformEnabled(selection, "youtube");
+    if (!twitch && !youtube) return;
     const youtubeLive = this.status.youtube.state === "live" && this.status.youtube.canSend === true && Boolean(this.status.youtube.videoId);
     const sendYoutube = youtube && youtubeLive;
     const sendTwitch = twitch && this.auth.state().loggedIn;
@@ -46,12 +53,14 @@ export class RuntimeChat extends RuntimeCore {
 
 
   searchCategories(query: string): Promise<CategoryHit[]> {
+    if (!this.twitchOn()) throw new Error("Turn Twitch on in Settings to edit stream info.");
     this.requireUser();
     return this.helix.searchCategories(query);
   }
 
 
   async updateStream(update: StreamUpdate): Promise<StreamInfo> {
+    if (!this.twitchOn()) throw new Error("Turn Twitch on in Settings to edit stream info.");
     const user = this.requireUser();
     await this.helix.updateStream(user.userId, update);
     await this.refreshStream(false);
@@ -62,6 +71,7 @@ export class RuntimeChat extends RuntimeCore {
 
 
   protected async refreshStream(quiet: boolean): Promise<void> {
+    if (!this.twitchOn()) return;
     const state = this.auth.state();
     if (!state.loggedIn || !state.userId) return;
     try {
@@ -105,6 +115,7 @@ export class RuntimeChat extends RuntimeCore {
     const command = parseModerationCommand(input);
     const message = this.bus.messages.find((item) => item.id === command.messageId);
     if (!message) throw new Error("That message is no longer in the chat.");
+    if (!isPlatformEnabled(this.settings.load().platforms, message.platform)) throw new Error("That platform is turned off.");
     const offer = moderationOffer(message, this.moderationContext());
     if (command.action === "delete") {
       if (!offer.delete.enabled) throw new Error(offer.delete.reason);
@@ -132,6 +143,7 @@ export class RuntimeChat extends RuntimeCore {
 
 
   protected acceptChat(message: ChatMessage): void {
+    if (!isPlatformEnabled(this.settings.load().platforms, message.platform)) return;
     this.rememberChatter(message);
     const feed = this.settings.load().feed;
     if (message.noticeKind && !noticeEnabled(feed, message.noticeKind)) return;
@@ -210,7 +222,7 @@ export class RuntimeChat extends RuntimeCore {
 
 
   protected async loadTwitchEmotes(broadcasterId: string): Promise<void> {
-    if (!this.auth.state().loggedIn) return;
+    if (!this.twitchOn() || !this.auth.state().loggedIn) return;
     try {
       this.emotes.setTwitch(indexChannelEmotes(await this.helix.getChannelEmotes(broadcasterId)));
     } catch (err) {
@@ -243,6 +255,10 @@ export class RuntimeChat extends RuntimeCore {
 
 
   protected async refreshViewers(): Promise<void> {
+    if (!this.twitchOn()) {
+      this.setTwitchViewers(null);
+      return;
+    }
     if (!this.auth.state().loggedIn) {
       this.setTwitchViewers(null);
       return;
@@ -291,6 +307,7 @@ export class RuntimeChat extends RuntimeCore {
 
 
   protected async refreshChatters(): Promise<void> {
+    if (!this.twitchOn()) return;
     const auth = this.auth.state();
     if (!auth.loggedIn || !auth.userId || !hasChatterScope(auth.scopes)) return;
     if (!this.chatChannel()) return;
@@ -336,6 +353,59 @@ export class RuntimeChat extends RuntimeCore {
   }
 
 
+  /** Start the platforms that are on, and stop the ones that are off, without deleting logins. */
+  protected syncEnabledPlatforms(previous?: PlatformSelection): void {
+    const twitch = this.twitchOn();
+    const youtube = this.youtubeOn();
+    const wasTwitch = previous ? isPlatformEnabled(previous, "twitch") : twitch;
+    if (twitch) {
+      this.platforms.get("twitch")?.start();
+      if (this.auth.state().loggedIn) {
+        if (!wasTwitch) void this.badges.loadGlobal();
+        this.notices.start();
+        this.armViewerPoll();
+        this.armChatterPoll();
+        this.armStreamPoll();
+        void this.refreshViewers();
+      }
+    } else {
+      this.platforms.get("twitch")?.stop();
+      this.disarmViewerPoll();
+      this.disarmChatterPoll();
+      this.disarmStreamPoll();
+      this.emotes.stop();
+      this.badges.stop();
+      if (this.auth.prompt) this.auth.cancel();
+      this.status = { ...this.status, twitch: { state: "idle", detail: "Twitch is off.", viewers: null } };
+      this.emit({ type: "status", status: this.status });
+    }
+    if (youtube) {
+      const wasOff = this.status.youtube.detail === "YouTube is off.";
+      this.platforms.get("youtube")?.start();
+      if (wasOff) {
+        this.status = { ...this.status, youtube: { ...this.status.youtube, state: "idle", detail: "Waiting to check YouTube" } };
+        this.emit({ type: "status", status: this.status });
+      }
+    } else {
+      this.platforms.get("youtube")?.stop();
+      this.status = {
+        ...this.status,
+        youtube: {
+          ...this.status.youtube,
+          state: "idle",
+          detail: "YouTube is off.",
+          viewers: null,
+          title: undefined,
+          videoId: undefined,
+        },
+      };
+      this.emit({ type: "status", status: this.status });
+      getBot()?.service.setYoutubeLive({ live: false, known: false });
+    }
+    getRedeemEngine()?.setPlatformEnabled(twitch);
+    getChatOverlay()?.refresh();
+  }
+
   private moderationContext(): ModerationContext {
     const auth = this.auth.state();
     const settings = this.settings.load();
@@ -343,9 +413,11 @@ export class RuntimeChat extends RuntimeCore {
     const ready = this.youtubeSend.sendReadiness();
     const channel = this.chatChannel();
     const sameLogin = Boolean(auth.login && channel && auth.login.toLowerCase() === channel);
+    const twitch = isPlatformEnabled(settings.platforms, "twitch");
+    const youtube = isPlatformEnabled(settings.platforms, "youtube");
     return {
       twitch: {
-        loggedIn: auth.loggedIn,
+        loggedIn: twitch && auth.loggedIn,
         scopes: auth.scopes,
         login: auth.login,
         userId: auth.userId,
@@ -353,8 +425,8 @@ export class RuntimeChat extends RuntimeCore {
         broadcasterId: this.roomId && /^\d+$/.test(this.roomId) ? this.roomId : sameLogin ? auth.userId : null,
       },
       youtube: {
-        canModerate: ready.canSend && desk.connected,
-        live: this.status.youtube.state === "live" || Boolean(this.status.youtube.videoId),
+        canModerate: youtube && ready.canSend && desk.connected,
+        live: youtube && (this.status.youtube.state === "live" || Boolean(this.status.youtube.videoId)),
         channelId: settings.youtubeChannelId.trim(),
         accountChannelId: desk.channelId,
       },

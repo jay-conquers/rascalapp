@@ -27,6 +27,8 @@ export async function startBot(options: {
   youtubeReader?: "external" | "own";
   /** Do not slide to the next port. A public URL has to stay on the port the proxy expects. */
   strictPort?: boolean;
+  /** Desk selection. Omit it and a bot with no saved list connects every platform. */
+  enabledPlatforms?: readonly string[];
 }): Promise<BotHandle> {
   const store = new BotStore(options.dir);
   const file = store.loadConfig();
@@ -40,6 +42,7 @@ export async function startBot(options: {
     youtubeReader: options.youtubeReader,
   });
   if (options.bridge) service.setChannelTokenBridge(options.bridge);
+  if (options.enabledPlatforms) service.rememberEnabledPlatforms(options.enabledPlatforms);
   let httpServer: Awaited<ReturnType<typeof startHttp>> | null = null;
   let lastError: unknown;
   const attempts = options.strictPort ? 1 : 10;

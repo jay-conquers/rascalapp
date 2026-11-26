@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import type { SettingsPatch } from "../../shared/api";
 import { brand } from "../../shared/brand";
 import { NOTICE_LABELS, type FeedToggles, type NoticeKind } from "../../shared/feed-toggles";
 import { defaultChatAlert, type ChatAlertSettings } from "../../shared/chat-alert";
+import { isPlatformEnabled, setPlatformEnabled } from "../../shared/platform/selection";
 import { playChatChime } from "../chat-sound";
 import { CHATTER_SCOPE, MODERATE_MANAGE_SCOPES, MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { CheckRow } from "./CheckRow";
+import { PlatformPicker } from "./PlatformPicker";
 import type { AuthState, ConnectionStatus, Settings } from "../../shared/types";
 
 const SCOPE_REASONS = [
@@ -36,7 +39,7 @@ export function SettingsView({
   auth: AuthState;
   status: ConnectionStatus;
   version: string;
-  onSave: (patch: Pick<Settings, "twitchClientId" | "twitchChannel" | "youtubeChannelId" | "overlayPort" | "autoImportFirebot" | "feed" | "chatAlert">) => Promise<void>;
+  onSave: (patch: SettingsPatch) => Promise<void>;
   onLogin: () => void;
   onLogout: () => void;
   onOpenConsole: () => void;
@@ -102,6 +105,19 @@ export function SettingsView({
     setSaved(false);
   }
 
+  const twitchOn = isPlatformEnabled(settings.platforms, "twitch");
+  const youtubeOn = isPlatformEnabled(settings.platforms, "youtube");
+
+  async function changePlatform(id: string, on: boolean): Promise<void> {
+    setError(null);
+    setSaved(false);
+    try {
+      await onSave({ platforms: setPlatformEnabled(settings.platforms, id, on) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Choose at least one platform.");
+    }
+  }
+
   async function save(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -139,6 +155,14 @@ export function SettingsView({
             void save();
           }}
         >
+          <h3>Platforms</h3>
+          <p className="count">
+            Choose the platforms you stream on. At least one stays on. Turning one off hides it and stops its connection. Logins and settings stay saved.
+          </p>
+          <PlatformPicker selection={settings.platforms} onToggle={(id, on) => void changePlatform(id, on)} />
+
+          {twitchOn ? (
+          <>
           <label>
             Twitch client ID
             <input
@@ -162,6 +186,9 @@ export function SettingsView({
               onChange={(event) => setChannel(event.target.value)}
             />
           </label>
+          </>
+          ) : null}
+          {youtubeOn ? (
           <label>
             YouTube channel ID
             <input
@@ -174,6 +201,7 @@ export function SettingsView({
               Leave blank to skip YouTube chat. The ID is in YouTube Studio. This reads chat with no Google login. Sending from the chat box needs a Google client on the Bot tab (youtube.force-ssl).
             </span>
           </label>
+          ) : null}
           <label>
             Overlay port
             <input
@@ -187,9 +215,11 @@ export function SettingsView({
                 : "Overlay server is not listening"}
             </span>
           </label>
-          <CheckRow checked={autoImport} onChange={setAutoImport}>
-            Import Firebot reward files on startup
-          </CheckRow>
+          {twitchOn ? (
+            <CheckRow checked={autoImport} onChange={setAutoImport}>
+              Import Firebot reward files on startup
+            </CheckRow>
+          ) : null}
 
           <h3>Message sound</h3>
           <p className="count">
@@ -286,6 +316,7 @@ export function SettingsView({
           </div>
         </form>
 
+        {twitchOn ? (
         <section className="account">
           <h3>Twitch account</h3>
           {auth.loggedIn ? (
@@ -309,6 +340,7 @@ export function SettingsView({
             </>
           )}
         </section>
+        ) : null}
 
         <section>
           <h3>Bot connection</h3>
@@ -334,6 +366,8 @@ export function SettingsView({
           {botNote ? <p className="saved">{botNote}</p> : null}
         </section>
 
+        {twitchOn ? (
+        <>
         <section className="register">
           <h3>Register the Twitch app</h3>
           <p>Do this once, as the channel account, at the Twitch developer console. Create a new app. Do not reuse a Firebot client.</p>
@@ -366,6 +400,8 @@ export function SettingsView({
             A login from before 0.8.0 is missing the moderator read scopes, user:read:chat, and moderator:read:followers. Log in again and approve the new prompt. Chat keeps working before you do. Twitch only lets an app manage rewards it created.
           </p>
         </section>
+        </>
+        ) : null}
       </div>
     </section>
   );

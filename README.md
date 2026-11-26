@@ -13,16 +13,16 @@ Rascal is a free, open-source streaming desk for Twitch and YouTube. It replaces
 - A panel for a separate local text-to-speech HTTP service, if you run one. The address is a setting. Rascal does not ship that service.
 - Chat hooks. A command such as `!ask` can POST the viewer's message to an address you run. The hook is off until you enable it. A secret signs the body with `X-Rascal-Signature`. The service can stay quiet or return a short chat reply. See [docs/chat-hooks.md](docs/chat-hooks.md).
 
-A fresh install has no channel filled in. Twitch chat follows the channel in Settings, or the account you sign in with when that field is empty. YouTube chat stays off until you paste a channel ID.
+A fresh install asks which platforms you stream on. Twitch starts checked. YouTube stays off until you select it. Chat for a selected platform follows the channel in Settings, or the Twitch account you sign in with when that field is empty.
 
 ## Install the AppImage
 
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.9.0.AppImage
+chmod +x Rascal-0.10.0.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.9.0.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.10.0.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -98,7 +98,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.9.0.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.10.0.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { brand } from "../shared/brand";
 import { chatFeedConnected, SessionChatters, type ChatterName } from "../shared/mentions";
+import { filterEnabled, isPlatformEnabled } from "../shared/platform/selection";
 import type { DeskPlatform } from "../shared/platform/desk";
 import { PlatformRegistry } from "../shared/platform/registry";
 import type {
@@ -74,21 +75,28 @@ export class RuntimeCore {
     openExternal?: (url: string) => Promise<void>;
     fetchImpl?: typeof fetch;
   }) {
-    this.version = deps.version ?? "0.9.0";
+    this.version = deps.version ?? "0.10.0";
     this.log = new Logger(path.join(deps.dir, "logs", brand.logFile));
     this.youtubeSend = youtubeDesk(deps.dir, { log: this.log, fetchImpl: deps.fetchImpl });
     this.youtubeSend.setOnChange(() => this.publishYoutubeSend());
     this.settings = new SettingsStore(deps.dir);
     this.tokens = new TokenStore(deps.dir);
     const settings = this.settings.load();
+    const twitchOn = isPlatformEnabled(settings.platforms, "twitch");
+    const youtubeOn = isPlatformEnabled(settings.platforms, "youtube");
     this.status = {
-      twitch: settings.twitchChannel
-        ? { state: "connecting", detail: "Connecting to chat…" }
-        : { state: "idle", detail: "Set a Twitch channel in Settings." },
-      youtube: { state: "idle", detail: "Waiting to check YouTube" },
+      twitch: !twitchOn
+        ? { state: "idle", detail: "Twitch is off." }
+        : settings.twitchChannel
+          ? { state: "connecting", detail: "Connecting to chat…" }
+          : { state: "idle", detail: "Set a Twitch channel in Settings." },
+      youtube: { state: "idle", detail: youtubeOn ? "Waiting to check YouTube" : "YouTube is off." },
       overlay: { listening: false, host: "127.0.0.1", port: settings.overlayPort },
     };
-    this.server = new OverlayServer(() => this.bus.messages, this.log);
+    this.server = new OverlayServer(
+      () => filterEnabled(this.bus.messages, (message) => message.platform, this.settings.load().platforms),
+      this.log,
+    );
     this.auth = new TwitchAuth({
       clientId: () => this.settings.load().twitchClientId,
       tokens: this.tokens,
@@ -100,7 +108,7 @@ export class RuntimeCore {
         this.emit({ type: "login", login: this.auth.prompt });
         this.applyTwitchChannel();
         this.scopeNoted = false;
-        if (this.auth.state().loggedIn) {
+        if (this.auth.state().loggedIn && this.twitchOn()) {
           void this.badges.loadGlobal();
           if (this.roomId) void this.loadTwitchEmotes(this.roomId);
           this.notices.start();
@@ -112,6 +120,10 @@ export class RuntimeCore {
           this.notices.stop();
           this.setTwitchViewers(null);
           this.disarmChatterPoll();
+          if (!this.twitchOn()) {
+            this.disarmViewerPoll();
+            this.disarmStreamPoll();
+          }
         }
       },
     });
@@ -143,7 +155,12 @@ export class RuntimeCore {
         void this.loadTwitchEmotes(roomId);
       },
       onStatus: (state, detail) => {
-        this.status = { ...this.status, twitch: { state, detail } };
+        if (!this.twitchOn()) return;
+        const viewers = this.status.twitch.viewers;
+        this.status = {
+          ...this.status,
+          twitch: viewers === undefined ? { state, detail } : { state, detail, viewers },
+        };
         this.emit({ type: "status", status: this.status });
       },
       log: this.log,
@@ -159,9 +176,16 @@ export class RuntimeCore {
       onDelete: (id) => this.bus.delete(id),
       onDeleteAuthor: (authorId) => this.bus.clearAuthor(authorId),
       onModAction: (action) => this.pushMod(action),
-      onViewers: (count) => this.setYoutubeViewers(count),
-      onHealth: (health) => getBot()?.service.noteYoutubeReader(health.ok),
+      onViewers: (count) => {
+        if (!this.youtubeOn()) return;
+        this.setYoutubeViewers(count);
+      },
+      onHealth: (health) => {
+        if (!this.youtubeOn()) return;
+        getBot()?.service.noteYoutubeReader(health.ok);
+      },
       onStatus: (youtube) => {
+        if (!this.youtubeOn()) return;
         const desk = this.youtubeSend.state();
         const ready = this.youtubeSend.sendReadiness();
         this.status = { ...this.status, youtube: { ...youtube, canSend: ready.canSend, sendAccount: desk.account, sendHint: ready.hint } };
@@ -229,7 +253,7 @@ export class RuntimeCore {
         listed: this.listedTwitch,
         session: this.session.list("twitch"),
       }),
-      mentionsOpen: () => this.settings.load().sendTargets.twitch && chatFeedConnected(this.status.twitch.state),
+      mentionsOpen: () => this.twitchOn() && this.settings.load().sendTargets.twitch && chatFeedConnected(this.status.twitch.state),
     });
     this.platforms.register({
       id: "youtube",
@@ -252,7 +276,7 @@ export class RuntimeCore {
         listed: [],
         session: this.session.list("youtube"),
       }),
-      mentionsOpen: () => this.settings.load().sendTargets.youtube && chatFeedConnected(this.status.youtube.state),
+      mentionsOpen: () => this.youtubeOn() && this.settings.load().sendTargets.youtube && chatFeedConnected(this.status.youtube.state),
     });
   }
 
@@ -368,4 +392,12 @@ export class RuntimeCore {
   protected armChatterPoll(): void {}
   protected disarmChatterPoll(): void {}
   protected chatChannel(): string { return ""; }
+
+  protected twitchOn(): boolean {
+    return isPlatformEnabled(this.settings.load().platforms, "twitch");
+  }
+
+  protected youtubeOn(): boolean {
+    return isPlatformEnabled(this.settings.load().platforms, "youtube");
+  }
 }

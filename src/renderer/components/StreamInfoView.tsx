@@ -7,6 +7,7 @@ export function StreamInfoView({
   auth,
   stream,
   chatChannel,
+  enabledIds,
   onSave,
   onSearch,
   onLogin,
@@ -15,11 +16,13 @@ export function StreamInfoView({
   auth: AuthState;
   stream: StreamInfo | null;
   chatChannel: string;
+  enabledIds?: readonly string[];
   onSave: (update: { title: string; gameId: string; tags: string[] }) => Promise<void>;
   onSearch: (query: string) => Promise<CategoryHit[]>;
   onLogin: () => void;
   onOpenSettings: () => void;
 }) {
+  const sections = streamInfoPlatforms.filter((platform) => !enabledIds || enabledIds.includes(platform.id));
   return (
     <section className="stream-page" data-testid="stream-info">
       <div className="stream-page-inner">
@@ -29,7 +32,7 @@ export function StreamInfoView({
             <p className="form-note">Title, category, and tags. Each platform has its own section.</p>
           </div>
         </header>
-        {streamInfoPlatforms.map((platform) => (
+        {sections.map((platform) => (
           <PlatformSection key={platform.id} id={platform.id} title={platform.title}>
             {platform.id === "twitch" ? (
               <TwitchStreamSection
@@ -44,6 +47,9 @@ export function StreamInfoView({
             ) : null}
           </PlatformSection>
         ))}
+        {sections.length === 0 ? (
+          <p className="form-note">Turn a platform on in Settings to edit its title and category.</p>
+        ) : null}
       </div>
     </section>
   );

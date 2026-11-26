@@ -3,6 +3,7 @@ import { brand } from "../../shared/brand";
 import type { BotSnapshot } from "../../shared/api";
 import type { ShoutoutSettings, ThanksSettings } from "../../../packages/bot/src/model";
 import { CheckRow } from "./CheckRow";
+import { visiblePlatforms } from "../../shared/platform/selection";
 import { PlatformChecks, TimerEditor } from "./bot-editors";
 
 const THANK_ROWS: { key: keyof ThanksSettings; label: string }[] = [
@@ -34,10 +35,14 @@ export function BotLibrary(props: {
   setJwt: Dispatch<SetStateAction<string>>;
   jsonText: string;
   setJsonText: Dispatch<SetStateAction<string>>;
+  enabledIds?: readonly string[];
 }) {
   const { state, busy, run, setError, shoutout, setShoutout, quoteImport, setQuoteImport, thanks, setThanks, words, setWords, jwt, setJwt, jsonText, setJsonText } = props;
+  const enabled = props.enabledIds ?? visiblePlatforms().map((entry) => entry.id);
+  const showTwitch = enabled.includes("twitch");
   return (
 <>
+      {showTwitch ? (
       <section className="bot-card">
         <h3>Shoutout</h3>
         <p className="form-note">Mods use !so username. Rascal posts this line with the target's login and the game Helix last had on their channel. A custom !so still works for viewers who are not mods.</p>
@@ -52,6 +57,7 @@ export function BotLibrary(props: {
           Save shoutout
         </button>
       </section>
+      ) : null}
 
       <section className="bot-card">
         <h3>Quotes</h3>
@@ -132,12 +138,13 @@ export function BotLibrary(props: {
             key={timer.id}
             timer={timer}
             busy={busy}
+            enabledIds={enabled}
             onSave={(input) => run(() => window.rascal!.botSaveTimer(input))}
             onDelete={() => run(() => window.rascal!.botDeleteTimer(timer.id))}
           />
         ))}
         <h3>New timer</h3>
-        <TimerEditor busy={busy} timer={null} onSave={(input) => run(() => window.rascal!.botSaveTimer(input))} />
+        <TimerEditor busy={busy} timer={null} enabledIds={enabled} onSave={(input) => run(() => window.rascal!.botSaveTimer(input))} />
       </section>
 
       <section className="bot-card">
@@ -145,6 +152,7 @@ export function BotLibrary(props: {
         <PlatformChecks
           target={state.filters.platforms}
           disabled={busy}
+          enabledIds={enabled}
           onChange={(platforms) => void run(() => window.rascal!.botSaveFilters({ platforms }))}
         />
         <CheckRow

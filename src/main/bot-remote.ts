@@ -99,6 +99,10 @@ export class RemoteBot {
     return this.send("POST", "/api/import/youtube-tokens", body);
   }
 
+  setEnabledPlatforms(enabled: readonly string[]): Promise<BotSnapshot> {
+    return this.send("POST", "/api/platforms", { enabled: [...enabled] });
+  }
+
   private async send(method: string, pathname: string, body?: unknown): Promise<BotSnapshot> {
     let response: Response;
     try {

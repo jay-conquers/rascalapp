@@ -10,6 +10,7 @@ const YOUTUBE_MESSAGE_MAX = 200;
 export function Composer({
   channel,
   targets,
+  shown,
   onTargets,
   twitch,
   youtube,
@@ -23,6 +24,8 @@ export function Composer({
 }: {
   channel: string;
   targets: SendTargets;
+  /** Platforms the desk has turned on. Omitted means both checks stay available. */
+  shown?: { twitch: boolean; youtube: boolean };
   onTargets: (next: SendTargets) => void;
   twitch: PlatformLink;
   youtube: PlatformLink;
@@ -47,9 +50,11 @@ export function Composer({
   const tokenKey = token ? `${token.start}:${token.query}` : "";
   const listOpen = Boolean(token) && dismissed !== tokenKey && suggestions.length > 0;
   const selected = suggestions.length === 0 ? 0 : Math.min(index, suggestions.length - 1);
-  const plan = planSend(targets, { twitch, youtube });
+  const plan = planSend(targets, { twitch, youtube }, shown);
+  const showTwitch = shown?.twitch !== false;
+  const showYoutube = shown?.youtube !== false;
   const canDeliver = plan.deliver.twitch || plan.deliver.youtube;
-  const limit = targets.youtube ? YOUTUBE_MESSAGE_MAX : TWITCH_MESSAGE_MAX;
+  const limit = showYoutube && targets.youtube ? YOUTUBE_MESSAGE_MAX : TWITCH_MESSAGE_MAX;
   const remaining = limit - text.length;
 
   useEffect(() => {
@@ -132,16 +137,20 @@ export function Composer({
       }}
     >
       <div className="composer-targets">
-        <CheckRow id="send-twitch" checked={targets.twitch} onChange={(checked) => onTargets({ ...targets, twitch: checked })}>
-          {channel ? `Twitch as ${channel}` : "Twitch"}
-          {plan.offline.twitch ? <em className="offline-note">offline</em> : null}
-        </CheckRow>
-        <CheckRow id="send-youtube" checked={targets.youtube} onChange={(checked) => onTargets({ ...targets, youtube: checked })}>
-          {youtubeAccount ? `YouTube as ${youtubeAccount}` : "YouTube"}
-          {plan.offline.youtube ? <em className="offline-note">offline</em> : null}
-        </CheckRow>
+        {showTwitch ? (
+          <CheckRow id="send-twitch" checked={targets.twitch} onChange={(checked) => onTargets({ ...targets, twitch: checked })}>
+            {channel ? `Twitch as ${channel}` : "Twitch"}
+            {plan.offline.twitch ? <em className="offline-note">offline</em> : null}
+          </CheckRow>
+        ) : null}
+        {showYoutube ? (
+          <CheckRow id="send-youtube" checked={targets.youtube} onChange={(checked) => onTargets({ ...targets, youtube: checked })}>
+            {youtubeAccount ? `YouTube as ${youtubeAccount}` : "YouTube"}
+            {plan.offline.youtube ? <em className="offline-note">offline</em> : null}
+          </CheckRow>
+        ) : null}
       </div>
-      {!canSendYoutube ? (
+      {showYoutube && !canSendYoutube ? (
         <div className="form-note youtube-send-hint" data-testid="youtube-send-hint">
           <p>
             {sendHint ||
@@ -234,7 +243,7 @@ export function Composer({
         </button>
       </div>
       <div className="composer-meta">
-        {error ? <span className="form-error">{error}</span> : <span>{targets.youtube ? "YouTube live chat stops at 200 characters." : "Twitch messages stop at 500 characters."}</span>}
+        {error ? <span className="form-error">{error}</span> : <span>{showYoutube && targets.youtube ? "YouTube live chat stops at 200 characters." : "Twitch messages stop at 500 characters."}</span>}
         {text.length > limit - 40 && <span className={remaining < 0 ? "form-error" : ""}>{remaining}</span>}
       </div>
     </form>

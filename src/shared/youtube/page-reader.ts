@@ -69,6 +69,7 @@ export class YoutubeLive {
     this.stopped = true;
     this.generation++;
     this.abort.abort();
+    this.abort = new AbortController();
   }
 
   setChannel(channelId: string): void {

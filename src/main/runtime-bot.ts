@@ -1,4 +1,5 @@
 import path from "node:path";
+import { sendTargetsForSelection } from "../shared/platform/selection";
 import { redactError } from "../shared/redact";
 import type { SettingsPatch } from "../shared/api";
 import type { AuthState, Settings } from "../shared/types";
@@ -49,7 +50,19 @@ export class RuntimeBot extends RuntimeChat {
       this.modLog.splice(0, this.modLog.length);
       this.emit({ type: "mod-log-clear" });
     }
-    if (next.twitchChannel !== prev.twitchChannel) this.notices.retarget();
+    if (next.twitchChannel !== prev.twitchChannel && this.twitchOn()) this.notices.retarget();
+    const platformsChanged =
+      prev.platforms.confirmed !== next.platforms.confirmed ||
+      prev.platforms.enabled.length !== next.platforms.enabled.length ||
+      prev.platforms.enabled.some((id, index) => id !== next.platforms.enabled[index]);
+    if (platformsChanged) {
+      const sendTargets = sendTargetsForSelection(next.platforms, next.sendTargets);
+      if (sendTargets.twitch !== next.sendTargets.twitch || sendTargets.youtube !== next.sendTargets.youtube) {
+        this.settings.update({ sendTargets });
+      }
+      this.syncEnabledPlatforms(prev.platforms);
+      await this.syncBotPlatforms();
+    }
     this.emit({ type: "auth", auth: this.auth.state() });
     return this.settings.load();
   }
@@ -76,7 +89,14 @@ export class RuntimeBot extends RuntimeChat {
   protected applyTwitchChannel(): void {
     const configured = this.settings.load().twitchChannel;
     const login = this.auth.state().loggedIn ? this.auth.state().login ?? "" : "";
-    this.irc.setChannel(configured || login);
+    const channel = configured || login;
+    if (!this.twitchOn()) {
+      this.irc.setChannel(channel, { connect: false });
+      this.irc.stop();
+      this.notices.stop();
+      return;
+    }
+    this.irc.setChannel(channel);
     this.notices.retarget();
     void this.refreshViewers();
   }
@@ -110,6 +130,7 @@ export class RuntimeBot extends RuntimeChat {
     });
     if (saved.mode === "server") await stopEmbeddedBot();
     else await useEmbeddedBot();
+    await this.syncBotPlatforms();
     return botLinkView(saved);
   }
 
@@ -350,10 +371,12 @@ export class RuntimeBot extends RuntimeChat {
   protected publishYoutubeSend(): void {
     const desk = this.youtubeSend.state();
     const ready = this.youtubeSend.sendReadiness();
+    const off = !this.youtubeOn();
     this.status = {
       ...this.status,
       youtube: {
         ...this.status.youtube,
+        ...(off ? { state: "idle" as const, detail: "YouTube is off.", viewers: null } : {}),
         canSend: ready.canSend,
         sendAccount: desk.account,
         sendHint: ready.hint,
@@ -361,6 +384,24 @@ export class RuntimeBot extends RuntimeChat {
       },
     };
     this.emit({ type: "status", status: this.status });
+  }
+
+  /** Tell the embedded bot, or the server the desk is linked to, which platforms may connect. */
+  protected async syncBotPlatforms(): Promise<void> {
+    const enabled = this.settings.load().platforms.enabled;
+    const link = loadBotLink(path.dirname(this.settings.file));
+    if (link.mode === "server") {
+      if (!link.serverUrl || link.adminToken.length < 16) return;
+      try {
+        await new RemoteBot(link.serverUrl, link.adminToken).setEnabledPlatforms(enabled);
+      } catch (err) {
+        this.log.error("could not update server bot platforms", { message: redactError(err) });
+      }
+      return;
+    }
+    const bot = getBot();
+    if (!bot) return;
+    await bot.service.setEnabledPlatforms(enabled);
   }
 
 }

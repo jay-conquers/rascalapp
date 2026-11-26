@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0
+
+- Choose which platforms to connect. A new install asks once, with Twitch already checked. YouTube is the other choice today. At least one platform stays on. Settings has the same list, so it can be changed later.
+- An install from 0.9.0 or earlier does not see that screen. A platform that already has a login, a channel, or a client id is selected. If none do, Twitch is selected.
+- Turning a platform off hides its chat, viewer count, send target, stream info, mod tools, mentions, bot account, alerts, redeems, and login prompts. It also stops that platform's connections and API calls. Saved logins and settings stay put. Turning it back on restores them, and asks for a login when one is still needed.
+- Kick is reserved in the platform list and stays hidden until it ships.
+
 ## 0.9.0
 
 - Moderate from the chat column. Click or right-click a message or a name to delete it, time the viewer out (1 minute, 10 minutes, 1 hour, 24 hours, or a custom length), ban, or unban. Twitch uses Helix. YouTube uses the live chat Data API, with a temporary ban for a timeout. The menu leaves out actions the signed-in account cannot perform, asks before a ban, and will not act on the broadcaster. A failed request stays on the menu. Each action is written to the private mod log with who did it, what they did, who it was done to, the duration, and the platform.

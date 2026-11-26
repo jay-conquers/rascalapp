@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { ChatOverlayFile } from "../../shared/chat-overlay";
+import { filterEnabled } from "../../shared/platform/selection";
 import {
   chatBoxRect,
   normalizeChatOverlayFile,
@@ -273,7 +274,13 @@ export class ChatOverlayEngine {
       type: "chat-frame",
       style,
       box: chatBoxRect(style.box),
-      lines: projectChatOverlay(this.ctx.chat.messages, style, Date.now(), this.ctx.badgeImage, this.ctx.emoteForOverlay),
+      lines: projectChatOverlay(
+        filterEnabled(this.ctx.chat.messages, (message) => message.platform, this.ctx.settings.load().platforms),
+        style,
+        Date.now(),
+        this.ctx.badgeImage,
+        this.ctx.emoteForOverlay,
+      ),
     });
   }
 }

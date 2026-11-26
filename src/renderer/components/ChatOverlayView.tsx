@@ -12,6 +12,7 @@ import {
   type ChatOverlayFile,
   type ChatOverlayStyle,
 } from "../../shared/chat-overlay";
+import { visiblePlatforms } from "../../shared/platform/selection";
 import type { ChatMessage } from "../../shared/types";
 import { CheckRow } from "./CheckRow";
 import { ColorField } from "./ColorField";
@@ -87,11 +88,13 @@ const SAMPLES: ChatMessage[] = [
 export function ChatOverlayView({
   file,
   messages,
+  enabledIds,
   overlayUrl,
   onFile,
 }: {
   file: ChatOverlayFile;
   messages: ChatMessage[];
+  enabledIds?: readonly string[];
   overlayUrl: string;
   onFile: (file: ChatOverlayFile) => void;
 }) {
@@ -115,7 +118,10 @@ export function ChatOverlayView({
 
   const presetUrl = draft.id === "default" ? overlayUrl : `${overlayUrl}?preset=${encodeURIComponent(draft.id)}`;
   const rect = chatBoxRect(draft.box);
-  const source = messages.length > 0 ? messages : SAMPLES.map((message) => ({ ...message, timestamp: Date.now() }));
+  const allowed = enabledIds ?? visiblePlatforms().map((entry) => entry.id);
+  const visibleMessages = messages.filter((message) => allowed.includes(message.platform));
+  const samples = SAMPLES.filter((message) => allowed.includes(message.platform)).map((message) => ({ ...message, timestamp: Date.now() }));
+  const source = visibleMessages.length > 0 ? visibleMessages : samples;
   const lines = projectChatOverlay(source, draft);
   const flow = chatFlow(draft.direction);
 

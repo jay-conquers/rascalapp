@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
 import { chmodPrivate } from "../../../src/shared/private-mode.ts";
+import { normalizeEnabledIds } from "../../../src/shared/platform/selection.ts";
 import { normalizeBotFile, type BotFile } from "./model.ts";
 import { asRecord } from "../../../src/shared/record.ts";
 
@@ -45,6 +46,7 @@ export class BotStore {
   readonly deskTwitchTokenFile: string;
   readonly deskYoutubeTokenFile: string;
   readonly googleClientFile: string;
+  readonly enabledPlatformsFile: string;
 
   constructor(dir: string) {
     this.configFile = path.join(dir, "bot.json");
@@ -54,6 +56,22 @@ export class BotStore {
     this.deskTwitchTokenFile = path.join(dir, "tokens.json");
     this.deskYoutubeTokenFile = path.join(dir, "youtube-tokens.json");
     this.googleClientFile = path.join(dir, "google-client.json");
+    this.enabledPlatformsFile = path.join(dir, "enabled-platforms.json");
+  }
+
+  /**
+   * Null means the bot was never told to hide a platform, so every registered
+   * platform stays connected. A saved list is what the desk last chose.
+   */
+  loadEnabledPlatforms(): string[] | null {
+    const row = asRecord(readJson(this.enabledPlatformsFile));
+    if (!row || !Array.isArray(row.enabled)) return null;
+    const enabled = normalizeEnabledIds(row.enabled.filter((id): id is string => typeof id === "string"));
+    return enabled.length > 0 ? enabled : ["twitch"];
+  }
+
+  saveEnabledPlatforms(ids: readonly string[]): void {
+    writePrivate(this.enabledPlatformsFile, { enabled: [...ids] });
   }
 
   loadConfig(): BotFile {

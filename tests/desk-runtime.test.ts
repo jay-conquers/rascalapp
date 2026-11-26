@@ -71,7 +71,7 @@ describe("desk runtime snapshot", () => {
       auth: { loggedIn: false, login: null, userId: null, scopes: [], missingScopes: [], clientIdSet: false },
       status: {
         twitch: { state: "idle", detail: "Set a Twitch channel in Settings." },
-        youtube: { state: "idle", detail: "Waiting to check YouTube" },
+        youtube: { state: "idle", detail: "YouTube is off." },
         overlay: { listening: false, host: "127.0.0.1", port: 4777 },
       },
       redeems: { status: "Starting…", overlayUrl: "http://127.0.0.1:4777/overlay/alerts", rewards: [], queue: { current: null, pending: [] } },

@@ -391,6 +391,7 @@ function asSettingsPatch(value: unknown): SettingsPatch {
   if (row.feed && typeof row.feed === "object") patch.feed = row.feed as SettingsPatch["feed"];
   if (row.sendTargets && typeof row.sendTargets === "object") patch.sendTargets = row.sendTargets as SettingsPatch["sendTargets"];
   if (row.chatAlert && typeof row.chatAlert === "object") patch.chatAlert = row.chatAlert as SettingsPatch["chatAlert"];
+  if (row.platforms && typeof row.platforms === "object") patch.platforms = row.platforms as SettingsPatch["platforms"];
   return patch;
 }
 

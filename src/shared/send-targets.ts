@@ -38,17 +38,23 @@ export function mergeSendTargets(current: SendTargets | undefined, patch: unknow
  * Offline and "not set up" change delivery only. The saved checks come back
  * as they were, so a later online state includes that platform with no re-check.
  */
-export function planSend(saved: SendTargets, link: { twitch: PlatformLink; youtube: PlatformLink }): SendPlan {
+export function planSend(
+  saved: SendTargets,
+  link: { twitch: PlatformLink; youtube: PlatformLink },
+  shown?: { twitch?: boolean; youtube?: boolean },
+): SendPlan {
+  const allowTwitch = shown?.twitch !== false;
+  const allowYoutube = shown?.youtube !== false;
   const kept = { twitch: saved.twitch === true, youtube: saved.youtube === true };
   return {
     saved: kept,
     deliver: {
-      twitch: kept.twitch && link.twitch.ready,
-      youtube: kept.youtube && link.youtube.ready,
+      twitch: kept.twitch && link.twitch.ready && allowTwitch,
+      youtube: kept.youtube && link.youtube.ready && allowYoutube,
     },
     offline: {
-      twitch: kept.twitch && link.twitch.offline,
-      youtube: kept.youtube && link.youtube.offline,
+      twitch: allowTwitch && kept.twitch && link.twitch.offline,
+      youtube: allowYoutube && kept.youtube && link.youtube.offline,
     },
   };
 }

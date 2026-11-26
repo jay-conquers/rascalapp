@@ -39,5 +39,9 @@
     "cooldownMs": 0,
     "notices": false,
     "soundPath": ""
+  },
+  "platforms": {
+    "confirmed": true,
+    "enabled": ["twitch"]
   }
 }

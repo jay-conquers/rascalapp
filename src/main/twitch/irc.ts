@@ -48,11 +48,12 @@ export class TwitchIrc {
     this.socket = null;
   }
 
-  setChannel(channel: string): void {
+  setChannel(channel: string, options?: { connect?: boolean }): void {
     const next = normalizeChannel(channel);
     if (next === this.channel) return;
     const previous = this.channel;
     this.channel = next;
+    const connect = options?.connect !== false;
     if (!next) {
       const socket = this.socket;
       if (socket && !socket.destroyed && previous) this.write(socket, `PART #${previous}`);
@@ -64,7 +65,11 @@ export class TwitchIrc {
       return;
     }
     if (this.stopped) {
-      this.start();
+      if (connect) this.start();
+      return;
+    }
+    if (!connect) {
+      this.stop();
       return;
     }
     const socket = this.socket;

@@ -14,6 +14,7 @@ import {
 } from "../../shared/redeems";
 import type { WithoutSeq, AppEvent } from "../../shared/types";
 import { brand } from "../../shared/brand";
+import { isPlatformEnabled } from "../../shared/platform/selection";
 import { redactError } from "../../shared/redact";
 import type { AppContext } from "../stages/types";
 import type { TwitchReward } from "../twitch/helix";
@@ -288,7 +289,26 @@ export class RedeemEngine {
     return this.snapshot();
   }
 
+  /** Stop EventSub when Twitch is off. Reward files stay on disk. */
+  setPlatformEnabled(on: boolean): void {
+    if (!this.started) return;
+    if (on) {
+      if (this.status === "Twitch is off.") void this.onAuth();
+      return;
+    }
+    if (this.status === "Twitch is off.") return;
+    this.eventsub.stop();
+    this.status = "Twitch is off.";
+    this.publish();
+  }
+
   private async onAuth(): Promise<void> {
+    if (!isPlatformEnabled(this.ctx.settings.load().platforms, "twitch")) {
+      this.eventsub.stop();
+      this.status = "Twitch is off.";
+      this.publish();
+      return;
+    }
     const auth = this.ctx.auth.state();
     if (!auth.loggedIn || !auth.userId) {
       this.eventsub.stop();

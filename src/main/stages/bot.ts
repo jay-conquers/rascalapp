@@ -19,6 +19,7 @@ export async function startEmbeddedBot(ctx: AppContext): Promise<void> {
   const desk = youtubeDesk(dir);
   handle = await startBot({
     dir,
+    enabledPlatforms: settings.platforms.enabled,
     clientId: () => ctx.settings.load().twitchClientId,
     bridge: {
       loadTwitch: () => {

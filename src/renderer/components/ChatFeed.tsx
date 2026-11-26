@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { showsAuthorName } from "../../shared/chat-author";
+import { emptyFeedCopy, platformLabel, type PlatformSelection } from "../../shared/platform/selection";
 import type { DeskModerationAction, ModerationOffer } from "../../shared/moderation";
 import type { ChatMessage, EmoteSegment, Segment } from "../../shared/types";
 import { TwitchMark, YouTubeMark } from "./icons";
@@ -7,10 +8,12 @@ import { ModMenu } from "./ModMenu";
 
 export function ChatFeed({
   messages,
+  enabledIds,
   offerFor,
   onModerate,
 }: {
   messages: ChatMessage[];
+  enabledIds?: readonly string[];
   offerFor?: (message: ChatMessage) => ModerationOffer;
   onModerate?: (message: ChatMessage, command: { action: DeskModerationAction; seconds?: number }) => Promise<void>;
 }) {
@@ -19,7 +22,9 @@ export function ChatFeed({
   const stuck = useRef(true);
   const [pending, setPending] = useState(0);
   const [menu, setMenu] = useState<{ message: ChatMessage; x: number; y: number } | null>(null);
-  const lastId = messages[messages.length - 1]?.id ?? "";
+  const shown = enabledIds ? messages.filter((message) => enabledIds.includes(message.platform)) : messages;
+  const lastId = shown[shown.length - 1]?.id ?? "";
+  const selection = enabledIds ? ({ confirmed: true, enabled: [...enabledIds] } satisfies PlatformSelection) : undefined;
 
   useEffect(() => {
     const el = scroller.current;
@@ -86,13 +91,13 @@ export function ChatFeed({
   return (
     <div className="feed-wrap">
       <div className="feed" ref={scroller} onScroll={onScroll} data-testid="chat-feed">
-        {messages.length === 0 ? (
+        {shown.length === 0 ? (
           <div className="empty">
             <p>No messages yet.</p>
-            <p>Twitch chat joins on its own. YouTube chat attaches when the channel goes live.</p>
+            <p>{selection ? emptyFeedCopy(selection) : "Twitch chat joins on its own. YouTube chat attaches when the channel goes live."}</p>
           </div>
         ) : (
-          messages.map((message) => (
+          shown.map((message) => (
             <MessageRow
               key={message.id}
               message={message}
@@ -133,7 +138,7 @@ function MessageRow({
   canModerate: boolean;
 }) {
   const time = new Date(message.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const platformLabel = message.platform === "twitch" ? "Twitch" : "YouTube";
+  const label = platformLabel(message.platform);
   const named = showsAuthorName(message);
   return (
     <article
@@ -149,8 +154,8 @@ function MessageRow({
         onOpen(event);
       }}
     >
-      <span className={`platform ${message.platform}`} title={platformLabel} aria-label={platformLabel}>
-        {message.platform === "twitch" ? <TwitchMark /> : <YouTubeMark />}
+      <span className={`platform ${message.platform}`} title={label} aria-label={label}>
+        {message.platform === "twitch" ? <TwitchMark /> : message.platform === "youtube" ? <YouTubeMark /> : label.slice(0, 1)}
       </span>
       <div className="msg-main">
         {message.notice && <p className="notice">{message.notice}</p>}
