@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../shared/brand";
 import { parseKickClient, parseKickRelay, parseKickTokens, type KickClientFile, type KickRelayFile, type KickTokens } from "../../shared/kick/account";
-import { readJson, writePrivateJson } from "../../shared/private-file";
+import { readJson, tightenFile, writePrivateJson } from "../../shared/private-file";
 
 function files(dir: string): { client: string; tokens: string; relay: string } {
   return {
@@ -13,7 +13,11 @@ function files(dir: string): { client: string; tokens: string; relay: string } {
 }
 
 export function loadKickClient(dir: string): KickClientFile {
-  const fromFile = parseKickClient(readJson(files(dir).client));
+  const paths = files(dir);
+  tightenFile(paths.client);
+  tightenFile(paths.tokens);
+  tightenFile(paths.relay);
+  const fromFile = parseKickClient(readJson(paths.client));
   return {
     clientId: readBrandEnv("KICK_CLIENT_ID")?.trim() || fromFile.clientId,
     clientSecret: readBrandEnv("KICK_CLIENT_SECRET") ?? fromFile.clientSecret,
@@ -31,7 +35,9 @@ export function saveKickClient(dir: string, client: KickClientFile): void {
 }
 
 export function loadKickTokens(dir: string): KickTokens | null {
-  return parseKickTokens(readJson(files(dir).tokens));
+  const file = files(dir).tokens;
+  tightenFile(file);
+  return parseKickTokens(readJson(file));
 }
 
 export function saveKickTokens(dir: string, tokens: KickTokens): void {
@@ -47,7 +53,9 @@ export function clearKickTokens(dir: string): void {
 }
 
 export function loadKickRelay(dir: string): KickRelayFile {
-  const fromFile = parseKickRelay(readJson(files(dir).relay));
+  const file = files(dir).relay;
+  tightenFile(file);
+  const fromFile = parseKickRelay(readJson(file));
   return { secret: readBrandEnv("KICK_RELAY_SECRET") ?? fromFile.secret };
 }
 

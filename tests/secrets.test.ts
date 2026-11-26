@@ -8,6 +8,8 @@ import { youtubeStudioUrl } from "../src/shared/platform/youtube-studio";
 import { Logger } from "../src/main/logger";
 import { writePrivateJson } from "../src/shared/private-file";
 import { mergeSettings, SettingsStore } from "../src/main/settings";
+import { loadKickClient } from "../src/main/kick/files";
+import { BotStore } from "../packages/bot/src/store";
 import { TokenStore } from "../src/main/tokens";
 import { DEFAULT_SETTINGS } from "../src/main/settings";
 import { expectPrivateMode } from "./expect-mode";
@@ -65,6 +67,36 @@ describe("secret handling", () => {
     fs.chmodSync(file, 0o640);
     new TokenStore(dir);
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+  });
+
+  it("tightens Kick client, token, and relay files that were left group-readable", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-kick-mode-"));
+    const client = path.join(dir, "kick-client.json");
+    const tokens = path.join(dir, "kick-tokens.json");
+    const relay = path.join(dir, "kick-relay.json");
+    fs.writeFileSync(client, JSON.stringify({ clientId: "client12345", clientSecret: "super-secret-value" }));
+    fs.writeFileSync(tokens, JSON.stringify({ accessToken: "kick-access", refreshToken: "kick-refresh" }));
+    fs.writeFileSync(relay, JSON.stringify({ secret: "relay-secret-value" }));
+    if (process.platform !== "win32") {
+      fs.chmodSync(client, 0o644);
+      fs.chmodSync(tokens, 0o644);
+      fs.chmodSync(relay, 0o644);
+    }
+    loadKickClient(dir);
+    expectPrivateMode(client, 0o600);
+    expectPrivateMode(tokens, 0o600);
+    expectPrivateMode(relay, 0o600);
+
+    if (process.platform !== "win32") {
+      fs.chmodSync(client, 0o644);
+      fs.chmodSync(tokens, 0o644);
+      fs.chmodSync(relay, 0o644);
+    }
+    new BotStore(dir);
+    expectPrivateMode(client, 0o600);
+    expectPrivateMode(tokens, 0o600);
+    expectPrivateMode(relay, 0o600);
+    expect(fs.readFileSync(client, "utf8")).toContain("super-secret-value");
   });
 
   it("rejects a bad channel id without replacing a valid one", () => {

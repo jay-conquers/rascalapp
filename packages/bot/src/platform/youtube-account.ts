@@ -94,7 +94,7 @@ export class YoutubeAccountLogin {
   private async finish(client: YoutubeOAuthClient, request: YoutubeAuthRequest, controller: AbortController): Promise<void> {
     try {
       const callback = isLoopbackRedirect(request.redirectUri)
-        ? await waitForYoutubeCallback({ signal: controller.signal })
+        ? await waitForYoutubeCallback({ signal: controller.signal, expectedState: request.state })
         : await this.waitForPublic(request.state, controller.signal);
       if (controller.signal.aborted) return;
       if (callback.state !== request.state || !callback.code) throw new Error("That YouTube login did not match. Start again.");

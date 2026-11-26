@@ -118,12 +118,17 @@ export class KickConnection {
     const client = this.deps.client();
     const request = createKickAuthRequest(client);
     this.prompt = request;
-    this.deps.onLoginUrl?.(request.url);
     const controller = new AbortController();
     this.abort = controller;
-    this.deps.onChange?.();
     try {
-      const callback = await waitForKickCallback({ signal: controller.signal });
+      const callback = await waitForKickCallback({
+        signal: controller.signal,
+        expectedState: request.state,
+        onListening: () => {
+          this.deps.onLoginUrl?.(request.url);
+          this.deps.onChange?.();
+        },
+      });
       if (controller.signal.aborted) return;
       if (callback.state !== request.state || !callback.code) throw new Error("That Kick login did not match. Start again.");
       const exchanged = await exchangeKickCode(client, request, callback.code, this.fetchImpl());

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { KickApi } from "../src/shared/kick/api";
-import { KICK_TITLE_RELOGIN } from "../src/shared/kick/channel";
+import { buildKickChannelPatch, kickArtworkUrl, KICK_TITLE_RELOGIN, parseKickCategories } from "../src/shared/kick/channel";
 import { KickConnection } from "../src/shared/kick/connection";
 import type { KickTokens } from "../src/shared/kick/account";
 
@@ -78,6 +78,26 @@ describe("Kick channel update", () => {
     expect(calls).toEqual([]);
     await expect(missing.searchCategories("minecraft")).resolves.toEqual([{ id: "15", name: "Minecraft", boxArtUrl: "" }]);
     expect(calls.some((call) => call.includes("/public/v2/categories"))).toBe(true);
+  });
+
+  it("rejects a category id that JSON cannot round-trip and drops art from another host", () => {
+    expect(() => buildKickChannelPatch({ title: "Hello", categoryId: "9007199254740993" })).toThrow(/category/);
+    expect(JSON.stringify(buildKickChannelPatch({ title: "Hello", categoryId: "101" }))).toBe(
+      JSON.stringify({ stream_title: "Hello", category_id: 101 }),
+    );
+    expect(kickArtworkUrl("https://kick.com/img/categories/minecraft.jpeg")).toContain("kick.com");
+    expect(kickArtworkUrl("https://files.kick.com/images/cat.png")).toContain("files.kick.com");
+    expect(kickArtworkUrl("http://127.0.0.1:4777/secret")).toBe("");
+    expect(kickArtworkUrl("https://evil.example/cat.png")).toBe("");
+    expect(kickArtworkUrl("https://user:pass@kick.com/cat.png")).toBe("");
+    expect(
+      parseKickCategories({
+        data: [
+          { id: 101, name: "Minecraft", thumbnail: "https://evil.example/cat.png" },
+          { id: "9007199254740993", name: "Too big", thumbnail: "https://kick.com/ok.png" },
+        ],
+      }),
+    ).toEqual([{ id: "101", name: "Minecraft", boxArtUrl: "" }]);
   });
 });
 

@@ -22,9 +22,9 @@ The buttons along the top can be hidden from Settings, under Tabs. Chat always s
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.14.1.AppImage
+chmod +x Rascal-0.14.2.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.14.1.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.14.2.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -115,7 +115,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.14.1.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.14.2.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 

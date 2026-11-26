@@ -28,9 +28,32 @@ export function buildKickChannelPatch(input: { title: string; categoryId?: strin
   const body: KickChannelPatch = { stream_title: title };
   const category = input.categoryId?.trim() ?? "";
   if (!category) return body;
-  if (!/^\d+$/.test(category) || Number(category) < 1) throw new Error("Pick a category from the search results.");
-  body.category_id = Number(category);
+  const categoryId = kickInteger(category);
+  if (categoryId === null) throw new Error("Pick a category from the search results.");
+  body.category_id = categoryId;
   return body;
+}
+
+/** A Kick id that JSON can round-trip. A longer digit string would become a different number. */
+export function kickInteger(value: string): number | null {
+  if (!/^\d{1,16}$/.test(value)) return null;
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id < 1) return null;
+  return id;
+}
+
+/** Category art is drawn in the desk. Only Kick's own https hosts are kept. */
+export function kickArtworkUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return "";
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return "";
+  const host = url.hostname;
+  if (host !== "kick.com" && host !== "files.kick.com" && !host.endsWith(".kick.com")) return "";
+  return url.toString();
 }
 
 /**
@@ -52,8 +75,8 @@ export function parseKickCategories(payload: unknown): CategoryHit[] {
     const item = jsonObject(row);
     const id = scalarText(item?.id);
     const name = scalarText(item?.name);
-    if (!/^\d+$/.test(id) || Number(id) < 1 || !name) continue;
-    hits.push({ id, name, boxArtUrl: scalarText(item?.thumbnail) });
+    if (kickInteger(id) === null || !name) continue;
+    hits.push({ id, name, boxArtUrl: kickArtworkUrl(scalarText(item?.thumbnail)) });
     if (hits.length >= 8) break;
   }
   return hits;

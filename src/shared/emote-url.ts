@@ -1,4 +1,4 @@
-const ALLOWED_HOSTS = new Set([
+export const ALLOWED_HOSTS = new Set([
   "static-cdn.jtvnw.net",
   "cdn.betterttv.net",
   "cdn.frankerfacez.com",

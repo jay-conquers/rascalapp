@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
 import { parseKickClient, parseKickRelay, parseKickTokens, type KickClientFile, type KickRelayFile, type KickTokens } from "../../../src/shared/kick/account.ts";
-import { readJson, writePrivateJson } from "../../../src/shared/private-file.ts";
+import { readJson, tightenFile, writePrivateJson } from "../../../src/shared/private-file.ts";
 import { normalizeEnabledIds } from "../../../src/shared/platform/selection.ts";
 import { normalizeBotFile, type BotFile } from "./model.ts";
 import { asRecord } from "../../../src/shared/record.ts";
@@ -64,6 +64,9 @@ export class BotStore {
     this.kickTokenFile = path.join(dir, "kick-tokens.json");
     this.kickRelayFile = path.join(dir, "kick-relay.json");
     this.enabledPlatformsFile = path.join(dir, "enabled-platforms.json");
+    tightenFile(this.kickClientFile);
+    tightenFile(this.kickTokenFile);
+    tightenFile(this.kickRelayFile);
   }
 
   /**

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.2
+
+- The Kick relay closes a socket that sends a malformed frame, and it stops accepting new sockets after 32 are open. A bad webhook no longer makes the relay download Kick's public key again on every request. A webhook that is too large, or missing its signature headers, is closed instead of left hanging.
+- Kick and YouTube login ignore a browser request whose state does not match the one Rascal started. The listener accepts both 127.0.0.1 and ::1. The Kick browser opens after that listener is up.
+- Kick emote images show on the chat overlay. A Kick user id or category id that cannot be sent as a whole number is rejected, and category art is limited to Kick's own image hosts. Kick's client, token, and relay files are set to mode 0600 when they are read, including a file that was saved as group-readable.
+
 ## 0.14.1
 
 - Sending chat to Kick from the desk reaches Kick. Saving Settings stores the Kick relay address. Both values were dropped on the way from the window into the main process.

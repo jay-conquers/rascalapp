@@ -1,4 +1,4 @@
-import { buildKickChannelPatch, kickCategorySearchPath, KICK_TITLE_RELOGIN, parseKickCategories } from "./channel.ts";
+import { buildKickChannelPatch, kickCategorySearchPath, kickInteger, KICK_TITLE_RELOGIN, parseKickCategories } from "./channel.ts";
 import { jsonObject, scalarText } from "../record.ts";
 import type { KickTokenResult } from "./oauth.ts";
 import type { CategoryHit } from "../types.ts";
@@ -165,8 +165,9 @@ export function scopesFromToken(result: Pick<KickTokenResult, "scope">): string[
 }
 
 function asId(value: string): number {
-  if (!/^\d{1,20}$/.test(value)) throw new Error("Kick needs a numeric user id.");
-  return Number(value);
+  const id = kickInteger(value);
+  if (id === null) throw new Error("Kick needs a numeric user id.");
+  return id;
 }
 
 function kickFailure(json: unknown, status: number): string {
