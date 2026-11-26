@@ -1,23 +1,19 @@
-import { TWITCH_EVENTSUB_URL, isTwitchEventSubUrl } from "../../shared/eventsub-url";
+import { TWITCH_EVENTSUB_URL } from "../../shared/eventsub-url";
+import { parseEventSubEnvelope } from "../../shared/eventsub";
 import { applyWordEmotes, type WordEmote } from "../../shared/word-emotes";
 import { filterWordEmotes, type EmoteFlags, type FeedToggles } from "../../shared/feed-toggles";
 import { chatFromFollow, chatFromNotification, modActionFromModerate } from "../../shared/parsers/eventsub-events";
 import { MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { redactError } from "../../shared/redact";
 import type { ChatMessage, ModAction } from "../../shared/types";
-import { asRecord } from "../../shared/record";
+import { EventSubSocket } from "./eventsub-socket";
 
 /**
  * One EventSub socket for the private mod log, chat notices, and follows.
  * Channel point redeems stay on the redeem engine's own socket.
  */
 export class NoticeSocket {
-  private socket: WebSocket | null = null;
-  private stopped = true;
-  private keepalive: ReturnType<typeof setTimeout> | null = null;
-  private retry: ReturnType<typeof setTimeout> | null = null;
-  private attempt = 0;
-  private keepaliveSeconds = 10;
+  private readonly socket: EventSubSocket;
   private channelKey = "";
 
   constructor(
@@ -33,86 +29,60 @@ export class NoticeSocket {
       onScopeProblem: (text: string) => void;
       log: { info: (message: string, extra?: Record<string, unknown>) => void; error: (message: string, extra?: Record<string, unknown>) => void };
     },
-  ) {}
+  ) {
+    this.socket = new EventSubSocket({
+      onMessage: (raw) => this.onMessage(raw),
+      log: deps.log,
+      socketError: "notice eventsub socket error",
+      keepaliveMissed: "notice eventsub keepalive missed",
+    });
+  }
 
   start(): void {
-    if (!this.stopped) return;
+    if (!this.socket.isStopped()) return;
     const auth = this.deps.auth();
     if (!auth.userId) return;
-    this.stopped = false;
-    this.attempt = 0;
     this.channelKey = this.deps.channel();
-    this.open(TWITCH_EVENTSUB_URL);
+    this.socket.start();
   }
 
   stop(): void {
-    this.stopped = true;
-    this.clearTimers();
-    this.socket?.close();
-    this.socket = null;
+    this.socket.stop();
   }
 
   /** Reconnect when the chat channel changes so conditions follow that channel. */
   retarget(): void {
     const next = this.deps.channel();
-    if (next === this.channelKey && !this.stopped) return;
+    if (next === this.channelKey && !this.socket.isStopped()) return;
     this.channelKey = next;
-    if (this.stopped) return;
-    this.open(TWITCH_EVENTSUB_URL);
+    if (this.socket.isStopped()) return;
+    this.socket.open(TWITCH_EVENTSUB_URL);
   }
 
-  private open(url: string): void {
-    if (this.stopped) return;
-    if (!isTwitchEventSubUrl(url)) {
-      this.deps.log.error("ignored eventsub reconnect url");
+  private async onMessage(raw: string): Promise<void> {
+    const frame = parseEventSubEnvelope(raw);
+    if (frame.type === "welcome") {
+      this.socket.setKeepaliveSeconds(frame.keepaliveSeconds);
+      this.socket.arm();
+      if (frame.sessionId) await this.subscribeAll(frame.sessionId);
       return;
     }
-    this.clearTimers();
-    this.socket?.close();
-    const socket = new WebSocket(url);
-    this.socket = socket;
-    socket.addEventListener("message", (event) => {
-      void this.onMessage(String(event.data), socket);
-    });
-    socket.addEventListener("close", () => {
-      if (this.socket !== socket || this.stopped) return;
-      this.scheduleRetry();
-    });
-    socket.addEventListener("error", () => {
-      this.deps.log.error("notice eventsub socket error");
-    });
-  }
-
-  private async onMessage(raw: string, socket: WebSocket): Promise<void> {
-    if (this.socket !== socket || this.stopped) return;
-    const body = parseJson(raw);
-    const metadata = asRecord(asRecord(body)?.metadata);
-    const messageType = asString(metadata?.message_type);
-    if (messageType === "session_welcome") {
-      const session = asRecord(asRecord(body)?.payload)?.session;
-      const sessionId = asString(asRecord(session)?.id);
-      const keepalive = Number(asRecord(session)?.keepalive_timeout_seconds);
-      this.keepaliveSeconds = Number.isFinite(keepalive) && keepalive > 0 ? keepalive : 10;
-      this.arm();
-      if (sessionId) await this.subscribeAll(sessionId);
+    if (frame.type === "keepalive") {
+      this.socket.arm();
       return;
     }
-    if (messageType === "session_keepalive") {
-      this.arm();
+    if (frame.type === "reconnect") {
+      this.socket.open(frame.url);
       return;
     }
-    if (messageType === "session_reconnect") {
-      const url = asString(asRecord(asRecord(asRecord(body)?.payload)?.session)?.reconnect_url);
-      if (url) this.open(url);
-      return;
-    }
-    if (messageType === "revocation") {
+    if (frame.type === "revocation") {
       this.deps.onScopeProblem("Twitch revoked a chat or moderation subscription. Log in again to grant it.");
       return;
     }
-    if (messageType !== "notification") return;
-    this.arm();
-    const type = asString(metadata?.subscription_type);
+    if (frame.type !== "notification") return;
+    this.socket.arm();
+    const type = frame.subscriptionType;
+    const body = frame.body;
     const channel = this.deps.channel();
     if (type === "channel.moderate") {
       const action = modActionFromModerate(body);
@@ -204,38 +174,4 @@ export class NoticeSocket {
     }
   }
 
-  private arm(): void {
-    if (this.keepalive) clearTimeout(this.keepalive);
-    this.keepalive = setTimeout(() => {
-      this.deps.log.error("notice eventsub keepalive missed");
-      this.open(TWITCH_EVENTSUB_URL);
-    }, (this.keepaliveSeconds + 5) * 1000);
-  }
-
-  private scheduleRetry(): void {
-    this.attempt += 1;
-    const wait = Math.min(30_000, 1000 * 2 ** Math.min(this.attempt, 5));
-    if (this.retry) clearTimeout(this.retry);
-    this.retry = setTimeout(() => this.open(TWITCH_EVENTSUB_URL), wait);
-  }
-
-  private clearTimers(): void {
-    if (this.keepalive) clearTimeout(this.keepalive);
-    if (this.retry) clearTimeout(this.retry);
-    this.keepalive = null;
-    this.retry = null;
-  }
-}
-
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-
-function asString(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
 }

@@ -1,4 +1,5 @@
 import { brand } from "../../../src/shared/brand.ts";
+import { parseEventSubEnvelope } from "../../../src/shared/eventsub.ts";
 import { BOT_SCOPES, type ChatLine, type UserLevel } from "./model.ts";
 import { asRecord } from "../../../src/shared/record.ts";
 
@@ -11,27 +12,12 @@ export interface DevicePrompt {
 }
 
 export function parseChatFrame(raw: string): { kind: "welcome"; sessionId: string } | { kind: "keepalive" } | { kind: "reconnect"; url: string } | { kind: "chat"; line: ChatLine; broadcasterId: string } | { kind: "ignore" } {
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    return { kind: "ignore" };
-  }
-  const root = asRecord(body);
-  const metadata = asRecord(root?.metadata);
-  const payload = asRecord(root?.payload);
-  const messageType = text(metadata?.message_type);
-  if (messageType === "session_welcome") {
-    const sessionId = text(asRecord(payload?.session)?.id);
-    return sessionId ? { kind: "welcome", sessionId } : { kind: "ignore" };
-  }
-  if (messageType === "session_keepalive") return { kind: "keepalive" };
-  if (messageType === "session_reconnect") {
-    const url = text(asRecord(payload?.session)?.reconnect_url);
-    return url ? { kind: "reconnect", url } : { kind: "ignore" };
-  }
-  if (messageType === "notification" && text(metadata?.subscription_type) === "channel.chat.message") {
-    const event = asRecord(payload?.event);
+  const frame = parseEventSubEnvelope(raw);
+  if (frame.type === "welcome") return frame.sessionId ? { kind: "welcome", sessionId: frame.sessionId } : { kind: "ignore" };
+  if (frame.type === "keepalive") return { kind: "keepalive" };
+  if (frame.type === "reconnect") return { kind: "reconnect", url: frame.url };
+  if (frame.type === "notification" && frame.subscriptionType === "channel.chat.message") {
+    const event = asRecord(asRecord(asRecord(frame.body)?.payload)?.event);
     const message = asRecord(event?.message);
     const login = text(event?.chatter_user_login);
     const userId = text(event?.chatter_user_id);
