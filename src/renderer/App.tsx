@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatOverlayFile } from "../shared/chat-overlay";
 import { defaultChatOverlayFile } from "../shared/chat-overlay";
 import type { RedeemSnapshot } from "../shared/redeems";
+import type { KickDeskState } from "../shared/kick/desk-state";
+import type { YoutubeDeskState } from "../shared/youtube/desk-state";
 import type { AppEvent, AuthState, ChatMessage, ConnectionStatus, LoginPrompt, ModAction, Settings, StreamInfo } from "../shared/types";
 import { ChatFeed } from "./components/ChatFeed";
 import { ModLogPanel } from "./components/ModLogPanel";
@@ -23,6 +25,7 @@ import { defaultChatAlert } from "../shared/chat-alert";
 import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
 import { StatusPill } from "./components/StatusPill";
+import { YoutubeStudioButton } from "./components/YoutubeStudioButton";
 import { DeskTabs } from "./components/DeskTabs";
 import { FirstRunPlatforms } from "./components/PlatformPicker";
 
@@ -47,6 +50,11 @@ export function App() {
   const alertRef = useRef(defaultChatAlert());
   alertRef.current = settings?.chatAlert ?? alertRef.current;
   const [banner, setBanner] = useState(true);
+  const [youtubeDesk, setYoutubeDesk] = useState<YoutubeDeskState | null>(null);
+  const [kickDesk, setKickDesk] = useState<KickDeskState | null>(null);
+  const [kickPreview, setKickPreview] = useState<{ title: string; categoryId: string; categoryName: string; live: boolean } | null>(null);
+  const platformKey = settings?.platforms.enabled.join(",") ?? "";
+  const youtubeAccountId = status?.youtube.accountChannelId ?? "";
 
   useEffect(() => {
     if (!window.rascal) {
@@ -142,10 +150,33 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [view, login]);
 
-  const searchCategories = useCallback((query: string) => {
+  const searchCategories = useCallback((query: string, platform?: "twitch" | "kick") => {
     if (!window.rascal) return Promise.reject(new Error(`${brand.displayName} is still starting.`));
-    return window.rascal.searchCategories(query);
+    return window.rascal.searchCategories(query, platform);
   }, []);
+
+  useEffect(() => {
+    if (!ready || view !== "stream" || !window.rascal) return;
+    const kickOnNow = platformKey.split(",").includes("kick");
+    let cancel = false;
+    const bridge = window.rascal;
+    void bridge.youtubeDeskState().then((desk) => {
+      if (!cancel) setYoutubeDesk(desk);
+    }).catch(() => undefined);
+    void bridge.kickDeskState().then((desk) => {
+      if (!cancel) setKickDesk(desk);
+    }).catch(() => undefined);
+    if (kickOnNow) {
+      void bridge.kickStream().then((row) => {
+        if (!cancel) setKickPreview(row);
+      }).catch(() => undefined);
+    } else {
+      setKickPreview(null);
+    }
+    return () => {
+      cancel = true;
+    };
+  }, [ready, view, platformKey, youtubeAccountId]);
 
   async function saveTabs(next: TabSettings): Promise<void> {
     if (!settings) return;
@@ -265,7 +296,17 @@ export function App() {
         </div>
         <div className="pills">
           {twitchOn ? <StatusPill label="Twitch" state={status.twitch.state} detail={status.twitch.detail} viewers={status.twitch.viewers} /> : null}
-          {youtubeOn ? <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} /> : null}
+          {youtubeOn ? (
+            <div className="youtube-status">
+              <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} />
+              <YoutubeStudioButton
+                enabled
+                broadcastId={status.youtube.videoId}
+                channelId={status.youtube.accountChannelId || settings.youtubeChannelId}
+                onOpen={(url) => void window.rascal?.openExternal(url)}
+              />
+            </div>
+          ) : null}
           {kickOn ? <StatusPill label="Kick" state={status.kick.state} detail={status.kick.detail} viewers={status.kick.viewers} /> : null}
         </div>
         <div className="top-actions">
@@ -330,13 +371,42 @@ export function App() {
           stream={stream}
           chatChannel={shownChannel}
           enabledIds={enabledIds}
+          youtube={{
+            loggedIn: youtubeDesk?.connected === true,
+            scopes: youtubeDesk?.scopes ?? [],
+            title: status.youtube.title ?? "",
+            videoId: status.youtube.videoId,
+            channelId: status.youtube.accountChannelId || youtubeDesk?.channelId || settings.youtubeChannelId,
+          }}
+          kick={{
+            loggedIn: kickDesk?.loggedIn === true,
+            scopes: kickDesk?.scopes ?? [],
+            title: kickPreview?.title ?? "",
+            categoryId: kickPreview?.categoryId ?? "",
+            categoryName: kickPreview?.categoryName ?? "",
+          }}
           onSearch={searchCategories}
-          onSave={async (update) => {
-            const next = await window.rascal!.updateStream(update);
-            setStream(next);
+          onSave={async (request) => {
+            const result = await window.rascal!.updateStreams(request);
+            if (result.stream) setStream(result.stream);
+            if (result.results.some((row) => row.platform === "kick" && row.ok)) {
+              setKickPreview(await window.rascal!.kickStream());
+            }
+            return result;
           }}
           onLogin={() => void loginFlow()}
           onOpenSettings={() => setView("settings")}
+          onOpenExternal={(url) => void window.rascal?.openExternal(url)}
+          onYoutubeLogin={async () => {
+            const desk = await window.rascal!.youtubeConnect();
+            setYoutubeDesk(desk);
+            if (desk.login?.verificationUri) await window.rascal!.openExternal(desk.login.verificationUri);
+          }}
+          onKickLogin={async () => {
+            const desk = await window.rascal!.kickConnect();
+            setKickDesk(desk);
+            setKickPreview(await window.rascal!.kickStream());
+          }}
         />
       ) : shownView === "redeems" && redeems ? (
         <RedeemsView state={redeems} onLogin={() => void loginFlow()} />

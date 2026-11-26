@@ -1,12 +1,18 @@
+import type { Platform } from "./types";
+
 /**
- * Stream Info is one section per platform. Twitch is implemented.
- * Add a platform here, then render its section from this id in StreamInfoView.
+ * Stream info is one section per platform. A section is shown only when that
+ * platform is enabled in the picker.
  */
 export interface StreamPlatformSection {
-  id: string;
+  id: Platform;
   title: string;
+  /** YouTube's live API has no game field. The game title is set in Studio. */
+  game: boolean;
 }
 
 export const streamInfoPlatforms: readonly StreamPlatformSection[] = [
-  { id: "twitch", title: "Twitch" },
+  { id: "twitch", title: "Twitch", game: true },
+  { id: "youtube", title: "YouTube", game: false },
+  { id: "kick", title: "Kick", game: true },
 ];

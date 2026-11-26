@@ -13,6 +13,7 @@ import {
   type ModerationContext,
 } from "../shared/moderation";
 import { redactError } from "../shared/redact";
+import { applyStreamEdits, commitKickChannel, commitYoutubeTitle, planStreamEdits, type PlatformStreamDraft, type StreamEditRequest, type StreamEditResult } from "../shared/stream-edit";
 import type { CategoryHit, ChatMessage, ModAction, StreamInfo, StreamUpdate } from "../shared/types";
 import { getBot } from "./stages/bot";
 import { getChatOverlay } from "./stages/chat";
@@ -65,10 +66,47 @@ export class RuntimeChat extends RuntimeCore {
   }
 
 
-  searchCategories(query: string): Promise<CategoryHit[]> {
+  searchCategories(query: string, platform: "twitch" | "kick" = "twitch"): Promise<CategoryHit[]> {
+    if (platform === "kick") {
+      if (!this.kickOn()) throw new Error("Turn Kick on in Settings to edit stream info.");
+      return this.kick.searchCategories(query);
+    }
     if (!this.twitchOn()) throw new Error("Turn Twitch on in Settings to edit stream info.");
     this.requireUser();
     return this.helix.searchCategories(query);
+  }
+
+
+  async updateStreams(request: StreamEditRequest): Promise<StreamEditResult> {
+    const drafts = planStreamEdits({ enabled: this.settings.load().platforms.enabled, request });
+    if (drafts.length === 0) throw new Error("Turn a platform on in Settings to edit stream info.");
+    const results = await applyStreamEdits(drafts, {
+      twitch: (draft) => this.saveTwitchStream(draft),
+      youtube: (draft) => this.saveYoutubeStream(draft),
+      kick: (draft) => this.saveKickStream(draft),
+    });
+    if (results.length > 0 && results.every((row) => row.ok)) {
+      this.emit({ type: "toast", tone: "ok", text: "Stream info saved." });
+    }
+    return { results, stream: this.stream };
+  }
+
+
+  /**
+   * One read of the signed-in Kick channel for the stream form.
+   * This does not poll, and it does not open the relay.
+   */
+  async kickStream(): Promise<{ title: string; categoryId: string; categoryName: string; live: boolean } | null> {
+    if (!this.kickOn()) return null;
+    const snap = this.kick.snapshot();
+    if (!snap.userId && this.kick.scopes().length === 0) return null;
+    try {
+      const who = await this.kick.readChannel();
+      return { title: who.title, categoryId: who.categoryId, categoryName: who.category, live: who.live };
+    } catch (err) {
+      this.log.error("kick stream info failed", { message: redactError(err) });
+      return null;
+    }
   }
 
 
@@ -80,6 +118,44 @@ export class RuntimeChat extends RuntimeCore {
     if (!this.stream) throw new Error("Saved, but Twitch did not return the channel.");
     this.emit({ type: "toast", tone: "ok", text: "Stream info saved." });
     return this.stream;
+  }
+
+
+  private async saveTwitchStream(draft: PlatformStreamDraft): Promise<void> {
+    if (!this.twitchOn()) throw new Error("Turn Twitch on in Settings to edit stream info.");
+    const auth = this.auth.state();
+    if (!auth.loggedIn) throw new Error("Log in with Twitch to change the title and category.");
+    if (auth.missingScopes.includes("channel:manage:broadcast")) {
+      throw new Error("Re-login needed. This Twitch login is missing channel:manage:broadcast. Log in again to edit the title and category.");
+    }
+    const user = this.requireUser();
+    await this.helix.updateStream(user.userId, { title: draft.title, gameId: draft.gameId ?? "", tags: draft.tags ?? [] });
+    await this.refreshStream(false);
+  }
+
+
+  private async saveYoutubeStream(draft: PlatformStreamDraft): Promise<void> {
+    if (!this.youtubeOn()) throw new Error("Turn YouTube on in Settings to edit stream info.");
+    await commitYoutubeTitle({
+      loggedIn: Boolean(this.youtubeSend.current()),
+      scopes: this.youtubeSend.scopes(),
+      title: draft.title,
+      preferredVideoId: this.status.youtube.videoId,
+      save: (title, videoId) => this.youtubeSend.updateLiveTitle(title, videoId),
+    });
+  }
+
+
+  private async saveKickStream(draft: PlatformStreamDraft): Promise<void> {
+    if (!this.kickOn()) throw new Error("Turn Kick on in Settings to edit stream info.");
+    const snap = this.kick.snapshot();
+    await commitKickChannel({
+      loggedIn: Boolean(snap.userId) || this.kick.scopes().length > 0,
+      scopes: this.kick.scopes(),
+      title: draft.title,
+      categoryId: draft.gameId,
+      save: (title, categoryId) => this.kick.updateStream(title, categoryId),
+    });
   }
 
 

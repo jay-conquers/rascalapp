@@ -10,6 +10,7 @@ import { Composer } from "../src/renderer/components/Composer";
 import { FirstRunPlatforms, PlatformPicker } from "../src/renderer/components/PlatformPicker";
 import { ModLogPanel } from "../src/renderer/components/ModLogPanel";
 import { StreamInfoView } from "../src/renderer/components/StreamInfoView";
+import { YoutubeStudioButton } from "../src/renderer/components/YoutubeStudioButton";
 import {
   PLATFORM_CATALOG,
   confirmPlatformSelection,
@@ -336,14 +337,87 @@ describe("platform picker and filtered surfaces", () => {
         stream: null,
         chatChannel: "",
         enabledIds: ["youtube"],
-        onSave: async () => undefined,
+        onSave: async () => ({ results: [], stream: null }),
         onSearch: async () => [],
         onLogin: () => undefined,
         onOpenSettings: () => undefined,
       }),
     );
     expect(stream).not.toContain('data-platform="twitch"');
-    expect(stream).toContain("Turn a platform on in Settings");
+    expect(stream).not.toContain('data-platform="kick"');
+    expect(stream).toContain('data-platform="youtube"');
+    expect(stream).toContain('data-testid="youtube-studio"');
+    expect(stream).toContain("no game field");
+    expect(stream).not.toContain("Turn a platform on in Settings");
+  });
+
+  it("edits every enabled platform and keeps Studio behind the YouTube switch", () => {
+    const auth: AuthState = {
+      loggedIn: true,
+      login: "example",
+      userId: "1",
+      scopes: ["channel:manage:broadcast"],
+      missingScopes: [],
+      clientIdSet: true,
+    };
+    const saved = async () => ({ results: [], stream: null });
+    const both = renderToStaticMarkup(
+      createElement(StreamInfoView, {
+        auth,
+        stream: { title: "Hello", gameId: "1", gameName: "Just Chatting", tags: [], language: "en", live: true, viewerCount: 3, startedAt: null },
+        chatChannel: "example",
+        enabledIds: ["twitch", "youtube"],
+        youtube: {
+          loggedIn: true,
+          scopes: ["https://www.googleapis.com/auth/youtube.readonly"],
+          title: "Live",
+          videoId: "abcdefghijk",
+          channelId: YOUTUBE_CHANNEL,
+        },
+        onSave: saved,
+        onSearch: async () => [],
+        onLogin: () => undefined,
+        onOpenSettings: () => undefined,
+      }),
+    );
+    expect(both).toContain('data-platform="twitch"');
+    expect(both).toContain('data-platform="youtube"');
+    expect(both).not.toContain('data-platform="kick"');
+    expect(both).toContain("Apply this title to all enabled platforms");
+    expect(both).toContain("Re-login needed");
+    expect(both).toContain("https://studio.youtube.com/video/abcdefghijk/livestreaming");
+    expect(both).not.toContain('data-testid="kick-category"');
+
+    const twitchOnly = renderToStaticMarkup(
+      createElement(StreamInfoView, {
+        auth,
+        stream: null,
+        chatChannel: "example",
+        enabledIds: ["twitch"],
+        onSave: saved,
+        onSearch: async () => [],
+        onLogin: () => undefined,
+        onOpenSettings: () => undefined,
+      }),
+    );
+    expect(twitchOnly).toContain('data-platform="twitch"');
+    expect(twitchOnly).not.toContain("youtube-studio");
+    expect(twitchOnly).not.toContain("Apply this title to all enabled platforms");
+
+    const none = renderToStaticMarkup(
+      createElement(StreamInfoView, {
+        auth,
+        stream: null,
+        chatChannel: "",
+        enabledIds: [],
+        onSave: saved,
+        onSearch: async () => [],
+        onLogin: () => undefined,
+        onOpenSettings: () => undefined,
+      }),
+    );
+    expect(none).toContain("Turn a platform on in Settings");
+    expect(renderToStaticMarkup(createElement(YoutubeStudioButton, { enabled: false, onOpen: () => undefined }))).toBe("");
   });
 });
 

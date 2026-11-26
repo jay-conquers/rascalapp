@@ -12,6 +12,7 @@ import type { TabSettings } from "./desk-tabs";
 import type { PlatformSelection } from "./platform/selection";
 import type { MentionRoster } from "./mentions";
 import type { ModerationCommand } from "./moderation";
+import type { StreamEditRequest, StreamEditResult } from "./stream-edit";
 import type {
   AppEvent,
   AppSnapshot,
@@ -43,8 +44,10 @@ export interface RascalApi {
   sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean; kick?: boolean }): Promise<void>;
   moderate(command: ModerationCommand): Promise<void>;
   mentions(query: string): Promise<MentionRoster>;
-  searchCategories(query: string): Promise<CategoryHit[]>;
+  searchCategories(query: string, platform?: "twitch" | "kick"): Promise<CategoryHit[]>;
   updateStream(update: StreamUpdate): Promise<StreamInfo>;
+  updateStreams(request: StreamEditRequest): Promise<StreamEditResult>;
+  kickStream(): Promise<{ title: string; categoryId: string; categoryName: string; live: boolean } | null>;
   updateSettings(patch: SettingsPatch): Promise<Settings>;
   startLogin(): Promise<AuthState>;
   cancelLogin(): Promise<void>;

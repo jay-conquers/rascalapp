@@ -1,6 +1,7 @@
 import { readBrandEnv } from "../../shared/brand";
 import { youtubeSendStatus, type YoutubeSendStatus } from "../../shared/platform/youtube-send";
 import { YoutubeDataApi, isChatClosedError } from "../../shared/platform/youtube-api";
+import { youtubeTitleBlock } from "../../shared/platform/youtube-broadcast";
 import {
   createYoutubeAuthRequest,
   exchangeYoutubeCode,
@@ -90,16 +91,28 @@ export class YoutubeDesk {
     });
   }
 
+  scopes(): string[] {
+    return this.sender()?.scopes ?? [];
+  }
+
   state(): YoutubeDeskState {
     const sender = this.sender();
     return {
       connected: sender !== null,
       account: sender ? sender.title || sender.channelId : null,
       channelId: sender?.channelId || null,
+      scopes: sender?.scopes ?? [],
       status: this.note || (sender ? `Signed in as ${sender.title || sender.channelId}.` : "YouTube send is not connected."),
       login: this.prompt ? { verificationUri: this.prompt.url, expiresAt: this.prompt.expiresAt } : null,
       purpose: this.purpose,
     };
+  }
+
+  /** Fetch the active or upcoming broadcast, then change its title. Not polled. */
+  async updateLiveTitle(title: string, preferredVideoId?: string): Promise<void> {
+    const block = youtubeTitleBlock({ loggedIn: Boolean(this.sender()), scopes: this.scopes() });
+    if (block) throw new Error(block);
+    await this.api().updateLiveTitle(title, preferredVideoId);
   }
 
   /** Google login for the account the chat box sends as. */
