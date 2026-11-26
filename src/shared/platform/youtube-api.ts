@@ -221,7 +221,7 @@ export class YoutubeDataApi {
 
   private async listBroadcastResources(query: Record<string, string>): Promise<unknown[]> {
     const json = await this.request("GET", "/liveBroadcasts", YOUTUBE_QUOTA_COSTS.liveBroadcastsList, {
-      part: "snippet,status",
+      part: "snippet,status,contentDetails",
       maxResults: "10",
       ...query,
     });

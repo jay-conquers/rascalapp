@@ -4,10 +4,10 @@ import { asRecord } from "../record";
 /**
  * Live broadcast title updates.
  *
- * Google's liveBroadcasts.update deletes any snippet property that already has
- * a value when the request omits it. The write therefore sends the snippet
- * fetched immediately before, with only `title` changed. `part` is `snippet`
- * so contentDetails (monitor stream, DVR, captions) are not rewritten.
+ * Google's liveBroadcasts.update deletes any property that already has a value
+ * when the request omits it. The write therefore sends the snippet fetched
+ * immediately before, with only `title` changed, and copies contentDetails
+ * through so the required monitor-stream fields stay as they were.
  *
  * There is no game field on liveBroadcasts. `snippet.categoryId` is YouTube's
  * video category (for example Gaming), not the game title set in Studio, and
@@ -22,6 +22,30 @@ export const YOUTUBE_TITLE_RELOGIN =
 const YOUTUBE_BROADCAST_SCOPE = "https://www.googleapis.com/auth/youtube";
 const YOUTUBE_FORCE_SSL_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl";
 
+const CONTENT_FLAGS = [
+  "enableAutoStart",
+  "enableAutoStop",
+  "enableClosedCaptions",
+  "enableDvr",
+  "enableEmbed",
+  "recordFromStart",
+  "enableContentEncryption",
+  "startWithSlate",
+] as const;
+
+export interface YoutubeBroadcastContentDetails {
+  monitorStream: { enableMonitorStream: boolean; broadcastStreamDelayMs: number };
+  enableAutoStart?: boolean;
+  enableAutoStop?: boolean;
+  enableClosedCaptions?: boolean;
+  enableDvr?: boolean;
+  enableEmbed?: boolean;
+  recordFromStart?: boolean;
+  enableContentEncryption?: boolean;
+  startWithSlate?: boolean;
+  availabilityConfig?: Record<string, unknown>;
+}
+
 export interface YoutubeEditableBroadcast {
   id: string;
   life: string;
@@ -33,10 +57,12 @@ export interface YoutubeEditableBroadcast {
     scheduledEndTime?: string;
     categoryId?: string;
   };
+  /** Null when the fetch did not include contentDetails. */
+  contentDetails: YoutubeBroadcastContentDetails | null;
 }
 
 export interface YoutubeBroadcastTitleUpdate {
-  part: "snippet";
+  part: "snippet" | "snippet,contentDetails";
   body: {
     id: string;
     snippet: {
@@ -46,6 +72,7 @@ export interface YoutubeBroadcastTitleUpdate {
       scheduledEndTime?: string;
       categoryId?: string;
     };
+    contentDetails?: YoutubeBroadcastContentDetails;
   };
 }
 
@@ -93,6 +120,7 @@ export function parseYoutubeEditableBroadcast(item: unknown): YoutubeEditableBro
       ...(scheduledEndTime ? { scheduledEndTime } : {}),
       ...(categoryId ? { categoryId } : {}),
     },
+    contentDetails: parseContentDetails(asRecord(row?.contentDetails)),
   };
 }
 
@@ -126,7 +154,31 @@ export function buildYoutubeBroadcastTitleUpdate(
   };
   if (broadcast.snippet.scheduledEndTime) snippet.scheduledEndTime = broadcast.snippet.scheduledEndTime;
   if (broadcast.snippet.categoryId) snippet.categoryId = broadcast.snippet.categoryId;
-  return { part: "snippet", body: { id: broadcast.id, snippet } };
+  if (!broadcast.contentDetails) return { part: "snippet", body: { id: broadcast.id, snippet } };
+  return {
+    part: "snippet,contentDetails",
+    body: { id: broadcast.id, snippet, contentDetails: broadcast.contentDetails },
+  };
+}
+
+function parseContentDetails(row: Record<string, unknown> | null): YoutubeBroadcastContentDetails | null {
+  if (!row) return null;
+  const monitor = asRecord(row.monitorStream);
+  if (!monitor || typeof monitor.enableMonitorStream !== "boolean" || typeof monitor.broadcastStreamDelayMs !== "number") {
+    return null;
+  }
+  const details: YoutubeBroadcastContentDetails = {
+    monitorStream: {
+      enableMonitorStream: monitor.enableMonitorStream,
+      broadcastStreamDelayMs: monitor.broadcastStreamDelayMs,
+    },
+  };
+  for (const key of CONTENT_FLAGS) {
+    if (typeof row[key] === "boolean") details[key] = row[key];
+  }
+  const availability = asRecord(row.availabilityConfig);
+  if (availability) details.availabilityConfig = availability;
+  return details;
 }
 
 /**

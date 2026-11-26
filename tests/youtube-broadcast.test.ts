@@ -32,19 +32,19 @@ describe("YouTube broadcast title", () => {
     const picked = pickEditableBroadcast([FETCHED, { id: "donevideoid", snippet: { title: "Old", scheduledStartTime: "2020-01-01T00:00:00Z", description: "x" }, status: { lifeCycleStatus: "complete" } }]);
     expect(picked?.id).toBe("abcdefghijk");
     const update = buildYoutubeBroadcastTitleUpdate(picked!, "  New title  ");
-    expect(update.part).toBe("snippet");
-    expect(update.body).toEqual({
-      id: "abcdefghijk",
-      snippet: {
-        title: "New title",
-        description: "Keep this description.",
-        scheduledStartTime: "2026-11-26T03:00:00Z",
-        scheduledEndTime: "2026-11-26T06:00:00Z",
-        categoryId: "20",
-      },
+    expect(update.part).toBe("snippet,contentDetails");
+    expect(update.body.snippet).toEqual({
+      title: "New title",
+      description: "Keep this description.",
+      scheduledStartTime: "2026-11-26T03:00:00Z",
+      scheduledEndTime: "2026-11-26T06:00:00Z",
+      categoryId: "20",
+    });
+    expect(update.body.contentDetails).toEqual({
+      monitorStream: { enableMonitorStream: true, broadcastStreamDelayMs: 0 },
+      enableDvr: true,
     });
     expect(JSON.stringify(update.body)).not.toMatch(/game/i);
-    expect(JSON.stringify(update.body)).not.toContain("contentDetails");
     expect(JSON.stringify(update.body)).not.toContain("liveChatId");
     expect(YOUTUBE_QUOTA_COSTS.liveBroadcastsUpdate).toBe(50);
   });
@@ -68,14 +68,15 @@ describe("YouTube broadcast title", () => {
     await api.updateLiveTitle("New title", "abcdefghijk");
     expect(calls.map((call) => call.method)).toEqual(["GET", "PUT"]);
     expect(calls[0]?.url).toContain("id=abcdefghijk");
-    expect(calls[0]?.url).toContain("part=snippet%2Cstatus");
+    expect(calls[0]?.url).toContain("part=snippet%2Cstatus%2CcontentDetails");
     expect(calls[0]?.url).not.toContain("broadcastStatus");
     const sent = JSON.parse(calls[1]?.body ?? "{}") as { snippet: { title: string; description: string; scheduledStartTime: string } };
     expect(sent.snippet.title).toBe("New title");
     expect(sent.snippet.description).toBe("Keep this description.");
     expect(sent.snippet.scheduledStartTime).toBe("2026-11-26T03:00:00Z");
-    expect(calls[1]?.url).toContain("part=snippet");
-    expect(calls[1]?.url).not.toContain("contentDetails");
+    expect(calls[1]?.url).toContain("part=snippet%2CcontentDetails");
+    const sentDetails = JSON.parse(calls[1]?.body ?? "{}") as { contentDetails: { enableDvr: boolean } };
+    expect(sentDetails.contentDetails.enableDvr).toBe(true);
     expect(meter.usedUnits).toBe(YOUTUBE_QUOTA_COSTS.liveBroadcastsList + YOUTUBE_QUOTA_COSTS.liveBroadcastsUpdate);
     expect(JSON.stringify(calls)).not.toContain("ya29.SECRET");
   });
