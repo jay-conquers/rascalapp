@@ -5,7 +5,7 @@ import type { YoutubeQuotaMeter } from "../../../../src/shared/platform/youtube-
 import { safeError } from "../errors.ts";
 import { isLoopbackRedirect } from "../public-url.ts";
 import type { YoutubeBotTokens } from "../store.ts";
-import { waitForYoutubeCallback } from "../youtube-login.ts";
+import { waitForYoutubeCallback } from "../../../../src/shared/platform/youtube-callback.ts";
 
 export class YoutubeAccountLogin {
   private prompt: YoutubeAuthRequest | null = null;
