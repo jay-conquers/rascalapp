@@ -7,8 +7,8 @@ import {
   chatFromRedemption,
   modActionFromModerate,
   segmentsFromFragments,
-  twitchEmoteUrl,
 } from "../src/shared/parsers/eventsub-events";
+import { twitchEmoteUrl } from "../src/shared/twitch-emotes";
 import { classifyIrcNotice, parseIrcLine } from "../src/shared/parsers/twitch-irc";
 import { parseLiveChatResponse, readConcurrentViewers } from "../src/shared/parsers/youtube";
 import { defaultChatOverlayFile, projectChatOverlay, type ChatOverlayStyle } from "../src/shared/chat-overlay";

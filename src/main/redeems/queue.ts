@@ -10,7 +10,7 @@ export interface AlertJob {
   maxDurationMs: number | null;
   placement?: VideoPlacement;
   redemptionId?: string;
-  emberOwned: boolean;
+  owned: boolean;
   userName: string;
 }
 

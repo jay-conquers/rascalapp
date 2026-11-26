@@ -1,4 +1,5 @@
 import { buildKickChannelPatch, kickCategorySearchPath, KICK_TITLE_RELOGIN, parseKickCategories } from "./channel.ts";
+import { jsonObject, scalarText } from "../record.ts";
 import type { KickTokenResult } from "./oauth.ts";
 import type { CategoryHit } from "../types.ts";
 
@@ -95,44 +96,44 @@ export class KickApi {
     if (!name) return null;
     const payload = await this.request("GET", `/channels?slug=${encodeURIComponent(name)}`);
     const channel = firstRecord(payload);
-    const id = text(channel?.broadcaster_user_id);
+    const id = scalarText(channel?.broadcaster_user_id);
     return id || null;
   }
 
   /** Subscribe to the events Rascal reads. Returns the first Kick error, if one event was refused. */
   async ensureSubscriptions(): Promise<string> {
     const current = await this.request("GET", "/events/subscriptions");
-    const have = new Set(listRecords(current).map((row) => text(row.event)));
+    const have = new Set(listRecords(current).map((row) => scalarText(row.event)));
     const missing = KICK_EVENT_SUBSCRIPTIONS.filter((event) => !have.has(event.name));
     if (missing.length === 0) return "";
     const created = await this.request("POST", "/events/subscriptions", {
       body: { method: "webhook", events: missing },
     });
-    const errors = listRecords(created).map((row) => text(row.error)).filter(Boolean);
+    const errors = listRecords(created).map((row) => scalarText(row.error)).filter(Boolean);
     return errors[0] ?? "";
   }
 
   private async me(): Promise<{ userId: string; name: string }> {
     const payload = await this.request("GET", "/users");
     const user = firstRecord(payload);
-    return { userId: text(user?.user_id), name: text(user?.name) };
+    return { userId: scalarText(user?.user_id), name: scalarText(user?.name) };
   }
 
   private async channel(): Promise<{ broadcasterUserId: string; slug: string; title: string; category: string; categoryId: string; live: boolean; viewers: number | null; startedAt: string }> {
     const payload = await this.request("GET", "/channels");
     const channel = firstRecord(payload);
-    const stream = record(channel?.stream);
-    const category = record(channel?.category);
+    const stream = jsonObject(channel?.stream);
+    const category = jsonObject(channel?.category);
     const viewers = stream?.viewer_count;
     return {
-      broadcasterUserId: text(channel?.broadcaster_user_id),
-      slug: text(channel?.slug),
-      title: text(channel?.stream_title),
-      category: text(category?.name),
-      categoryId: text(category?.id),
+      broadcasterUserId: scalarText(channel?.broadcaster_user_id),
+      slug: scalarText(channel?.slug),
+      title: scalarText(channel?.stream_title),
+      category: scalarText(category?.name),
+      categoryId: scalarText(category?.id),
       live: stream?.is_live === true,
       viewers: typeof viewers === "number" ? viewers : null,
-      startedAt: text(stream?.start_time),
+      startedAt: scalarText(stream?.start_time),
     };
   }
 
@@ -169,8 +170,8 @@ function asId(value: string): number {
 }
 
 function kickFailure(json: unknown, status: number): string {
-  const row = record(json);
-  const message = text(row?.message) || text(row?.error);
+  const row = jsonObject(json);
+  const message = scalarText(row?.message) || scalarText(row?.error);
   if (message && !/token|secret|bearer/i.test(message)) return message.slice(0, 240);
   if (status === 401) return "Kick did not accept the login. Log in again.";
   if (status === 403) return "Kick refused that action for this account.";
@@ -188,27 +189,16 @@ async function readBody(response: Response): Promise<unknown> {
 }
 
 function firstRecord(payload: unknown): Record<string, unknown> | null {
-  const data = record(payload)?.data ?? payload;
-  if (Array.isArray(data)) return record(data[0]);
-  return record(data);
+  const data = jsonObject(payload)?.data ?? payload;
+  if (Array.isArray(data)) return jsonObject(data[0]);
+  return jsonObject(data);
 }
 
 function listRecords(payload: unknown): Record<string, unknown>[] {
-  const data = record(payload)?.data ?? payload;
+  const data = jsonObject(payload)?.data ?? payload;
   if (!Array.isArray(data)) {
-    const one = record(data);
+    const one = jsonObject(data);
     return one ? [one] : [];
   }
-  return data.map(record).filter((item): item is Record<string, unknown> => item !== null);
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function text(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return "";
+  return data.map(jsonObject).filter((item): item is Record<string, unknown> => item !== null);
 }

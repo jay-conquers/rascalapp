@@ -149,7 +149,7 @@ describe("firebot import", () => {
 
 describe("redeem file", () => {
   it("stores mappings as a private json file and reloads them", () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), "ember-redeems-"));
+    const dir = mkdtempSync(path.join(os.tmpdir(), "rascal-redeems-"));
     const file = path.join(dir, "redeems.json");
     saveRedeemFile(file, {
       soundFolder: path.join(os.homedir(), "Streaming", "Rascal-Assets", "Sounds"),
@@ -275,7 +275,7 @@ describe("alert queue", () => {
     filePath: "/tmp/a.mp4",
     volume: 100,
     maxDurationMs: null,
-    emberOwned: false,
+    owned: false,
     userName: "viewer",
   });
 

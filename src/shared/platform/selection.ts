@@ -228,16 +228,6 @@ export function sendTargetsForSelection(
   };
 }
 
-/** Saved send checks stay as they were. Delivery uses only platforms that are on. */
-export function maskSendTargets<T extends { twitch: boolean; youtube: boolean; kick?: boolean }>(saved: T, selection: PlatformSelection | undefined): T {
-  return {
-    ...saved,
-    twitch: saved.twitch === true && isPlatformEnabled(selection, "twitch"),
-    youtube: saved.youtube === true && isPlatformEnabled(selection, "youtube"),
-    kick: saved.kick === true && isPlatformEnabled(selection, "kick"),
-  };
-}
-
 export function emptyFeedCopy(selection: PlatformSelection | undefined): string {
   const enabled = (selection ?? defaultPlatformSelection()).enabled;
   const names = visiblePlatforms().filter((entry) => enabled.includes(entry.id)).map((entry) => entry.label);

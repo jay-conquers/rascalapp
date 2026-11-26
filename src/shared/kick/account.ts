@@ -1,3 +1,5 @@
+import { jsonObject } from "../record.ts";
+
 export interface KickClientFile {
   clientId: string;
   clientSecret: string;
@@ -19,7 +21,7 @@ export interface KickRelayFile {
 }
 
 export function parseKickClient(value: unknown): KickClientFile {
-  const row = record(value);
+  const row = jsonObject(value);
   return {
     clientId: text(row?.clientId),
     clientSecret: typeof row?.clientSecret === "string" ? row.clientSecret : "",
@@ -27,7 +29,7 @@ export function parseKickClient(value: unknown): KickClientFile {
 }
 
 export function parseKickTokens(value: unknown): KickTokens | null {
-  const row = record(value);
+  const row = jsonObject(value);
   if (!row || typeof row.accessToken !== "string" || typeof row.refreshToken !== "string" || !row.accessToken) return null;
   return {
     clientId: text(row.clientId),
@@ -42,13 +44,8 @@ export function parseKickTokens(value: unknown): KickTokens | null {
 }
 
 export function parseKickRelay(value: unknown): KickRelayFile {
-  const row = record(value);
+  const row = jsonObject(value);
   return { secret: typeof row?.secret === "string" ? row.secret : "" };
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
 }
 
 function text(value: unknown): string {

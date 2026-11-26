@@ -17,7 +17,6 @@ import {
   defaultPlatformSelection,
   emptyFeedCopy,
   filterEnabled,
-  maskSendTargets,
   sendTargetsForSelection,
   migrateFromSetup,
   platformsNeedingLogin,
@@ -141,8 +140,6 @@ describe("platform filtering", () => {
     expect(filterEnabled(rows, (row) => row.platform, twitchOnly).map((row) => row.text)).toEqual(["a"]);
     expect(filterEnabled(rows, (row) => row.platform, both).map((row) => row.text)).toEqual(["a", "b"]);
     const saved = { twitch: true, youtube: true, kick: false };
-    expect(maskSendTargets(saved, twitchOnly)).toEqual({ twitch: true, youtube: false, kick: false });
-    expect(saved).toEqual({ twitch: true, youtube: true, kick: false });
     const plan = planSend(saved, {
       twitch: twitchLink({ state: "connected" }, true),
       youtube: youtubeLink({ state: "live", canSend: true }),

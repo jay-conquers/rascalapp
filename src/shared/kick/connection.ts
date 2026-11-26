@@ -3,7 +3,7 @@ import { KickApi, scopesFromToken, type KickIdentity } from "./api.ts";
 import { kickTitleBlock } from "./channel.ts";
 import type { CategoryHit } from "../types.ts";
 import { waitForKickCallback } from "./callback.ts";
-import { kickTimeoutMinutes, mapKickChatEvent, mapKickLiveEvent, mapKickModerationEvent, type KickChatLine, type KickLiveLine, type KickModerationLine } from "./events.ts";
+import { KICK_CHAT_MAX, kickTimeoutMinutes, mapKickChatEvent, mapKickLiveEvent, mapKickModerationEvent, type KickChatLine, type KickLiveLine, type KickModerationLine } from "./events.ts";
 import { createKickAuthRequest, exchangeKickCode, refreshKickAccessToken, type KickAuthRequest } from "./oauth.ts";
 import { openRelaySocket } from "./relay-client.ts";
 import type { RelayEvent } from "./protocol.ts";
@@ -164,7 +164,7 @@ export class KickConnection {
   async send(text: string): Promise<void> {
     const message = text.replace(/\r/g, "").trim();
     if (!message) throw new Error("Message is empty.");
-    if ([...message].length > 500) throw new Error("Kick messages stop at 500 characters.");
+    if ([...message].length > KICK_CHAT_MAX) throw new Error(`Kick messages stop at ${KICK_CHAT_MAX} characters.`);
     const api = await this.api();
     await api.sendMessage(this.broadcasterUserId(), message);
   }

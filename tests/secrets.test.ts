@@ -6,7 +6,7 @@ import { redact } from "../src/shared/redact";
 import { assertAllowedExternal } from "../src/main/browser";
 import { youtubeStudioUrl } from "../src/shared/platform/youtube-studio";
 import { Logger } from "../src/main/logger";
-import { writePrivateJson } from "../src/main/private-file";
+import { writePrivateJson } from "../src/shared/private-file";
 import { mergeSettings, SettingsStore } from "../src/main/settings";
 import { TokenStore } from "../src/main/tokens";
 import { DEFAULT_SETTINGS } from "../src/main/settings";
@@ -25,7 +25,7 @@ describe("secret handling", () => {
   });
 
   it("writes settings and tokens as mode 0600 in a 0700 directory", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ember-secret-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-secret-"));
     const settings = new SettingsStore(dir);
     settings.update({ twitchClientId: "abc1234567890xyz" });
     expectPrivateMode(dir, 0o700);
@@ -54,7 +54,7 @@ describe("secret handling", () => {
   });
 
   it("tightens a token file that was left group-readable", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ember-mode-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-mode-"));
     const file = path.join(dir, "tokens.json");
     writePrivateJson(file, { accessToken: "x" });
     if (process.platform === "win32") {

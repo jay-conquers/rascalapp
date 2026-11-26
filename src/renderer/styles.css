@@ -394,7 +394,6 @@ img { max-width: 100%; }
   padding: 10px 14px 12px;
   background: #101218;
 }
-.composer-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .composer-row { position: relative; display: flex; gap: 8px; align-items: flex-end; }
 .composer textarea, .stream-page textarea, .settings input, .stream-page input, .settings textarea, .settings select {
   width: 100%;

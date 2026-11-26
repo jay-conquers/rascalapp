@@ -237,7 +237,7 @@ export class RedeemEngine {
   }
 
   async importFirebot(): Promise<RedeemSnapshot> {
-    const source = firebotRewardsPath();
+    const source = firebotRewardsFile();
     let payload: unknown;
     try {
       payload = JSON.parse(fs.readFileSync(source, "utf8"));
@@ -272,7 +272,7 @@ export class RedeemEngine {
       volume: mapping.volume,
       maxDurationMs: mapping.maxDurationMs,
       placement: mapping.placement,
-      emberOwned: false,
+      owned: false,
       userName: "test",
     });
   }
@@ -362,13 +362,13 @@ export class RedeemEngine {
     const mapping =
       this.data.mappings.find((item) => item.rewardId === redemption.rewardId) ??
       this.data.mappings.find((item) => sameTitle(item.title, redemption.rewardTitle));
-    const emberOwned = this.manageable.has(redemption.rewardId);
+    const owned = this.manageable.has(redemption.rewardId);
     if (mapping && !mapping.rewardId) {
       mapping.rewardId = redemption.rewardId;
       saveRedeemFile(this.file, this.data);
     }
     if (!mapping || !mapping.enabled || mapping.action === "none") {
-      if (emberOwned) void this.fulfill(redemption.rewardId, redemption.redemptionId);
+      if (owned) void this.fulfill(redemption.rewardId, redemption.redemptionId);
       return;
     }
     if (!mapping.filePath || !fs.existsSync(mapping.filePath)) {
@@ -389,7 +389,7 @@ export class RedeemEngine {
       maxDurationMs: mapping.maxDurationMs,
       placement: mapping.placement,
       redemptionId: redemption.redemptionId,
-      emberOwned,
+      owned,
       userName: redemption.userName,
     });
   }
@@ -402,7 +402,7 @@ export class RedeemEngine {
 
   private begin(job: AlertJob): void {
     this.playing = true;
-    if (job.emberOwned && job.redemptionId) void this.fulfill(job.rewardId, job.redemptionId);
+    if (job.owned && job.redemptionId) void this.fulfill(job.rewardId, job.redemptionId);
     this.push(job);
     if (this.stall) clearTimeout(this.stall);
     this.stall = setTimeout(() => this.finish(job.id), alertStallMs(job.maxDurationMs));
@@ -435,7 +435,7 @@ export class RedeemEngine {
 
   private autoImportFirebot(): void {
     if (this.ctx.settings.load().autoImportFirebot === false) return;
-    const source = firebotRewardsPath();
+    const source = firebotRewardsFile();
     if (!fs.existsSync(source)) return;
     let payload: unknown;
     try {
@@ -589,10 +589,6 @@ export class RedeemEngine {
     const auth = this.ctx.auth.state();
     return auth.loggedIn && auth.userId ? { userId: auth.userId } : null;
   }
-}
-
-export function firebotRewardsPath(): string {
-  return firebotRewardsFile();
 }
 
 function mediaKind(filePath: string, action: "video" | "sound"): "video" | "audio" | "image" {

@@ -8,7 +8,6 @@ import {
   YOUTUBEI_POLL_DEFAULT_MS,
   describeYoutubeQuota,
   nextYoutubeiPressure,
-  pollGapLatencyMs,
   shouldUseYoutubeApiPoll,
   youtubeStreamUnits,
   youtubeiPollTargetMs,
@@ -30,14 +29,6 @@ describe("youtube page reader pace", () => {
     const eased = nextYoutubeiPressure(nextYoutubeiPressure(nextYoutubeiPressure(1, "ok"), "ok"), "ok");
     expect(eased).toBe(0);
     expect(youtubeiWaitMs({ suggestedMs: 5_000, pressure: eased })).toBe(1_500);
-  });
-
-  it("measures the gap before and after for a 5 second YouTube timeout", () => {
-    const before = pollGapLatencyMs(5_000);
-    const after = pollGapLatencyMs(YOUTUBEI_POLL_DEFAULT_MS);
-    expect(before).toEqual({ meanMs: 2_500, maxMs: 5_000 });
-    expect(after).toEqual({ meanMs: 750, maxMs: 1_500 });
-    expect(after.maxMs).toBeLessThan(before.meanMs);
   });
 
   it("does not speed up the Data API poll", () => {

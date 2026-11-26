@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.1
+
+- Sending chat to Kick from the desk reaches Kick. Saving Settings stores the Kick relay address. Both values were dropped on the way from the window into the main process.
+- Shared helpers replace copied private-file writes, Kick JSON readers, the YouTube and Kick loopback login servers, and the EventSub session frames and socket timers.
+- Startup no longer copies an old Ember config directory. `EMBER_*` environment variables are no longer read. The bot import note names `rascal-bot-config.json`.
+- A `bot.json` or `settings.json` from an earlier Rascal version still loads.
+
 ## 0.14.0
 
 - Settings is grouped into Platforms, Chat & Bot, Tabs, Alerts, Moderation, App, and Advanced. A list on the left jumps to each section.

@@ -9,7 +9,8 @@ import { assertRemoteOrigin, tokenModeWarning, TOKEN_UPLOAD_WARNING } from "../d
 import { callChatHook } from "../packages/bot/src/chat-hook-send";
 import { checkHookUrl } from "../packages/bot/src/chat-hook";
 import { chooseHookAddress, classifyIp } from "../packages/bot/src/hook-guard";
-import { secretsMatch, startHttp } from "../packages/bot/src/http";
+import { startHttp } from "../packages/bot/src/http";
+import { secretsMatch } from "../src/shared/kick/signature";
 import { buildHookPayload, normalizeHook, type ChatHook } from "../packages/bot/src/chat-hook";
 import { BotService } from "../packages/bot/src/service";
 import { BotStore, generateSecret } from "../packages/bot/src/store";

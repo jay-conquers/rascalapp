@@ -1,4 +1,5 @@
 import { colorForName } from "../emote-url";
+import { hashText } from "../plain";
 import { twitchEmoteUrl } from "../twitch-emotes";
 import type { NoticeKind } from "../feed-toggles";
 import type { ChatBadge, ChatMessage, Segment } from "../types";
@@ -302,10 +303,4 @@ export function segmentsFromEmotes(text: string, emoteTag: string | undefined): 
 function channelFrom(param: string | undefined): string | undefined {
   if (!param) return undefined;
   return param.replace(/^#/, "") || undefined;
-}
-
-function hashText(text: string): string {
-  let hash = 0;
-  for (const char of text) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
-  return hash.toString(36);
 }

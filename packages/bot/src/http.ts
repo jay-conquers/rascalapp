@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import { brand, readBrandEnv } from "../../../src/shared/brand.ts";
+import { secretsMatch } from "../../../src/shared/kick/signature.ts";
 import { redact } from "../../../src/shared/redact.ts";
 import { classifyIp } from "./hook-guard.ts";
 import { PORTAL_SCOPES } from "./model.ts";
@@ -33,6 +34,12 @@ export interface HttpOptions {
   /** Requests per minute for one client address. */
   rateLimit?: number;
   now?: () => number;
+}
+
+
+/** Desk calls /api. The browser portal calls /portal/api with the same suffix. Auth is checked before these routes. */
+function apiPath(url: URL, suffix: string): boolean {
+  return url.pathname === `/api/${suffix}` || url.pathname === `/portal/api/${suffix}`;
 }
 
 export async function startHttp(service: BotService, options: HttpOptions): Promise<{ port: number; close: () => Promise<void> }> {
@@ -179,7 +186,7 @@ export async function startHttp(service: BotService, options: HttpOptions): Prom
       sendJson(res, 401, { error: "Missing bot API key." });
       return;
     }
-    if (method === "GET" && (url.pathname === "/api/state" || url.pathname === "/portal/api/state")) {
+    if (method === "GET" && apiPath(url, "state")) {
       sendJson(res, 200, service.snapshot(port));
       return;
     }
@@ -194,7 +201,7 @@ export async function startHttp(service: BotService, options: HttpOptions): Prom
       req.destroy();
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/login" || url.pathname === "/portal/api/login")) {
+    if (method === "POST" && apiPath(url, "login")) {
       await service.startLogin();
       sendJson(res, 200, service.snapshot(port));
       return;
@@ -204,27 +211,27 @@ export async function startHttp(service: BotService, options: HttpOptions): Prom
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/commands" || url.pathname === "/portal/api/commands")) {
+    if (method === "POST" && apiPath(url, "commands")) {
       service.saveCommand(body);
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/commands/delete" || url.pathname === "/portal/api/commands/delete")) {
+    if (method === "POST" && apiPath(url, "commands/delete")) {
       service.deleteCommand(text(body.id));
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/timers" || url.pathname === "/portal/api/timers")) {
+    if (method === "POST" && apiPath(url, "timers")) {
       service.saveTimer(body);
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/timers/delete" || url.pathname === "/portal/api/timers/delete")) {
+    if (method === "POST" && apiPath(url, "timers/delete")) {
       service.deleteTimer(text(body.id));
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/filters" || url.pathname === "/portal/api/filters")) {
+    if (method === "POST" && apiPath(url, "filters")) {
       service.saveFilters(body);
       sendJson(res, 200, service.snapshot(port));
       return;
@@ -240,7 +247,7 @@ export async function startHttp(service: BotService, options: HttpOptions): Prom
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "GET" && (url.pathname === "/api/export" || url.pathname === "/portal/api/export")) {
+    if (method === "GET" && apiPath(url, "export")) {
       sendJson(res, 200, service.exportConfig());
       return;
     }
@@ -274,22 +281,22 @@ export async function startHttp(service: BotService, options: HttpOptions): Prom
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/extras" || url.pathname === "/portal/api/extras")) {
+    if (method === "POST" && apiPath(url, "extras")) {
       service.saveExtras(body);
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/hooks" || url.pathname === "/portal/api/hooks")) {
+    if (method === "POST" && apiPath(url, "hooks")) {
       service.saveHook(body);
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/hooks/delete" || url.pathname === "/portal/api/hooks/delete")) {
+    if (method === "POST" && apiPath(url, "hooks/delete")) {
       service.deleteHook(typeof body.id === "string" ? body.id : "");
       sendJson(res, 200, service.snapshot(port));
       return;
     }
-    if (method === "POST" && (url.pathname === "/api/hooks/test" || url.pathname === "/portal/api/hooks/test")) {
+    if (method === "POST" && apiPath(url, "hooks/test")) {
       sendJson(res, 200, await service.testHook(typeof body.id === "string" ? body.id : ""));
       return;
     }
@@ -327,14 +334,6 @@ export async function startHttp(service: BotService, options: HttpOptions): Prom
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };
-}
-
-/** Hash both sides so the compare does not leak the length or the bytes of the expected secret. */
-export function secretsMatch(presented: string, expected: string): boolean {
-  if (!presented || !expected) return false;
-  const left = crypto.createHash("sha256").update(presented).digest();
-  const right = crypto.createHash("sha256").update(expected).digest();
-  return crypto.timingSafeEqual(left, right);
 }
 
 async function finishPortalLogin(service: BotService, clientId: string, verifier: string, code: string, redirect: string, fetchImpl: typeof fetch): Promise<Session> {

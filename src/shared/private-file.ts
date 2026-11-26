@@ -1,19 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
-import { chmodPrivate } from "../shared/private-mode";
+import { chmodPrivate } from "./private-mode.ts";
 
+/** Create a directory at mode 0700. On Windows, chmod is skipped. */
 export function ensurePrivateDir(dir: string): void {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodPrivate(dir, 0o700);
 }
 
-export function writePrivateJson(file: string, value: unknown): void {
+/**
+ * Write bytes to a temp file in the same directory, fsync, then rename.
+ * The file and its directory are private on POSIX. Windows keeps the profile ACL.
+ */
+export function writePrivateBytes(file: string, data: string | NodeJS.ArrayBufferView): void {
   ensurePrivateDir(path.dirname(file));
   const tmp = `${file}.${process.pid}.tmp`;
-  const data = `${JSON.stringify(value, null, 2)}\n`;
   const fd = fs.openSync(tmp, "w", 0o600);
   try {
-    fs.writeSync(fd, data);
+    if (typeof data === "string") fs.writeSync(fd, data);
+    else fs.writeSync(fd, data);
     fs.fsyncSync(fd);
   } finally {
     fs.closeSync(fd);
@@ -23,12 +28,14 @@ export function writePrivateJson(file: string, value: unknown): void {
   chmodPrivate(file, 0o600);
 }
 
+export function writePrivateJson(file: string, value: unknown): void {
+  writePrivateBytes(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
 export function readJson(file: string): unknown {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") return null;
+  } catch {
     return null;
   }
 }

@@ -11,7 +11,7 @@ import {
 } from "../../shared/platform/youtube-oauth";
 import { sharedQuotaMeter } from "../../shared/platform/youtube-quota";
 import { BotStore, type YoutubeBotTokens } from "../../../packages/bot/src/store";
-import { waitForYoutubeCallback } from "../../../packages/bot/src/youtube-login";
+import { waitForYoutubeCallback } from "../../shared/platform/youtube-callback";
 import type { YoutubeDeskState } from "../../shared/youtube/desk-state";
 import type { Logger } from "../logger";
 

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { validateBotServerUrl } from "../../packages/bot/src/model.ts";
-import { readJson, writePrivateJson } from "./private-file";
+import { readJson, writePrivateJson } from "../shared/private-file";
 import { asRecord } from "../shared/record";
 
 export interface BotLink {

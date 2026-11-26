@@ -3,7 +3,7 @@ import path from "node:path";
 import { brand } from "../shared/brand";
 import { redact } from "../shared/redact";
 import { chmodPrivate } from "../shared/private-mode";
-import { ensurePrivateDir } from "./private-file";
+import { ensurePrivateDir } from "../shared/private-file";
 
 export class Logger {
   readonly lines: string[] = [];

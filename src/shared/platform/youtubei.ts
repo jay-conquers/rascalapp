@@ -54,15 +54,6 @@ export function rememberChatIds(seen: Set<string>, ids: readonly string[], limit
   return fresh;
 }
 
-/**
- * A message that arrives just after a poll waits almost the whole interval.
- * Mean wait is half the interval. This ignores network round trip.
- */
-export function pollGapLatencyMs(intervalMs: number): { meanMs: number; maxMs: number } {
-  const interval = Math.max(0, intervalMs);
-  return { meanMs: interval / 2, maxMs: interval };
-}
-
 /** Units for a stream that reads chat from the page and uses the Data API only for actions. */
 export function youtubeStreamUnits(input: {
   hours?: number;

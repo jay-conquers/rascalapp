@@ -76,7 +76,7 @@ fly secrets set --app rascal --config deploy/fly/fly.toml \
   RASCAL_BOT_CHANNEL="yourchannel"
 ```
 
-There is no Twitch client secret. The portal login is a public PKCE client. Do not set a client secret. Older `EMBER_BOT_*` names still work for one release and print a deprecation line. Use the `RASCAL_BOT_*` names.
+There is no Twitch client secret. The portal login is a public PKCE client. Do not set a client secret. Use the `RASCAL_BOT_*` names.
 
 `RASCAL_BOT_BROADCASTER_ID` is optional. The bot learns it from chat. Set it only if you already know the numeric id.
 

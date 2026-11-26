@@ -1,6 +1,6 @@
 import { defaultAssetFolder, type PathHost } from "../../shared/paths";
 import { clampVolume, normalizePlacement, type RedeemMapping } from "../../shared/redeems";
-import { readJson, writePrivateJson } from "../private-file";
+import { readJson, writePrivateJson } from "../../shared/private-file";
 
 export interface RedeemFile {
   soundFolder: string;

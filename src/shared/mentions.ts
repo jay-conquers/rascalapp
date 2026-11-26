@@ -19,12 +19,6 @@ export interface ChatterDirectory {
   session: readonly ChatterName[];
 }
 
-export interface MentionPlatformGate {
-  id: string;
-  enabled: boolean;
-  connected: boolean;
-}
-
 export interface MentionSuggestion {
   platform: string;
   label: string;
@@ -71,14 +65,6 @@ export class SessionChatters {
 /** Chat is up. `live` is YouTube's connected state. `connected` is Twitch's. */
 export function chatFeedConnected(state: string): boolean {
   return state === "connected" || state === "live" || state === "reconnecting";
-}
-
-export function openMentionDirectories(
-  directories: readonly ChatterDirectory[],
-  gates: readonly MentionPlatformGate[],
-): ChatterDirectory[] {
-  const open = new Set(gates.filter((gate) => gate.enabled && gate.connected).map((gate) => gate.id));
-  return directories.filter((directory) => open.has(directory.id));
 }
 
 export function mentionName(chatter: ChatterName): string {
