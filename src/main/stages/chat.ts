@@ -12,7 +12,7 @@ import {
   uniquePresetId,
 } from "../../shared/chat-overlay";
 import type { TtsPanel } from "../../shared/tts";
-import { readJson, writePrivateJson } from "../private-file";
+import { readJson, writePrivateJson } from "../../shared/private-file";
 import { overlayHelloMessage } from "../redeems/overlay-page";
 import { buildChatOverlayPage } from "../chat/page";
 import type { AppContext, StageModule } from "./types";

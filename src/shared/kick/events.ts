@@ -1,6 +1,6 @@
 import { colorForName } from "../emote-url";
 import type { ChatRole, NormalizedBadge, NormalizedChatMessage } from "../platform/types";
-import { asRecord } from "../record";
+import { asRecord, scalarText } from "../record";
 
 /** Kick counts a timeout in minutes, from 1 minute through 7 days. */
 export const KICK_TIMEOUT_MAX_MINUTES = 10_080;
@@ -68,26 +68,26 @@ export function kickEmoteUrl(id: string): string {
 export function mapKickChatEvent(body: unknown, now = Date.now()): KickChatLine | null {
   const row = asRecord(body);
   if (!row || Array.isArray(body)) return null;
-  const messageId = text(row.message_id);
+  const messageId = scalarText(row.message_id);
   const content = typeof row.content === "string" ? row.content : "";
   if (!messageId || !content.trim()) return null;
   const broadcaster = asRecord(row.broadcaster);
   const sender = asRecord(row.sender);
   const identity = asRecord(sender?.identity);
-  const userId = sender?.is_anonymous === true ? "" : text(sender?.user_id);
-  const username = sender?.is_anonymous === true ? "anonymous" : text(sender?.username) || "kick";
-  const broadcasterId = text(broadcaster?.user_id);
+  const userId = sender?.is_anonymous === true ? "" : scalarText(sender?.user_id);
+  const username = sender?.is_anonymous === true ? "anonymous" : scalarText(sender?.username) || "kick";
+  const broadcasterId = scalarText(broadcaster?.user_id);
   const roles = rolesFor(identity, userId, broadcasterId);
   const badges = badgesFor(identity, roles);
   const pieces = splitKickContent(content);
-  const published = Date.parse(text(row.created_at));
+  const published = Date.parse(scalarText(row.created_at));
   return {
     messageId,
     channelId: broadcasterId,
-    channelSlug: text(broadcaster?.channel_slug),
+    channelSlug: scalarText(broadcaster?.channel_slug),
     text: pieces.plain,
     publishedAt: Number.isFinite(published) ? published : now,
-    color: colorForName(username, text(identity?.username_color)),
+    color: colorForName(username, scalarText(identity?.username_color)),
     emotes: pieces.emotes,
     user: {
       id: userId,
@@ -124,22 +124,22 @@ export function mapKickModerationEvent(body: unknown, now = Date.now()): KickMod
   const banned = asRecord(row.banned_user);
   const moderator = asRecord(row.moderator);
   const broadcaster = asRecord(row.broadcaster);
-  const target = text(banned?.username);
-  const targetId = text(banned?.user_id);
+  const target = scalarText(banned?.username);
+  const targetId = scalarText(banned?.user_id);
   if (!target && !targetId) return null;
-  const expires = text(metadata?.expires_at);
-  const created = Date.parse(text(metadata?.created_at));
+  const expires = scalarText(metadata?.expires_at);
+  const created = Date.parse(scalarText(metadata?.created_at));
   const expiry = expires ? Date.parse(expires) : Number.NaN;
   const timeout = Boolean(expires) && Number.isFinite(expiry);
   const durationSeconds = timeout ? Math.max(1, Math.round((expiry - (Number.isFinite(created) ? created : now)) / 1000)) : null;
   return {
     action: timeout ? "timeout" : "ban",
-    actor: text(moderator?.username),
+    actor: scalarText(moderator?.username),
     target: target || targetId,
     targetId,
-    broadcasterId: text(broadcaster?.user_id),
-    channelSlug: text(broadcaster?.channel_slug),
-    reason: text(metadata?.reason).slice(0, 200),
+    broadcasterId: scalarText(broadcaster?.user_id),
+    channelSlug: scalarText(broadcaster?.channel_slug),
+    reason: scalarText(metadata?.reason).slice(0, 200),
     durationSeconds,
     timestamp: Number.isFinite(created) ? created : now,
   };
@@ -151,9 +151,9 @@ export function mapKickLiveEvent(body: unknown): KickLiveLine | null {
   const broadcaster = asRecord(row.broadcaster);
   return {
     live: row.is_live,
-    title: text(row.title).slice(0, 200),
-    broadcasterId: text(broadcaster?.user_id),
-    channelSlug: text(broadcaster?.channel_slug),
+    title: scalarText(row.title).slice(0, 200),
+    broadcasterId: scalarText(broadcaster?.user_id),
+    channelSlug: scalarText(broadcaster?.channel_slug),
   };
 }
 
@@ -175,7 +175,7 @@ function rolesFor(identity: Record<string, unknown> | null, userId: string, broa
   const badges = Array.isArray(identity?.badges) ? identity.badges : [];
   for (const item of badges) {
     const badge = asRecord(item);
-    const type = text(badge?.type).toLowerCase();
+    const type = scalarText(badge?.type).toLowerCase();
     if ((type === "moderator" || type === "mod") && !roles.includes("mod")) roles.push("mod");
     if ((type === "subscriber" || type === "sub" || type === "founder") && !roles.includes("sub")) roles.push("sub");
     if (type === "vip" && !roles.includes("vip")) roles.push("vip");
@@ -190,18 +190,12 @@ function badgesFor(identity: Record<string, unknown> | null, roles: readonly Cha
   const raw = Array.isArray(identity?.badges) ? identity.badges : [];
   for (const item of raw) {
     const badge = asRecord(item);
-    const label = text(badge?.text) || text(badge?.type);
+    const label = scalarText(badge?.text) || scalarText(badge?.type);
     if (!label) continue;
-    badges.push({ id: text(badge?.type).toLowerCase() || label.toLowerCase(), label });
+    badges.push({ id: scalarText(badge?.type).toLowerCase() || label.toLowerCase(), label });
   }
   if (roles.includes("broadcaster") && !badges.some((badge) => badge.id === "broadcaster" || badge.id === "owner")) {
     badges.push({ id: "broadcaster", label: "Broadcaster" });
   }
   return badges;
-}
-
-function text(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return "";
 }

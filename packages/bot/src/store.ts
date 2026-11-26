@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
 import { parseKickClient, parseKickRelay, parseKickTokens, type KickClientFile, type KickRelayFile, type KickTokens } from "../../../src/shared/kick/account.ts";
-import { chmodPrivate } from "../../../src/shared/private-mode.ts";
+import { readJson, writePrivateJson } from "../../../src/shared/private-file.ts";
 import { normalizeEnabledIds } from "../../../src/shared/platform/selection.ts";
 import { normalizeBotFile, type BotFile } from "./model.ts";
 import { asRecord } from "../../../src/shared/record.ts";
@@ -78,7 +78,7 @@ export class BotStore {
   }
 
   saveEnabledPlatforms(ids: readonly string[]): void {
-    writePrivate(this.enabledPlatformsFile, { enabled: [...ids] });
+    writePrivateJson(this.enabledPlatformsFile, { enabled: [...ids] });
   }
 
   loadConfig(): BotFile {
@@ -87,7 +87,7 @@ export class BotStore {
 
   saveConfig(file: BotFile): BotFile {
     const next = normalizeBotFile(file);
-    writePrivate(this.configFile, next);
+    writePrivateJson(this.configFile, next);
     return next;
   }
 
@@ -110,7 +110,7 @@ export class BotStore {
   }
 
   saveTokens(tokens: BotTokens): void {
-    writePrivate(this.tokenFile, tokens);
+    writePrivateJson(this.tokenFile, tokens);
   }
 
   clearTokens(): void {
@@ -126,7 +126,7 @@ export class BotStore {
   }
 
   saveYoutubeTokens(tokens: YoutubeBotTokens): void {
-    writePrivate(this.youtubeTokenFile, tokens);
+    writePrivateJson(this.youtubeTokenFile, tokens);
   }
 
   clearYoutubeTokens(): void {
@@ -142,7 +142,7 @@ export class BotStore {
   }
 
   saveDeskTwitchTokens(tokens: BotTokens): void {
-    writePrivate(this.deskTwitchTokenFile, tokens);
+    writePrivateJson(this.deskTwitchTokenFile, tokens);
   }
 
   loadDeskYoutubeTokens(): YoutubeBotTokens | null {
@@ -150,7 +150,7 @@ export class BotStore {
   }
 
   saveDeskYoutubeTokens(tokens: YoutubeBotTokens): void {
-    writePrivate(this.deskYoutubeTokenFile, tokens);
+    writePrivateJson(this.deskYoutubeTokenFile, tokens);
   }
 
   clearDeskYoutubeTokens(): void {
@@ -171,7 +171,7 @@ export class BotStore {
 
   saveGoogleClient(client: GoogleClientFile): void {
     const previous = this.loadGoogleClient();
-    writePrivate(this.googleClientFile, {
+    writePrivateJson(this.googleClientFile, {
       clientId: client.clientId.trim(),
       clientSecret: client.clientSecret || previous.clientSecret,
     });
@@ -187,7 +187,7 @@ export class BotStore {
 
   saveKickClient(client: KickClientFile): void {
     const previous = this.loadKickClient();
-    writePrivate(this.kickClientFile, {
+    writePrivateJson(this.kickClientFile, {
       clientId: client.clientId.trim(),
       clientSecret: client.clientSecret || previous.clientSecret,
     });
@@ -198,7 +198,7 @@ export class BotStore {
   }
 
   saveKickTokens(tokens: KickTokens): void {
-    writePrivate(this.kickTokenFile, tokens);
+    writePrivateJson(this.kickTokenFile, tokens);
   }
 
   clearKickTokens(): void {
@@ -217,7 +217,7 @@ export class BotStore {
 
   saveKickRelay(secret: string): void {
     const previous = this.loadKickRelay();
-    writePrivate(this.kickRelayFile, { secret: secret || previous.secret });
+    writePrivateJson(this.kickRelayFile, { secret: secret || previous.secret });
   }
 
   /** The desktop stores the relay address in settings.json. An env value wins. */
@@ -236,12 +236,12 @@ export class BotStore {
       (typeof row?.sessionSecret === "string" && row.sessionSecret.length >= 16 ? row.sessionSecret : generateSecret());
     const seJwt = typeof row?.seJwt === "string" ? row.seJwt : "";
     const secrets = { apiKey, sessionSecret, seJwt };
-    if (!row || row.apiKey !== apiKey || row.sessionSecret !== sessionSecret) writePrivate(this.secretFile, secrets);
+    if (!row || row.apiKey !== apiKey || row.sessionSecret !== sessionSecret) writePrivateJson(this.secretFile, secrets);
     return secrets;
   }
 
   saveSecrets(secrets: BotSecrets): void {
-    writePrivate(this.secretFile, secrets);
+    writePrivateJson(this.secretFile, secrets);
   }
 }
 
@@ -252,31 +252,6 @@ function secretFromEnv(suffix: string): string {
 
 export function generateSecret(): string {
   return crypto.randomBytes(32).toString("base64url");
-}
-
-function writePrivate(file: string, value: unknown): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  // 0700/0600 on POSIX. Windows skips chmod; the profile ACL is the control.
-  chmodPrivate(path.dirname(file), 0o700);
-  const tmp = `${file}.${process.pid}.tmp`;
-  const fd = fs.openSync(tmp, "w", 0o600);
-  try {
-    fs.writeSync(fd, `${JSON.stringify(value, null, 2)}\n`);
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
-  chmodPrivate(tmp, 0o600);
-  fs.renameSync(tmp, file);
-  chmodPrivate(file, 0o600);
-}
-
-function readJson(file: string): unknown {
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return null;
-  }
 }
 
 export function readYoutubeTokens(value: unknown): YoutubeBotTokens | null {

@@ -6,7 +6,7 @@ import { redact } from "../src/shared/redact";
 import { assertAllowedExternal } from "../src/main/browser";
 import { youtubeStudioUrl } from "../src/shared/platform/youtube-studio";
 import { Logger } from "../src/main/logger";
-import { writePrivateJson } from "../src/main/private-file";
+import { writePrivateJson } from "../src/shared/private-file";
 import { mergeSettings, SettingsStore } from "../src/main/settings";
 import { TokenStore } from "../src/main/tokens";
 import { DEFAULT_SETTINGS } from "../src/main/settings";

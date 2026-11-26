@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../shared/brand";
 import { parseKickClient, parseKickRelay, parseKickTokens, type KickClientFile, type KickRelayFile, type KickTokens } from "../../shared/kick/account";
-import { readJson, writePrivateJson } from "../private-file";
+import { readJson, writePrivateJson } from "../../shared/private-file";
 
 function files(dir: string): { client: string; tokens: string; relay: string } {
   return {

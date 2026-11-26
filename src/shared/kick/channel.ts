@@ -1,4 +1,5 @@
 import { KICK_TITLE_MAX } from "../defaults";
+import { jsonObject, scalarText } from "../record";
 import type { CategoryHit } from "../types";
 
 /**
@@ -44,15 +45,15 @@ export function kickCategorySearchPath(query: string): string | null {
 }
 
 export function parseKickCategories(payload: unknown): CategoryHit[] {
-  const data = record(payload)?.data;
+  const data = jsonObject(payload)?.data;
   const rows = Array.isArray(data) ? data : [];
   const hits: CategoryHit[] = [];
   for (const row of rows) {
-    const item = record(row);
-    const id = text(item?.id);
-    const name = text(item?.name);
+    const item = jsonObject(row);
+    const id = scalarText(item?.id);
+    const name = scalarText(item?.name);
     if (!/^\d+$/.test(id) || Number(id) < 1 || !name) continue;
-    hits.push({ id, name, boxArtUrl: text(item?.thumbnail) });
+    hits.push({ id, name, boxArtUrl: scalarText(item?.thumbnail) });
     if (hits.length >= 8) break;
   }
   return hits;
@@ -63,15 +64,4 @@ export function kickTitleBlock(input: { loggedIn: boolean; scopes: readonly stri
   if (!input.loggedIn) return "Log in with Kick to change the title and category.";
   if (!input.scopes.includes(KICK_CHANNEL_WRITE)) return KICK_TITLE_RELOGIN;
   return null;
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function text(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return "";
 }

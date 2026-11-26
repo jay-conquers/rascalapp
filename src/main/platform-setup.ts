@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { PlatformSetupEvidence } from "../shared/platform/selection";
 import { asRecord } from "../shared/record";
-import { readJson } from "./private-file";
+import { readJson } from "../shared/private-file";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";

@@ -2,8 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { safeEmoteUrl } from "../../shared/emote-url";
-import { chmodPrivate } from "../../shared/private-mode";
-import { ensurePrivateDir } from "../private-file";
+import { writePrivateBytes } from "../../shared/private-file";
 import type { Logger } from "../logger";
 
 const MAX_BYTES = 512 * 1024;
@@ -105,19 +104,7 @@ export class EmoteImageCache {
   }
 
   private write(hash: string, body: Buffer, type: string): void {
-    ensurePrivateDir(this.dir);
-    const file = path.join(this.dir, hash);
-    const tmp = `${file}.${process.pid}.tmp`;
-    const fd = fs.openSync(tmp, "w", 0o600);
-    try {
-      fs.writeSync(fd, body);
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
-    }
-    chmodPrivate(tmp, 0o600);
-    fs.renameSync(tmp, file);
-    chmodPrivate(file, 0o600);
+    writePrivateBytes(path.join(this.dir, hash), body);
     this.index.set(hash, { type, at: Date.now() });
     this.trim();
     this.flush();
@@ -155,19 +142,9 @@ export class EmoteImageCache {
   }
 
   private flush(): void {
-    ensurePrivateDir(this.dir);
     const payload: Record<string, CachedImage> = {};
     for (const [hash, meta] of this.index) payload[hash] = meta;
-    const tmp = `${this.indexFile}.${process.pid}.tmp`;
-    const fd = fs.openSync(tmp, "w", 0o600);
-    try {
-      fs.writeSync(fd, JSON.stringify(payload));
-    } finally {
-      fs.closeSync(fd);
-    }
-    chmodPrivate(tmp, 0o600);
-    fs.renameSync(tmp, this.indexFile);
-    chmodPrivate(this.indexFile, 0o600);
+    writePrivateBytes(this.indexFile, JSON.stringify(payload));
   }
 }
 

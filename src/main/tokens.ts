@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { readJson, tightenFile, writePrivateJson } from "./private-file";
+import { readJson, tightenFile, writePrivateJson } from "../shared/private-file";
 
 export interface StoredTokens {
   clientId: string;

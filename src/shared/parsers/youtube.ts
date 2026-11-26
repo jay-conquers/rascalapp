@@ -1,6 +1,6 @@
 import { colorForName, safeEmoteUrl } from "../emote-url";
 import type { NoticeKind } from "../feed-toggles";
-import { clipPlain } from "../plain";
+import { clipPlain, hashText } from "../plain";
 import type { ChatBadge, ChatMessage, ModAction, Segment } from "../types";
 import { asRecord } from "../record";
 
@@ -575,10 +575,4 @@ function textOf(value: unknown): string {
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function hashText(text: string): string {
-  let hash = 0;
-  for (const char of text) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
-  return hash.toString(36);
 }

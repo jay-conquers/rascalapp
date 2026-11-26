@@ -17,7 +17,7 @@ import {
 } from "../shared/platform/selection";
 import type { Settings } from "../shared/types";
 import { readPlatformSetup } from "./platform-setup";
-import { readJson, tightenFile, writePrivateJson } from "./private-file";
+import { readJson, tightenFile, writePrivateJson } from "../shared/private-file";
 
 export const DEFAULT_SETTINGS: Settings = {
   twitchClientId: "",
