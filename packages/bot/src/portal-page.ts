@@ -8,7 +8,7 @@ export function portalPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${brand.displayName} mod portal</title>
   <style>
-    :root { color-scheme: dark; --bg:#0c0d11; --card:#14161c; --line:#2a2e38; --text:#e8eaef; --muted:#9aa3b5; --accent:#c8873e; }
+    :root { color-scheme: dark; --bg:#121110; --card:#1c1b18; --line:#3e3a34; --text:#f4efe8; --muted:#c4b5a4; --accent:#c98e59; }
     * { box-sizing: border-box; }
     body { margin: 0; font: 15px/1.45 "Noto Sans", "Liberation Sans", sans-serif; background: var(--bg); color: var(--text); }
     main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; display: grid; gap: 16px; }
@@ -18,10 +18,10 @@ export function portalPage(): string {
     a { color: var(--accent); }
     section, .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
-    input, select, textarea { width: 100%; border: 1px solid var(--line); background: #0c0d11; color: var(--text); border-radius: 10px; padding: 8px 10px; }
+    input, select, textarea { width: 100%; border: 1px solid var(--line); background: #121110; color: var(--text); border-radius: 10px; padding: 8px 10px; }
     input[type="checkbox"] { width: 16px; height: 16px; padding: 0; flex: none; accent-color: var(--accent); }
     textarea { min-height: 90px; }
-    button { border-radius: 10px; border: 1px solid #8c5a28; background: var(--accent); color: #1c120a; font-weight: 700; padding: 8px 12px; cursor: pointer; }
+    button { border-radius: 10px; border: 1px solid #7a502e; background: var(--accent); color: #1c120a; font-weight: 700; padding: 8px 12px; cursor: pointer; }
     button.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 500; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
     label.row { align-items: center; justify-content: flex-start; }

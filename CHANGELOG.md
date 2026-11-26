@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.3
+
+- The app icon is a sitting tabby facing left. The badge is charcoal, the cat is chestnut with espresso stripes and a cream outline, and the corners outside the circle are transparent.
+- Desk and mod-portal surfaces are warm charcoal instead of cool blue-gray. Buttons, links, and the active highlight use a lighter chestnut so they stay readable on the dark background. Live, error, warning, and the Twitch, YouTube, and Kick colors are unchanged.
+
 ## 0.14.2
 
 - The Kick relay closes a socket that sends a malformed frame, and it stops accepting new sockets after 32 are open. A bad webhook no longer makes the relay download Kick's public key again on every request. A webhook that is too large, or missing its signature headers, is closed instead of left hanging.

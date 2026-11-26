@@ -23,6 +23,6 @@ describe("served pages", () => {
   });
 
   it("serves the same mod portal page", () => {
-    expect(sha256(portalPage())).toBe("96500b6c95a3087522bc998fa7755dd17d070d2d962c676389562a35868b8470");
+    expect(sha256(portalPage())).toBe("96d13390e26248419b1fd3f51490323153974cb7ddeefe49c165c2e8b23f4c6a");
   });
 });
