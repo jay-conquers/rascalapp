@@ -1,4 +1,4 @@
-import { isTwitchEventSubUrl } from "../../shared/eventsub-url";
+import { TWITCH_EVENTSUB_URL, isTwitchEventSubUrl } from "../../shared/eventsub-url";
 import { asRecord } from "../../shared/record";
 
 export interface EventSubRedemption {
@@ -71,8 +71,6 @@ export function parseEventSubFrame(raw: string): EventSubFrame {
   return { type: "ignore" };
 }
 
-const DEFAULT_URL = "wss://eventsub.wss.twitch.tv/ws";
-
 export class EventSubClient {
   private socket: WebSocket | null = null;
   private stopped = true;
@@ -94,7 +92,7 @@ export class EventSubClient {
     if (!this.stopped) return;
     this.stopped = false;
     this.attempt = 0;
-    this.open(DEFAULT_URL);
+    this.open(TWITCH_EVENTSUB_URL);
   }
 
   stop(): void {
@@ -158,7 +156,7 @@ export class EventSubClient {
     if (this.keepalive) clearTimeout(this.keepalive);
     this.keepalive = setTimeout(() => {
       this.deps.log.error("eventsub keepalive missed");
-      this.open(DEFAULT_URL);
+      this.open(TWITCH_EVENTSUB_URL);
     }, (this.keepaliveSeconds + 5) * 1000);
   }
 
@@ -167,7 +165,7 @@ export class EventSubClient {
     const wait = Math.min(30_000, 1000 * 2 ** Math.min(this.attempt, 5));
     this.deps.onStatus(`Channel points disconnected. Retrying in ${Math.round(wait / 1000)}s.`);
     if (this.retry) clearTimeout(this.retry);
-    this.retry = setTimeout(() => this.open(DEFAULT_URL), wait);
+    this.retry = setTimeout(() => this.open(TWITCH_EVENTSUB_URL), wait);
   }
 
   private clearTimers(): void {

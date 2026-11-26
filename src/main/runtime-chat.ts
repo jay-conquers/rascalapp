@@ -1,4 +1,5 @@
 import { TWITCH_MESSAGE_MAX } from "../shared/defaults";
+import { KICK_CHAT_MAX } from "../shared/kick/events";
 import { noticeEnabled, placeNotice } from "../shared/feed-toggles";
 import { indexChannelEmotes } from "../shared/twitch-emotes";
 import { shouldPlayChatAlert, type AlertIdentity } from "../shared/chat-alert";
@@ -39,7 +40,7 @@ export class RuntimeChat extends RuntimeCore {
     const sendKick = kick && Boolean(this.kick.snapshot().userId);
     if (!sendTwitch && !sendYoutube && !sendKick) return;
     if (sendTwitch && message.length > TWITCH_MESSAGE_MAX) throw new Error("Twitch messages stop at 500 characters.");
-    if (sendKick && [...message].length > 500) throw new Error("Kick messages stop at 500 characters.");
+    if (sendKick && [...message].length > KICK_CHAT_MAX) throw new Error(`Kick messages stop at ${KICK_CHAT_MAX} characters.`);
     if (sendYoutube && message.length > 200) throw new Error("YouTube live chat stops at 200 characters.");
     if (Date.now() - this.lastSend < 800) throw new Error("Wait a moment before sending another message.");
     if (sendTwitch) await this.platforms.get("twitch")?.deliver(message);

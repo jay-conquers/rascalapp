@@ -1,4 +1,4 @@
-import { isTwitchEventSubUrl } from "../../shared/eventsub-url";
+import { TWITCH_EVENTSUB_URL, isTwitchEventSubUrl } from "../../shared/eventsub-url";
 import { applyWordEmotes, type WordEmote } from "../../shared/word-emotes";
 import { filterWordEmotes, type EmoteFlags, type FeedToggles } from "../../shared/feed-toggles";
 import { chatFromFollow, chatFromNotification, modActionFromModerate } from "../../shared/parsers/eventsub-events";
@@ -6,8 +6,6 @@ import { MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { redactError } from "../../shared/redact";
 import type { ChatMessage, ModAction } from "../../shared/types";
 import { asRecord } from "../../shared/record";
-
-const DEFAULT_URL = "wss://eventsub.wss.twitch.tv/ws";
 
 /**
  * One EventSub socket for the private mod log, chat notices, and follows.
@@ -44,7 +42,7 @@ export class NoticeSocket {
     this.stopped = false;
     this.attempt = 0;
     this.channelKey = this.deps.channel();
-    this.open(DEFAULT_URL);
+    this.open(TWITCH_EVENTSUB_URL);
   }
 
   stop(): void {
@@ -60,7 +58,7 @@ export class NoticeSocket {
     if (next === this.channelKey && !this.stopped) return;
     this.channelKey = next;
     if (this.stopped) return;
-    this.open(DEFAULT_URL);
+    this.open(TWITCH_EVENTSUB_URL);
   }
 
   private open(url: string): void {
@@ -210,7 +208,7 @@ export class NoticeSocket {
     if (this.keepalive) clearTimeout(this.keepalive);
     this.keepalive = setTimeout(() => {
       this.deps.log.error("notice eventsub keepalive missed");
-      this.open(DEFAULT_URL);
+      this.open(TWITCH_EVENTSUB_URL);
     }, (this.keepaliveSeconds + 5) * 1000);
   }
 
@@ -218,7 +216,7 @@ export class NoticeSocket {
     this.attempt += 1;
     const wait = Math.min(30_000, 1000 * 2 ** Math.min(this.attempt, 5));
     if (this.retry) clearTimeout(this.retry);
-    this.retry = setTimeout(() => this.open(DEFAULT_URL), wait);
+    this.retry = setTimeout(() => this.open(TWITCH_EVENTSUB_URL), wait);
   }
 
   private clearTimers(): void {
