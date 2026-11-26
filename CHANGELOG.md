@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.0
+
+- Settings is grouped into Platforms, Chat & Bot, Tabs, Alerts, Moderation, App, and Advanced. A list on the left jumps to each section.
+- Platforms keeps the platform list, the channel for each one that is on, Twitch and Kick login, and the Kick relay address and secret. Turning Kick on still shows the relay notice, and Kick stays off until that notice is accepted. Chat still cannot be hidden. Settings stays in the bar.
+- Chat & Bot holds the extra emote catalogs, which notices show in chat, and the bot connection. Embedded still runs the bot on this computer. Server still controls one bot you host.
+- Alerts holds the message sound. A custom sound's full path is under Advanced.
+- Moderation holds the private mod log. It is still never posted to chat or drawn on an overlay.
+- App shows the version and, when Twitch is on, the switch that imports Firebot reward files on startup.
+- Advanced holds the Twitch client ID, how to register the Twitch app, the consent-screen scopes, the Kick app id and secret, the overlay port, and the note about where tokens are stored. Every control from 0.13.0 is still there.
+- Twitch and Kick both say Log in and Log out. The saved keys in settings.json, the defaults, and the bot connection fields are unchanged.
+
 ## 0.13.0
 
 - Stream info edits the title on every platform that is turned on. Twitch and Kick also edit the category. YouTube has no game field in the live API, so the game title stays in YouTube Studio. A checkbox applies one title to all enabled platforms. Each platform keeps its own fields. A failure on one platform is shown there and does not stop the others.

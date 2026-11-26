@@ -34,5 +34,8 @@ describe("status pills", () => {
     expect(css).toMatch(/@container \(max-width: 120px\) \{\s*\.viewer-word \{ display: none; \}/);
     expect(css).toMatch(/@container \(max-width: 72px\) \{\s*\.pill-name \{ display: none; \}/);
     expect(css).toContain("flex: 0 0 auto");
+    expect(css).toMatch(/\.pills \{[^}]*flex-wrap:\s*wrap/s);
+    expect(css).toMatch(/\.youtube-status \{[^}]*flex-wrap:\s*wrap/s);
+    expect(css).toMatch(/@media \(max-width: 1180px\) \{\s*\.topbar \{ flex-wrap: wrap; \}/);
   });
 });

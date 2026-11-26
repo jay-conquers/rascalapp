@@ -164,7 +164,7 @@ fly machines restart --app rascal
 
 ## 9. Point Rascal at the server
 
-Open Rascal, then Settings, then **Bot connection**.
+Open Rascal, then Settings, then Chat & Bot, then **Bot connection**.
 
 - Mode: **Server you run**
 - Server URL: `https://rascal.fly.dev`
