@@ -2,8 +2,8 @@
 """Rasterize build/icon.svg into the PNG sizes electron-builder expects, plus ICO and ICNS.
 
 Stdlib only. The SVG is the source; this flattens its circles, ellipses, and
-paths (M/L/H/V/C/Q/Z) and paints them with supersampling. Windows and macOS
-icons are packed from those PNGs.
+paths (M/L/H/V/C/Q/Z), applies translate() and clip-path, and paints them with
+supersampling. Windows and macOS icons are packed from those PNGs.
 """
 
 import math
@@ -248,19 +248,54 @@ def bounds_of(points, pad=0):
     return (min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad)
 
 
-def add_fill(shapes, contours, color):
+def contour_tester(contours):
+    """Point-in-polygon using the same even-odd rule, with edges binned by y."""
+    cell = 32.0
+    buckets: dict[int, list] = {}
+    for points in contours:
+        if len(points) < 2:
+            continue
+        previous = len(points) - 1
+        for index in range(len(points)):
+            xi, yi = points[index]
+            xj, yj = points[previous]
+            previous = index
+            y_lo = yi if yi < yj else yj
+            y_hi = yj if yi < yj else yi
+            if y_lo == y_hi:
+                continue
+            edge = (xi, yi, xj, yj)
+            start = math.floor(y_lo / cell)
+            stop = math.floor(y_hi / cell)
+            for bucket in range(start, stop + 1):
+                buckets.setdefault(bucket, []).append(edge)
+
+    def contains(x, y):
+        inside = False
+        for xi, yi, xj, yj in buckets.get(math.floor(y / cell), ()):
+            if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
+                inside = not inside
+        return inside
+
+    return contains
+
+
+def add_fill(shapes, contours, color, clip=None):
     if color is None or not contours:
         return
     points = [point for contour in contours for point in contour]
     box = bounds_of(points)
+    contains = contour_tester(contours)
 
     def hit(x, y):
-        return even_odd(x, y, contours)
+        if clip is not None and not clip(x, y):
+            return False
+        return contains(x, y)
 
     shapes.append(Shape(color, box, hit))
 
 
-def add_stroke(shapes, contours, color, width, cap, dash):
+def add_stroke(shapes, contours, color, width, cap, dash, clip=None):
     if color is None or width <= 0:
         return
     segments = stroke_segments(contours, width, cap, dash)
@@ -282,6 +317,8 @@ def add_stroke(shapes, contours, color, width, cap, dash):
                 grid.setdefault((gx, gy), []).append(segment)
 
     def hit(x, y):
+        if clip is not None and not clip(x, y):
+            return False
         bucket = grid.get((math.floor(x / cell), math.floor(y / cell)))
         if not bucket:
             return False
@@ -302,37 +339,110 @@ def ellipse_contours(cx, cy, rx, ry, steps=48):
     return [points]
 
 
+TRANSLATE = re.compile(r"translate\(\s*([-+0-9.eE]+)(?:[\s,]+([-+0-9.eE]+))?\s*\)")
+
+
+def parse_translate(value: str | None):
+    if not value:
+        return 0.0, 0.0
+    match = TRANSLATE.fullmatch(value.strip())
+    if not match:
+        raise SystemExit(f"unsupported transform {value}")
+    return float(match.group(1)), float(match.group(2) or 0)
+
+
+def shift(contours, tx, ty):
+    if tx == 0 and ty == 0:
+        return contours
+    return [[(x + tx, y + ty) for x, y in contour] for contour in contours]
+
+
+def clip_reference(value: str | None):
+    if not value:
+        return None
+    match = re.fullmatch(r"url\(#([^)]+)\)", value.strip())
+    if not match:
+        raise SystemExit(f"unsupported clip-path {value}")
+    return match.group(1)
+
+
+def element_contours(element, tx, ty):
+    kind = local(element.tag)
+    ox, oy = parse_translate(element.attrib.get("transform"))
+    tx += ox
+    ty += oy
+    if kind == "path":
+        return shift(path_contours(element.attrib.get("d", "")), tx, ty)
+    if kind == "circle":
+        cx = float(element.attrib.get("cx", "0"))
+        cy = float(element.attrib.get("cy", "0"))
+        radius = float(element.attrib.get("r", "0"))
+        return shift(ellipse_contours(cx, cy, radius, radius), tx, ty)
+    if kind == "ellipse":
+        cx = float(element.attrib.get("cx", "0"))
+        cy = float(element.attrib.get("cy", "0"))
+        rx = float(element.attrib.get("rx", "0"))
+        ry = float(element.attrib.get("ry", "0"))
+        return shift(ellipse_contours(cx, cy, rx, ry), tx, ty)
+    return []
+
+
+def collect_clips(element, clips):
+    for child in list(element):
+        kind = local(child.tag)
+        if kind == "clipPath" and child.attrib.get("id"):
+            contours = []
+            for node in list(child):
+                contours.extend(element_contours(node, 0.0, 0.0))
+            clips[child.attrib["id"]] = contour_tester(contours)
+        elif kind in {"defs", "g", "svg"}:
+            collect_clips(child, clips)
+
+
+def paint_element(element, shapes, tx, ty, clip, clips):
+    kind = local(element.tag)
+    if kind in {"defs", "clipPath", "style", "title", "desc", "metadata"}:
+        return
+    ox, oy = parse_translate(element.attrib.get("transform"))
+    tx += ox
+    ty += oy
+    active = clip
+    reference = clip_reference(element.attrib.get("clip-path"))
+    if reference:
+        active = clips[reference]
+    if kind == "g":
+        for child in list(element):
+            paint_element(child, shapes, tx, ty, active, clips)
+        return
+    if kind == "svg":
+        for child in list(element):
+            paint_element(child, shapes, tx, ty, active, clips)
+        return
+    contours = element_contours(element, tx - ox, ty - oy)
+    if kind in {"circle", "ellipse", "path"}:
+        add_fill(shapes, contours, parse_color(element.attrib.get("fill")), active)
+    if kind == "path":
+        cap = element.attrib.get("stroke-linecap", "butt")
+        add_stroke(
+            shapes,
+            contours,
+            parse_color(element.attrib.get("stroke")),
+            float(element.attrib.get("stroke-width", "1")),
+            cap,
+            element.attrib.get("stroke-dasharray"),
+            active,
+        )
+
+
 def load_shapes(path: Path):
     tree = ET.parse(path)
     root = tree.getroot()
     view = root.attrib.get("viewBox", "0 0 32 32").split()
     vb_x, vb_y, vb_w, vb_h = (float(part) for part in view)
+    clips = {}
+    collect_clips(root, clips)
     shapes = []
-    for element in root.iter():
-        kind = local(element.tag)
-        if kind == "circle":
-            cx = float(element.attrib.get("cx", "0"))
-            cy = float(element.attrib.get("cy", "0"))
-            r = float(element.attrib.get("r", "0"))
-            add_fill(shapes, ellipse_contours(cx, cy, r, r), parse_color(element.attrib.get("fill")))
-        elif kind == "ellipse":
-            cx = float(element.attrib.get("cx", "0"))
-            cy = float(element.attrib.get("cy", "0"))
-            rx = float(element.attrib.get("rx", "0"))
-            ry = float(element.attrib.get("ry", "0"))
-            add_fill(shapes, ellipse_contours(cx, cy, rx, ry), parse_color(element.attrib.get("fill")))
-        elif kind == "path":
-            contours = path_contours(element.attrib.get("d", ""))
-            add_fill(shapes, contours, parse_color(element.attrib.get("fill")))
-            cap = element.attrib.get("stroke-linecap", "butt")
-            add_stroke(
-                shapes,
-                contours,
-                parse_color(element.attrib.get("stroke")),
-                float(element.attrib.get("stroke-width", "1")),
-                cap,
-                element.attrib.get("stroke-dasharray"),
-            )
+    paint_element(root, shapes, 0.0, 0.0, None, clips)
     return (vb_x, vb_y, vb_w, vb_h), shapes
 
 
