@@ -7,6 +7,7 @@ import {
 import { defaultFeed, mergeFeed } from "../shared/feed-toggles";
 import { defaultSendTargets, mergeSendTargets } from "../shared/send-targets";
 import { defaultChatAlert, mergeChatAlert } from "../shared/chat-alert";
+import { defaultTabs, tabsFromPatch } from "../shared/desk-tabs";
 import {
   defaultPlatformSelection,
   migrateFromSetup,
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sendTargets: defaultSendTargets(),
   chatAlert: defaultChatAlert(),
   platforms: defaultPlatformSelection(),
+  tabs: defaultTabs(),
 };
 
 export class SettingsStore {
@@ -90,6 +92,7 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
     sendTargets: mergeSendTargets(current.sendTargets, patch.sendTargets),
     chatAlert: mergeChatAlert(current.chatAlert, patch.chatAlert),
     platforms: selectionFromPatch(current.platforms ?? defaultPlatformSelection(), patch.platforms),
+    tabs: tabsFromPatch(current.tabs ?? defaultTabs(), patch.tabs),
     windowBounds: patch.windowBounds !== undefined ? patch.windowBounds : current.windowBounds,
   };
   if (next.twitchClientId && !/^[a-zA-Z0-9]{10,80}$/.test(next.twitchClientId)) {

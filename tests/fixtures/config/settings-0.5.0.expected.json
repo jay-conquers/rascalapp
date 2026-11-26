@@ -44,6 +44,9 @@
     "confirmed": true,
     "enabled": ["twitch", "youtube"]
   },
+  "tabs": {
+    "hidden": []
+  },
   "windowBounds": {
     "x": 10,
     "y": 20,
