@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.0
+
+- Kick is in the platform list. Turning it on shows a notice: Kick chat and events need Rascal hosting or a relay you run, and they do not arrive without one. Rascal hosting is not available yet. The notice links to the self-hosting steps. The Enable button stays off until **I understand** is ticked. Cancel leaves Kick off. The acknowledgement is saved, so the notice does not return every time Kick is opened. Clearing settings brings it back.
+- Kick login uses your own Kick app, with OAuth 2.1 and PKCE. Chat is read through the relay. Sending a message, deleting one, timing a viewer out, banning, and unbanning use Kick's API and the moderation menu. A timeout is a whole number of minutes, from 1 minute to 7 days.
+- A small relay is included. It checks Kick's webhook signature and forwards the event over a WebSocket. The shared secret is configured by you. Docker builds it next to the bot. The steps are in docs/kick-relay.md.
+- Without a relay address and secret, Kick's status says **No relay configured**.
+- Turning Kick off stops its socket and its API calls. The login stays saved.
+- An install from 0.11.0 or earlier does not turn Kick on. A bot with no saved platform list still connects Twitch and YouTube only.
+- Kick does not do channel-point redeems, a separate bot account, follow age, account age, shoutouts, or a full viewer list. Follows, subscriptions, gifted subscriptions, and Kicks gifts are not shown. Third-party emote providers are not applied to Kick messages.
+
 ## 0.11.0
 
 - Panels in the top bar can be hidden. Settings has a Tabs section, with a checkbox for each panel. Chat is checked and stays on. Right-click a panel button and choose Hide tab. Settings stays in the bar, so a hidden panel can be turned back on.

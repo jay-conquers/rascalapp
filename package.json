@@ -1,9 +1,9 @@
 {
   "name": "rascal",
   "productName": "Rascal",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
-  "description": "Twitch and YouTube stream desk",
+  "description": "Twitch, YouTube, and Kick stream desk",
   "author": "jay-conquers",
   "license": "AGPL-3.0-only",
   "main": "dist/main/index.cjs",

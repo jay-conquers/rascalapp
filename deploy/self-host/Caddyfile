@@ -2,5 +2,12 @@
 # Caddy asks Let's Encrypt for a certificate for that name.
 
 {$PUBLIC_HOST} {
-	reverse_proxy bot:4788
+	# Kick webhooks and the Rascal socket. The relay service starts with the kick profile.
+	@relay path /webhooks/* /v1/*
+	handle @relay {
+		reverse_proxy relay:8790
+	}
+	handle {
+		reverse_proxy bot:4788
+	}
 }
