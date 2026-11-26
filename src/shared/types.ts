@@ -1,6 +1,7 @@
 import type { FeedToggles, NoticeKind } from "./feed-toggles";
 import type { SendTargets } from "./send-targets";
 import type { ChatAlertSettings } from "./chat-alert";
+import type { TabSettings } from "./desk-tabs";
 import type { PlatformSelection } from "./platform/selection";
 
 export type { FeedToggles, NoticeKind } from "./feed-toggles";
@@ -117,6 +118,11 @@ export interface Settings {
   chatAlert: ChatAlertSettings;
   /** Platforms the desk shows and connects. Logins stay saved when one is turned off. */
   platforms: PlatformSelection;
+  /**
+   * Panels removed from the top bar. Missing on older files, which show every tab.
+   * Chat is never listed. This does not stop the bot, a connection, or an overlay.
+   */
+  tabs: TabSettings;
   windowBounds?: { x: number; y: number; width: number; height: number };
 }
 

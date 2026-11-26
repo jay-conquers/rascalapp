@@ -43,5 +43,8 @@
   "platforms": {
     "confirmed": true,
     "enabled": ["twitch"]
+  },
+  "tabs": {
+    "hidden": []
   }
 }

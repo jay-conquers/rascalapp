@@ -15,14 +15,16 @@ Rascal is a free, open-source streaming desk for Twitch and YouTube. It replaces
 
 A fresh install asks which platforms you stream on. Twitch starts checked. YouTube stays off until you select it. Chat for a selected platform follows the channel in Settings, or the Twitch account you sign in with when that field is empty.
 
+The buttons along the top can be hidden from Settings, under Tabs. Chat always stays, and Settings stays so a hidden button can be turned back on. Right-click a button and choose Hide tab. Hiding a button removes it from the window. The bot, the overlays, and the connections keep running. Redeems is also hidden while Twitch is turned off. Turning Twitch back on shows Redeems again, unless it is hidden under Tabs.
+
 ## Install the AppImage
 
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.10.0.AppImage
+chmod +x Rascal-0.11.0.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.10.0.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.11.0.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -98,7 +100,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.10.0.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.11.0.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0
+
+- Panels in the top bar can be hidden. Settings has a Tabs section, with a checkbox for each panel. Chat is checked and stays on. Right-click a panel button and choose Hide tab. Settings stays in the bar, so a hidden panel can be turned back on.
+- The choice is saved in settings.json. An install from 0.10.0 or earlier has no saved choice and still shows every panel.
+- Hiding a panel removes it from the window. If that panel was open, the window returns to Chat. The bot, overlays, and connections keep running, including a bot you host yourself.
+- Redeems is also hidden while Twitch is turned off under Platforms. That list is separate. Turning Twitch back on shows Redeems again, unless it is hidden under Tabs.
+
 ## 0.10.0
 
 - Choose which platforms to connect. A new install asks once, with Twitch already checked. YouTube is the other choice today. At least one platform stays on. Settings has the same list, so it can be changed later.
