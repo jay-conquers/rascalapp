@@ -142,7 +142,15 @@ export interface ConnectionSide {
 
 export interface ConnectionStatus {
   twitch: ConnectionSide;
-  youtube: ConnectionSide & { videoId?: string; title?: string; canSend?: boolean; sendAccount?: string | null; sendHint?: string };
+  youtube: ConnectionSide & {
+    videoId?: string;
+    title?: string;
+    canSend?: boolean;
+    sendAccount?: string | null;
+    sendHint?: string;
+    /** Signed-in YouTube channel. Used to refuse moderating that channel's own account. */
+    accountChannelId?: string | null;
+  };
   overlay: { listening: boolean; host: string; port: number };
 }
 

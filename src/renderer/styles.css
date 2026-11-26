@@ -65,22 +65,34 @@ img { max-width: 100%; }
   border-bottom: 1px solid var(--line);
   background: linear-gradient(#14161c, #101218);
 }
-.brand { display: flex; align-items: center; gap: 10px; min-width: 160px; }
-.brand svg { width: 26px; height: 26px; display: block; }
-.brand strong { display: block; letter-spacing: 0.01em; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 200px; }
+.brand svg { width: 26px; height: 26px; display: block; flex: none; }
+.brand-copy { min-width: 0; }
+.brand strong, .brand span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brand strong { letter-spacing: 0.01em; }
 .brand span { color: var(--muted); font-size: 12px; }
-.pills { display: flex; gap: 8px; flex: 1; min-width: 0; }
+.pills { display: flex; gap: 8px; flex: 1 1 0; min-width: 0; overflow: hidden; }
 .pill {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 5px 10px;
   border-radius: 999px;
   background: #0e1015;
   border: 1px solid var(--line);
   font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  container-type: inline-size;
 }
 .pill i {
   width: 8px;
@@ -89,18 +101,23 @@ img { max-width: 100%; }
   background: var(--faint);
   flex: none;
 }
-.pill em {
-  color: var(--muted);
-  font-style: normal;
+.pill-name, .pill-detail {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pill-name { flex: none; }
+.pill-detail {
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-style: normal;
 }
 .pill.state-connected i, .pill.state-live i { background: var(--ok); }
 .pill.state-offline i { background: var(--faint); }
 .pill.state-connecting i, .pill.state-reconnecting i { background: var(--gold); }
 .pill.state-error i { background: var(--danger); }
-.top-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.top-actions { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: nowrap; justify-content: flex-end; }
 .icon-button {
   width: 34px;
   height: 34px;
@@ -182,7 +199,23 @@ img { max-width: 100%; }
 .msg.notice-watch-streak, .msg.notice-mod-anniversary, .msg.notice-milestone { box-shadow: inset 3px 0 0 #5eead4; }
 .msg.notice-redemption { box-shadow: inset 3px 0 0 #fb923c; background: rgba(251, 146, 60, 0.08); }
 .msg.desk-only { background: rgba(251, 146, 60, 0.05); }
-.pill .viewers { font-variant-numeric: tabular-nums; color: var(--cream); font-size: 12px; }
+.pill .viewers {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--cream);
+  font-size: 12px;
+  white-space: nowrap;
+}
+/* The pill is the container. Narrow chips drop the status line, then the word "watching", then the name. */
+@container (max-width: 160px) {
+  .pill-detail { display: none; }
+}
+@container (max-width: 120px) {
+  .viewer-word { display: none; }
+}
+@container (max-width: 72px) {
+  .pill-name { display: none; }
+}
 .toggle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; }
 .feed-wrap { position: relative; min-height: 0; }
 .feed {
@@ -217,6 +250,75 @@ img { max-width: 100%; }
 .platform.youtube { color: #ff6d6d; }
 .msg-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
 .who { font-weight: 700; }
+.who-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+}
+.who-button:hover { text-decoration: underline; }
+.mod-menu {
+  position: fixed;
+  z-index: 30;
+  width: 232px;
+  padding: 8px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 4px;
+}
+.mod-menu-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 2px 4px;
+  font-weight: 700;
+}
+.mod-menu-title span, .mod-note, .mod-caveat { color: var(--faint); font-size: 12px; font-weight: 600; }
+.mod-menu button, .mention-list button {
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.mod-menu button:hover:not(:disabled), .mention-list button:hover, .mention-list button.active { background: var(--bg-hot); }
+.mod-timeouts, .mod-custom, .mod-confirm { display: flex; flex-wrap: wrap; gap: 4px; }
+.mod-custom input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: #0c0d11;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.mod-confirm { display: grid; }
+.mod-confirm p, .mod-note { margin: 0; }
+.mod-caveat { margin: 6px 0 0; }
+.mention-list {
+  position: absolute;
+  left: 0;
+  right: 84px;
+  bottom: calc(100% + 6px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  max-height: 220px;
+  overflow: auto;
+  z-index: 5;
+}
+.mention-list button { display: flex; align-items: center; gap: 8px; width: 100%; }
+.mention-mark { width: 16px; height: 16px; display: inline-flex; color: var(--muted); }
+.mention-mark.twitch { color: #c4a3ff; }
+.mention-mark.youtube { color: #ff6d6d; }
+.mention-mark svg { width: 16px; height: 16px; display: block; }
 .badges { display: inline-flex; gap: 4px; }
 .badge {
   font-size: 10px;
@@ -270,7 +372,7 @@ img { max-width: 100%; }
   background: #101218;
 }
 .composer-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.composer-row { display: flex; gap: 8px; align-items: flex-end; }
+.composer-row { position: relative; display: flex; gap: 8px; align-items: flex-end; }
 .composer textarea, .stream-page textarea, .settings input, .stream-page input, .settings textarea, .settings select {
   width: 100%;
   border: 1px solid var(--line);
@@ -722,7 +824,8 @@ label.check-row {
 
 @media (max-width: 920px) {
   .topbar { flex-wrap: wrap; }
-  .pills { order: 3; width: 100%; }
+  .pills { order: 3; flex: 1 0 100%; width: 100%; }
+  .top-actions { flex-wrap: wrap; max-width: 100%; }
   .scope-list li { grid-template-columns: 1fr; }
   .overlay-layout, .tts-columns, .tts-address { grid-template-columns: 1fr; }
   .redeems { overflow: auto; }

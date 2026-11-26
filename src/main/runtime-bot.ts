@@ -19,13 +19,18 @@ export class RuntimeBot extends RuntimeChat {
       this.forgetStream();
     }
     if (next.twitchChannel !== prev.twitchChannel) {
+      this.session.clear("twitch");
+      this.listedTwitch = [];
+      this.broadcasterCache = null;
       this.applyTwitchChannel();
+      if (this.chatterTimer) void this.refreshChatters();
       if (loadBotLink(path.dirname(this.settings.file)).mode === "embedded") {
         const login = this.auth.state().loggedIn ? this.auth.state().login ?? "" : "";
         getBot()?.service.setIdentity({ channelLogin: next.twitchChannel || login });
       }
     }
     if (next.youtubeChannelId !== prev.youtubeChannelId) {
+      this.session.clear("youtube");
       this.youtube.setChannel(next.youtubeChannelId);
       if (loadBotLink(path.dirname(this.settings.file)).mode === "embedded") {
         getBot()?.service.setIdentity({ youtubeChannelId: next.youtubeChannelId });
@@ -347,7 +352,13 @@ export class RuntimeBot extends RuntimeChat {
     const ready = this.youtubeSend.sendReadiness();
     this.status = {
       ...this.status,
-      youtube: { ...this.status.youtube, canSend: ready.canSend, sendAccount: desk.account, sendHint: ready.hint },
+      youtube: {
+        ...this.status.youtube,
+        canSend: ready.canSend,
+        sendAccount: desk.account,
+        sendHint: ready.hint,
+        accountChannelId: desk.channelId,
+      },
     };
     this.emit({ type: "status", status: this.status });
   }

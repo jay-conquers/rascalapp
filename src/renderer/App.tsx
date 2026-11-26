@@ -14,10 +14,13 @@ import { StreamInfoView } from "./components/StreamInfoView";
 import { TtsView } from "./components/TtsView";
 import { BotView } from "./components/BotView";
 import { brand } from "../shared/brand";
+import { moderationOffer, youtubeModLogConnected } from "../shared/moderation";
+import { twitchLoginMissesReadScopes } from "../shared/scopes";
 import { twitchLink, youtubeLink, type SendTargets } from "../shared/send-targets";
 import { defaultChatAlert } from "../shared/chat-alert";
 import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
+import { StatusPill } from "./components/StatusPill";
 
 export function App() {
   const [ready, setReady] = useState(false);
@@ -32,7 +35,7 @@ export function App() {
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.8.0");
+  const [version, setVersion] = useState("0.9.0");
   const [modLog, setModLog] = useState<ModAction[]>([]);
   const [modOpen, setModOpen] = useState(false);
   const sendSeq = useRef(0);
@@ -183,9 +186,9 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <RascalMark />
-          <div>
+          <div className="brand-copy">
             <strong>{brand.displayName}</strong>
-            <span>{shownChannel ? `#${shownChannel}` : "No channel"}</span>
+            <span title={shownChannel ? `#${shownChannel}` : "No channel"}>{shownChannel ? `#${shownChannel}` : "No channel"}</span>
           </div>
         </div>
         <div className="pills">
@@ -309,8 +312,38 @@ export function App() {
       ) : (
         <div className="workspace">
           <section className={modOpen ? "chat-column with-mod" : "chat-column"}>
-            <ChatFeed messages={messages} />
-            {modOpen ? <ModLogPanel actions={modLog} enabled={settings.feed.modLog} /> : null}
+            <ChatFeed
+              messages={messages}
+              offerFor={(message) =>
+                moderationOffer(message, {
+                  twitch: {
+                    loggedIn: auth.loggedIn,
+                    scopes: auth.scopes,
+                    login: auth.login,
+                    userId: auth.userId,
+                    channelLogin: shownChannel,
+                    broadcasterId: auth.login && shownChannel && auth.login.toLowerCase() === shownChannel.toLowerCase() ? auth.userId : null,
+                  },
+                  youtube: {
+                    canModerate: status.youtube.canSend === true,
+                    live: status.youtube.state === "live" || Boolean(status.youtube.videoId),
+                    channelId: settings.youtubeChannelId.trim(),
+                    accountChannelId: status.youtube.accountChannelId ?? null,
+                  },
+                })
+              }
+              onModerate={async (message, command) => {
+                await window.rascal!.moderate({ ...command, messageId: message.id });
+              }}
+            />
+            {modOpen ? (
+              <ModLogPanel
+                actions={modLog}
+                enabled={settings.feed.modLog}
+                twitchMissingReadScopes={twitchLoginMissesReadScopes(auth)}
+                youtubeConnected={youtubeModLogConnected(status.youtube.state)}
+              />
+            ) : null}
             <div className="mod-toggle">
               <button type="button" className={modOpen ? "text-button on" : "text-button"} onClick={() => setModOpen((open) => !open)}>
                 {modOpen ? "Hide mod log" : "Mod log"}
@@ -329,6 +362,7 @@ export function App() {
               onOpenSettings={() => setView("settings")}
               onOpenBot={() => setView("bot")}
               onSend={(text, destinations) => window.rascal!.sendChat(text, destinations)}
+              loadMentions={(query) => window.rascal!.mentions(query)}
             />
           </section>
         </div>
@@ -346,19 +380,3 @@ export function App() {
   );
 }
 
-function StatusPill({ label, state, detail, viewers }: { label: string; state: string; detail: string; viewers?: number | null }) {
-  const watching = typeof viewers === "number" ? `${viewers.toLocaleString("en-US")} watching` : "";
-  return (
-    <p className={`pill state-${state}`} title={watching ? `${detail} · ${watching}` : detail}>
-      <i />
-      <span>{label}</span>
-      <em>{shortDetail(detail)}</em>
-      {watching ? <strong className="viewers">{watching}</strong> : null}
-    </p>
-  );
-}
-
-function shortDetail(detail: string): string {
-  const clean = detail.replace(/\s+/g, " ").trim();
-  return clean.length > 42 ? `${clean.slice(0, 40)}…` : clean;
-}

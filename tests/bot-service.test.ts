@@ -95,7 +95,8 @@ describe("twitch chat through the bot", () => {
     const deleted = fixture.sent("api.twitch.tv/helix/moderation/chat", "DELETE")[0];
     expect(deleted?.query.get("broadcaster_id")).toBe(BROADCASTER_ID);
     expect(deleted?.query.get("moderator_id")).toBe(BOT_USER_ID);
-    expect(bodyOf(deleted)).toEqual({ message_id: "spam-1" });
+    expect(deleted?.query.get("message_id")).toBe("spam-1");
+    expect(bodyOf(deleted)).toBeUndefined();
     const timeout = fixture.sent("api.twitch.tv/helix/moderation/bans", "POST")[0];
     expect(bodyOf(timeout)).toEqual({ data: { user_id: "666", reason: "link", duration: 30 } });
     expect(fixture.service.snapshot(0).log[0]).toMatchObject({ action: "timeout", user: "troll", text: "link", by: "filter" });

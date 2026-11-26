@@ -1,5 +1,6 @@
 import path from "node:path";
 import { brand } from "../shared/brand";
+import { chatFeedConnected, SessionChatters, type ChatterName } from "../shared/mentions";
 import type { DeskPlatform } from "../shared/platform/desk";
 import { PlatformRegistry } from "../shared/platform/registry";
 import type {
@@ -59,6 +60,10 @@ export class RuntimeCore {
   protected roomId: string | null = null;
   protected lastAlertAt: number | null = null;
   protected lastSend = 0;
+  protected readonly session = new SessionChatters();
+  protected listedTwitch: ChatterName[] = [];
+  protected chatterTimer: NodeJS.Timeout | null = null;
+  protected broadcasterCache: { login: string; id: string } | null = null;
   protected sender: ((event: AppEvent) => void) | null = null;
   protected hooks: { alwaysOnTop?: (value: boolean) => void } = {};
   protected status: ConnectionStatus;
@@ -69,7 +74,7 @@ export class RuntimeCore {
     openExternal?: (url: string) => Promise<void>;
     fetchImpl?: typeof fetch;
   }) {
-    this.version = deps.version ?? "0.8.0";
+    this.version = deps.version ?? "0.9.0";
     this.log = new Logger(path.join(deps.dir, "logs", brand.logFile));
     this.youtubeSend = youtubeDesk(deps.dir, { log: this.log, fetchImpl: deps.fetchImpl });
     this.youtubeSend.setOnChange(() => this.publishYoutubeSend());
@@ -102,9 +107,11 @@ export class RuntimeCore {
           this.notices.retarget();
           void this.refreshViewers();
           this.armViewerPoll();
+          this.armChatterPoll();
         } else {
           this.notices.stop();
           this.setTwitchViewers(null);
+          this.disarmChatterPoll();
         }
       },
     });
@@ -216,6 +223,13 @@ export class RuntimeCore {
         await this.helix.sendChat(broadcasterId, user.userId, text);
         return "ok";
       },
+      chatters: () => ({
+        id: "twitch",
+        label: "Twitch",
+        listed: this.listedTwitch,
+        session: this.session.list("twitch"),
+      }),
+      mentionsOpen: () => this.settings.load().sendTargets.twitch && chatFeedConnected(this.status.twitch.state),
     });
     this.platforms.register({
       id: "youtube",
@@ -232,6 +246,13 @@ export class RuntimeCore {
           throw err;
         }
       },
+      chatters: () => ({
+        id: "youtube",
+        label: "YouTube",
+        listed: [],
+        session: this.session.list("youtube"),
+      }),
+      mentionsOpen: () => this.settings.load().sendTargets.youtube && chatFeedConnected(this.status.youtube.state),
     });
   }
 
@@ -344,5 +365,7 @@ export class RuntimeCore {
   protected refreshStream(_quiet: boolean): Promise<void> { return Promise.resolve(); }
   protected armStreamPoll(): void {}
   protected disarmStreamPoll(): void {}
+  protected armChatterPoll(): void {}
+  protected disarmChatterPoll(): void {}
   protected chatChannel(): string { return ""; }
 }

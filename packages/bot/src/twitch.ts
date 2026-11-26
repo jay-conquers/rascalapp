@@ -120,7 +120,13 @@ export class HelixBot {
   }
 
   deleteMessage(broadcasterId: string, moderatorId: string, messageId: string): Promise<void> {
-    return this.request("DELETE", `/moderation/chat?broadcaster_id=${broadcasterId}&moderator_id=${moderatorId}`, { message_id: messageId });
+    // message_id belongs in the query. Leaving it out clears the whole room.
+    const query = new URLSearchParams({
+      broadcaster_id: broadcasterId,
+      moderator_id: moderatorId,
+      message_id: messageId,
+    });
+    return this.request("DELETE", `/moderation/chat?${query.toString()}`);
   }
 
   moderate(broadcasterId: string, moderatorId: string, userId: string, seconds: number | null, reason: string): Promise<void> {

@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.9.0
 
+- Moderate from the chat column. Click or right-click a message or a name to delete it, time the viewer out (1 minute, 10 minutes, 1 hour, 24 hours, or a custom length), ban, or unban. Twitch uses Helix. YouTube uses the live chat Data API, with a temporary ban for a timeout. The menu leaves out actions the signed-in account cannot perform, asks before a ban, and will not act on the broadcaster. A failed request stays on the menu. Each action is written to the private mod log with who did it, what they did, who it was done to, the duration, and the platform.
+- Twitch message deletes now send `message_id` as a query parameter. Leaving that parameter out asks Helix to clear the whole room.
+- Twitch login now also asks for `moderator:manage:chat_messages`, `moderator:manage:banned_users`, and `moderator:read:chatters`. Chat keeps working with an older token. Log out and back in once so deletes, timeouts, bans, and the chatter list can run. Settings names the missing scopes until you do.
+- Typing `@` in the chat box suggests names from the platforms that are connected and checked. Twitch merges Helix chatters with people who spoke this session. YouTube has no viewer list, so it uses people who spoke this session. A second platform shows a small marker on each name.
+- The mod log's empty state says "No moderation actions yet." The Twitch login hint appears only when that login is missing the moderator read scopes. The YouTube note appears only when YouTube chat is connected.
+- Channel-point redeems with no typed message show who redeemed them. Follows and other notices that name a viewer show that name too.
+- Viewer counts in the header stay on one line inside the pill. A long label ellipsizes, and a narrow window shows the dot and the number instead of spilling into the buttons.
 - The bot state no longer includes `askJeevesHook`. A `bot.json` that still has that key loads without it. The speech panel no longer shows that row.
 - A moderator's `!timeout` on Twitch, and `!ban` on YouTube, now act on the named user. They used to act on the moderator who typed the command.
 - Chat hooks. Each hook in `bot.json` can POST a viewer's command to an address you run. It is off until enabled. A secret signs the body, and the service can optionally return a short chat reply. `allowBroadcaster` lets the streamer's own messages fire that hook. The bot's own posts still do not.

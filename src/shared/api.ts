@@ -7,6 +7,8 @@ import type { TtsPanel } from "./tts";
 import type { FeedToggles } from "./feed-toggles";
 import type { SendTargets } from "./send-targets";
 import type { ChatAlertSettings } from "./chat-alert";
+import type { MentionRoster } from "./mentions";
+import type { ModerationCommand } from "./moderation";
 import type {
   AppEvent,
   AppSnapshot,
@@ -33,6 +35,8 @@ export interface RascalApi {
   getSnapshot(): Promise<AppSnapshot>;
   onEvent(listener: (event: AppEvent) => void): () => void;
   sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean }): Promise<void>;
+  moderate(command: ModerationCommand): Promise<void>;
+  mentions(query: string): Promise<MentionRoster>;
   searchCategories(query: string): Promise<CategoryHit[]>;
   updateStream(update: StreamUpdate): Promise<StreamInfo>;
   updateSettings(patch: SettingsPatch): Promise<Settings>;

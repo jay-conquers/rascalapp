@@ -44,6 +44,7 @@ export class Runtime extends RuntimeBot {
   async stop(): Promise<void> {
     this.disarmStreamPoll();
     this.disarmViewerPoll();
+    this.disarmChatterPoll();
     for (const platform of this.platforms.list()) platform.stop();
     this.emotes.stop();
     this.badges.stop();

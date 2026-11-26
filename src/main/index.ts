@@ -190,6 +190,8 @@ function registerIpc(runtime: Runtime): void {
       return runtime.sendChat(text, asDestinations(destinations));
     }),
   );
+  ipcMain.handle("app:moderate", (_event, command: unknown) => guard(() => runtime.moderate(command)));
+  ipcMain.handle("app:mentions", (_event, query: unknown) => guard(() => runtime.mentions(typeof query === "string" ? query : "")));
   ipcMain.handle("app:search-categories", (_event, query: unknown) =>
     guard(() => {
       if (typeof query !== "string") return [];
