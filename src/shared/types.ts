@@ -1,6 +1,7 @@
 import type { FeedToggles, NoticeKind } from "./feed-toggles";
 import type { SendTargets } from "./send-targets";
 import type { ChatAlertSettings } from "./chat-alert";
+import type { PlatformSelection } from "./platform/selection";
 
 export type { FeedToggles, NoticeKind } from "./feed-toggles";
 
@@ -114,6 +115,8 @@ export interface Settings {
   sendTargets: SendTargets;
   /** Optional chime for new viewer messages. Off until turned on. */
   chatAlert: ChatAlertSettings;
+  /** Platforms the desk shows and connects. Logins stay saved when one is turned off. */
+  platforms: PlatformSelection;
   windowBounds?: { x: number; y: number; width: number; height: number };
 }
 

@@ -149,8 +149,8 @@ export class BotService extends BotChat {
       this.file.youtubeChannelId = /^UC[\w-]{22}$/.test(value) || value === "" ? value : this.file.youtubeChannelId;
     }
     this.file = this.store.saveConfig(this.file);
-    if (this.registry.get("twitch")?.postingIdentity()) void this.connect();
-    if (previousChannel !== this.file.youtubeChannelId) void this.registry.get("youtube")?.reconnect();
+    if (this.platformAllowed("twitch") && this.registry.get("twitch")?.postingIdentity()) void this.connect();
+    if (previousChannel !== this.file.youtubeChannelId && this.platformAllowed("youtube")) void this.registry.get("youtube")?.reconnect();
   }
 
 
@@ -161,12 +161,13 @@ export class BotService extends BotChat {
     this.file = this.store.saveConfig({ ...this.file, accounts: { twitch, youtube }, youtubeApiPoll });
     for (const platform of this.registry.list()) platform.setOptIn?.(youtubeApiPoll);
     this.statusOverride = null;
-    if (patch.twitch !== undefined) void this.connect();
-    if (patch.youtube !== undefined) void this.registry.get("youtube")?.reconnect();
+    if (patch.twitch !== undefined && this.platformAllowed("twitch")) void this.connect();
+    if (patch.youtube !== undefined && this.platformAllowed("youtube")) void this.registry.get("youtube")?.reconnect();
   }
 
 
   ingestYoutube(message: NormalizedChatMessage): void {
+    if (!this.platformAllowed("youtube")) return;
     this.registry.get("youtube")?.ingest?.(message);
   }
 
@@ -233,6 +234,7 @@ export class BotService extends BotChat {
       if (!timer) continue;
       const buckets = new Map<TimerPhase, BotPlatform[]>();
       for (const platform of this.registry.list()) {
+        if (!this.platformAllowed(platform.id)) continue;
         if (!targetsPlatform(timer.platforms, platform.id)) continue;
         if (!platform.acceptsTimers()) continue;
         const live = liveFlag(platform.liveStatus());
@@ -279,7 +281,9 @@ export class BotService extends BotChat {
 
   async openPlatforms(): Promise<void> {
     if (this.stopped) return;
-    for (const platform of this.registry.list()) await platform.open();
+    for (const platform of this.registry.list()) {
+      if (this.platformAllowed(platform.id)) await platform.open();
+    }
   }
 
 
@@ -295,7 +299,7 @@ export class BotService extends BotChat {
 
 
   protected platformSections(): PlatformSection[] {
-    return this.registry.list().map((platform) => ({
+    return this.registry.list().filter((platform) => this.platformAllowed(platform.id)).map((platform) => ({
       id: platform.id,
       label: platform.label,
       ...platform.accountCard(),

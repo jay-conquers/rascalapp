@@ -3,6 +3,7 @@ import { brand } from "../../shared/brand";
 import type { BotSnapshot } from "../../shared/api";
 import type { YoutubeDeskState } from "../../shared/youtube/desk-state";
 import { defaultShoutout, defaultThanks, type ShoutoutSettings, type ThanksSettings } from "../../../packages/bot/src/model";
+import { visiblePlatforms } from "../../shared/platform/selection";
 import { checksFromTarget, targetFromChecks } from "../../shared/platform/target";
 import { CheckRow } from "./CheckRow";
 import { BotHooks } from "./bot-hooks";
@@ -53,7 +54,11 @@ const EMPTY_DESK: YoutubeDeskState = {
   purpose: null,
 };
 
-export function BotView() {
+export function BotView({ enabledIds }: { enabledIds?: readonly string[] } = {}) {
+  const enabled = enabledIds ?? visiblePlatforms().map((entry) => entry.id);
+  const showTwitch = enabled.includes("twitch");
+  const showYoutube = enabled.includes("youtube");
+  const platformNames = visiblePlatforms().filter((entry) => enabled.includes(entry.id)).map((entry) => entry.label);
   const [state, setState] = useState<BotSnapshot>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -68,8 +73,8 @@ export function BotView() {
   const [desk, setDesk] = useState<YoutubeDeskState>(EMPTY_DESK);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [commandTwitch, setCommandTwitch] = useState(true);
-  const [commandYoutube, setCommandYoutube] = useState(false);
+  const [commandTwitch, setCommandTwitch] = useState(showTwitch || !showYoutube);
+  const [commandYoutube, setCommandYoutube] = useState(showYoutube && !showTwitch);
   const [keywords, setKeywords] = useState("");
   const [thanks, setThanks] = useState<ThanksSettings>(defaultThanks());
   const [shoutout, setShoutout] = useState<ShoutoutSettings>(defaultShoutout());
@@ -149,14 +154,14 @@ export function BotView() {
       <header className="redeem-bar">
         <div>
           <h2>Bot</h2>
-          <p>Commands, timers, and filters can run on Twitch, YouTube, or both.</p>
+          <p>Commands, timers, and filters can run on {platformNames.join(" and ") || "the platforms you turn on"}.</p>
         </div>
         <p className={state.connected ? "tts-up" : "tts-down"}>{state.connected ? `Connected as ${state.botLogin}` : "Not connected"}</p>
       </header>
       <p>{mode === "server" ? "Server mode. This window talks to the Fly bot and does not run a local one." : "Embedded mode. The bot is running on this computer."}</p>
       <p>{state.status}</p>
       {error ? <p className="form-error">{error}</p> : null}
-      {state.login ? (
+      {showTwitch && state.login ? (
         <div className="banner">
           <p>
             Approve <strong>{state.login.userCode}</strong> at {state.login.verificationUri}. Use the bot account, not your broadcaster login.
@@ -164,12 +169,16 @@ export function BotView() {
         </div>
       ) : null}
       <div className="tts-actions">
-        <button type="button" className="primary" disabled={busy} onClick={() => void run(() => window.rascal!.botLogin())}>
-          Connect bot account
-        </button>
-        <button type="button" className="ghost" disabled={busy || !state.botLogin} onClick={() => void run(() => window.rascal!.botLogout())}>
-          Log out bot
-        </button>
+        {showTwitch ? (
+          <button type="button" className="primary" disabled={busy} onClick={() => void run(() => window.rascal!.botLogin())}>
+            Connect bot account
+          </button>
+        ) : null}
+        {showTwitch ? (
+          <button type="button" className="ghost" disabled={busy || !state.botLogin} onClick={() => void run(() => window.rascal!.botLogout())}>
+            Log out bot
+          </button>
+        ) : null}
         <button
           type="button"
           className="ghost"
@@ -186,16 +195,21 @@ export function BotView() {
         >
           Download config
         </button>
-        <a href={state.portalUrl || "#"} onClick={(event) => event.preventDefault()}>
-          <button type="button" className="ghost" disabled={!state.portalUrl} onClick={() => void window.rascal?.openExternal(state.portalUrl)}>
-            Open mod portal
-          </button>
-        </a>
+        {showTwitch ? (
+          <a href={state.portalUrl || "#"} onClick={(event) => event.preventDefault()}>
+            <button type="button" className="ghost" disabled={!state.portalUrl} onClick={() => void window.rascal?.openExternal(state.portalUrl)}>
+              Open mod portal
+            </button>
+          </a>
+        ) : null}
       </div>
-      <p className="form-note">
-        Portal: {state.portalUrl || "http://localhost:4788/portal"}. Add this redirect to the Twitch application: {state.redirectUri || "http://localhost:4788/portal/callback"}. Then /mod the bot account in your channel.
-      </p>
+      {showTwitch ? (
+        <p className="form-note">
+          Portal: {state.portalUrl || "http://localhost:4788/portal"}. Add this redirect to the Twitch application: {state.redirectUri || "http://localhost:4788/portal/callback"}. Then /mod the bot account in your channel.
+        </p>
+      ) : null}
 
+      {showTwitch ? (
       <PlatformCard
         title="Twitch"
         status={twitch?.status || state.status}
@@ -207,7 +221,9 @@ export function BotView() {
       >
         <p className="form-note">A separate bot account is the usual choice. Post as the signed-in channel only when that login should speak for the bot.</p>
       </PlatformCard>
+      ) : null}
 
+      {showYoutube ? (
       <PlatformCard
         title="YouTube"
         status={youtube?.status || "YouTube bot is idle."}
@@ -276,6 +292,7 @@ export function BotView() {
         <p className="form-note">Leave this off. The page reader does not use quota. A 5-hour Data API poll at 5 seconds spends more than the daily quota. It turns on by itself only if the page reader fails three times in a row.</p>
         <QuotaMeter quota={youtube?.quota ?? null} />
       </PlatformCard>
+      ) : null}
 
       <section className="bot-card">
         <h3>Commands</h3>
@@ -292,6 +309,7 @@ export function BotView() {
               <PlatformChecks
                 target={command.platforms}
                 disabled={busy}
+                enabledIds={enabled}
                 onChange={(platforms) => void run(() => window.rascal!.botSaveCommand({ ...command, platforms }))}
               />
               <p>{command.response}</p>
@@ -330,7 +348,7 @@ export function BotView() {
           Response
           <textarea value={response} onChange={(event) => setResponse(event.target.value)} />
         </label>
-        <PlatformChecks target={targetFromChecks(commandTwitch, commandYoutube)} disabled={busy} onChange={(platforms) => { const next = checksFromTarget(platforms); setCommandTwitch(next.twitch); setCommandYoutube(next.youtube); }} />
+        <PlatformChecks enabledIds={enabled} target={targetFromChecks(commandTwitch, commandYoutube)} disabled={busy} onChange={(platforms) => { const next = checksFromTarget(platforms); setCommandTwitch(next.twitch); setCommandYoutube(next.youtube); }} />
         <p className="form-note">
           A keyword fires when that word or phrase appears in a normal message. The cooldown above stops it repeating. Variables: {"{user}"} {"{touser}"} {"{1}"} {"{count}"} {"{uptime}"} {"{game}"} {"{title}"} {"{followage}"} {"{random.chatter}"} {"{random:yes|no}"} {"{random:{user} is better|{touser} is better}"}
         </p>
@@ -394,6 +412,7 @@ export function BotView() {
         setJwt={setJwt}
         jsonText={jsonText}
         setJsonText={setJsonText}
+        enabledIds={enabled}
       />
     </section>
   );

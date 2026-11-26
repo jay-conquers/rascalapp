@@ -40,6 +40,10 @@
     "notices": true,
     "soundPath": "/home/tester/sounds/ding.wav"
   },
+  "platforms": {
+    "confirmed": true,
+    "enabled": ["twitch", "youtube"]
+  },
   "windowBounds": {
     "x": -1920,
     "y": 0,

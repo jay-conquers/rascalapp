@@ -303,6 +303,12 @@ export async function startHttp(service: BotService, options: HttpOptions): Prom
       sendJson(res, 200, service.snapshot(port));
       return;
     }
+    if (method === "POST" && url.pathname === "/api/platforms") {
+      const enabled = Array.isArray(body.enabled) ? body.enabled.filter((id): id is string => typeof id === "string") : [];
+      await service.setEnabledPlatforms(enabled);
+      sendJson(res, 200, service.snapshot(port));
+      return;
+    }
     sendJson(res, 404, { error: "Not found" });
   }
 

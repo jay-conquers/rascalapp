@@ -15,12 +15,14 @@ import { TtsView } from "./components/TtsView";
 import { BotView } from "./components/BotView";
 import { brand } from "../shared/brand";
 import { moderationOffer, youtubeModLogConnected } from "../shared/moderation";
+import { confirmPlatformSelection, isPlatformEnabled, platformsNeedingLogin, type PlatformSelection } from "../shared/platform/selection";
 import { twitchLoginMissesReadScopes } from "../shared/scopes";
 import { twitchLink, youtubeLink, type SendTargets } from "../shared/send-targets";
 import { defaultChatAlert } from "../shared/chat-alert";
 import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
 import { StatusPill } from "./components/StatusPill";
+import { FirstRunPlatforms } from "./components/PlatformPicker";
 
 export function App() {
   const [ready, setReady] = useState(false);
@@ -35,7 +37,7 @@ export function App() {
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.9.0");
+  const [version, setVersion] = useState("0.10.0");
   const [modLog, setModLog] = useState<ModAction[]>([]);
   const [modOpen, setModOpen] = useState(false);
   const sendSeq = useRef(0);
@@ -118,6 +120,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!settings) return;
+    if (view === "redeems" && !isPlatformEnabled(settings.platforms, "twitch")) setView("desk");
+  }, [view, settings]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 4200);
     return () => clearTimeout(timer);
@@ -146,6 +153,26 @@ export function App() {
     } catch (err) {
       if (seq !== sendSeq.current) return;
       setToast({ tone: "error", text: err instanceof Error ? err.message : "Could not save where chat is sent." });
+    }
+  }
+
+  async function promptPlatformLogins(previous: PlatformSelection, next: PlatformSelection, confirm: boolean, twitchClientId: string): Promise<void> {
+    if (!window.rascal) return;
+    const needs = platformsNeedingLogin({
+      previous,
+      next,
+      confirm,
+      twitchLoggedIn: auth?.loggedIn === true,
+      youtubeLoggedIn: Boolean(status?.youtube.sendAccount),
+    });
+    if (needs.includes("twitch") && twitchClientId.trim()) void loginFlow();
+    if (!needs.includes("youtube")) return;
+    try {
+      const desk = await window.rascal.youtubeDeskState();
+      if (!desk.connected) await window.rascal.youtubeConnect();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "YouTube login did not start.";
+      setToast({ tone: "error", text: message });
     }
   }
 
@@ -178,8 +205,31 @@ export function App() {
     );
   }
 
-  const shownChannel = settings.twitchChannel || auth.login || "";
+  const twitchOn = isPlatformEnabled(settings.platforms, "twitch");
+  const youtubeOn = isPlatformEnabled(settings.platforms, "youtube");
+  const shownChannel = twitchOn ? settings.twitchChannel || auth.login || "" : "";
+  const channelLabel = shownChannel ? `#${shownChannel}` : youtubeOn && settings.youtubeChannelId ? "YouTube" : "No channel";
   const youtubeTitle = status.youtube.title ? ` · ${status.youtube.title}` : "";
+  const enabledIds = settings.platforms.enabled;
+
+  if (!settings.platforms.confirmed) {
+    return (
+      <FirstRunPlatforms
+        initial={settings.platforms}
+        busy={false}
+        error={toast?.tone === "error" ? toast.text : null}
+        onContinue={(draft) => {
+          const next = confirmPlatformSelection(draft);
+          void window.rascal!.updateSettings({ platforms: next }).then((saved) => {
+            setSettings(saved);
+            void promptPlatformLogins(settings.platforms, saved.platforms, true, saved.twitchClientId);
+          }).catch((err: unknown) => {
+            setToast({ tone: "error", text: err instanceof Error ? err.message : "Could not save that choice." });
+          });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="shell">
@@ -188,12 +238,12 @@ export function App() {
           <RascalMark />
           <div className="brand-copy">
             <strong>{brand.displayName}</strong>
-            <span title={shownChannel ? `#${shownChannel}` : "No channel"}>{shownChannel ? `#${shownChannel}` : "No channel"}</span>
+            <span title={channelLabel}>{channelLabel}</span>
           </div>
         </div>
         <div className="pills">
-          <StatusPill label="Twitch" state={status.twitch.state} detail={status.twitch.detail} viewers={status.twitch.viewers} />
-          <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} />
+          {twitchOn ? <StatusPill label="Twitch" state={status.twitch.state} detail={status.twitch.detail} viewers={status.twitch.viewers} /> : null}
+          {youtubeOn ? <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} /> : null}
         </div>
         <div className="top-actions">
           <button
@@ -210,13 +260,15 @@ export function App() {
             <PinIcon />
             <span className="sr">Always on top</span>
           </button>
-          <button
-            type="button"
-            className={view === "redeems" ? "text-button on" : "text-button"}
-            onClick={() => setView((current) => (current === "redeems" ? "desk" : "redeems"))}
-          >
-            Redeems
-          </button>
+          {twitchOn ? (
+            <button
+              type="button"
+              className={view === "redeems" ? "text-button on" : "text-button"}
+              onClick={() => setView((current) => (current === "redeems" ? "desk" : "redeems"))}
+            >
+              Redeems
+            </button>
+          ) : null}
           <button
             type="button"
             className={view === "stream" ? "text-button on" : "text-button"}
@@ -258,7 +310,7 @@ export function App() {
         </div>
       </header>
 
-      {banner && !auth.clientIdSet && view === "desk" && (
+      {banner && twitchOn && !auth.clientIdSet && view === "desk" && (
         <div className="banner">
           <p>Add a Twitch client ID in Settings to edit stream info and send chat. The combined feed works before you log in.</p>
           <button type="button" onClick={() => setBanner(false)}>
@@ -271,18 +323,20 @@ export function App() {
         <ChatOverlayView
           file={chatOverlay}
           messages={messages}
+          enabledIds={enabledIds}
           overlayUrl={`http://${status.overlay.host}:${status.overlay.port}/overlay/chat`}
           onFile={setChatOverlay}
         />
       ) : view === "tts" ? (
-        <TtsView />
+        <TtsView enabledIds={enabledIds} />
       ) : view === "bot" ? (
-        <BotView />
+        <BotView enabledIds={enabledIds} />
       ) : view === "stream" ? (
         <StreamInfoView
           auth={auth}
           stream={stream}
           chatChannel={shownChannel}
+          enabledIds={enabledIds}
           onSearch={searchCategories}
           onSave={async (update) => {
             const next = await window.rascal!.updateStream(update);
@@ -300,8 +354,10 @@ export function App() {
           status={status}
           version={version}
           onSave={async (patch) => {
+            const previous = settings.platforms;
             const next = await window.rascal!.updateSettings(patch);
             setSettings(next);
+            if (patch.platforms) void promptPlatformLogins(previous, next.platforms, false, next.twitchClientId);
           }}
           onLogin={() => void loginFlow()}
           onLogout={() => {
@@ -314,6 +370,7 @@ export function App() {
           <section className={modOpen ? "chat-column with-mod" : "chat-column"}>
             <ChatFeed
               messages={messages}
+              enabledIds={enabledIds}
               offerFor={(message) =>
                 moderationOffer(message, {
                   twitch: {
@@ -340,8 +397,9 @@ export function App() {
               <ModLogPanel
                 actions={modLog}
                 enabled={settings.feed.modLog}
-                twitchMissingReadScopes={twitchLoginMissesReadScopes(auth)}
-                youtubeConnected={youtubeModLogConnected(status.youtube.state)}
+                enabledIds={enabledIds}
+                twitchMissingReadScopes={twitchOn && twitchLoginMissesReadScopes(auth)}
+                youtubeConnected={youtubeOn && youtubeModLogConnected(status.youtube.state)}
               />
             ) : null}
             <div className="mod-toggle">
@@ -353,6 +411,7 @@ export function App() {
             <Composer
               channel={shownChannel}
               targets={settings.sendTargets}
+              shown={{ twitch: twitchOn, youtube: youtubeOn }}
               onTargets={(next) => void saveSendTargets(next)}
               twitch={twitchLink(status.twitch, auth.loggedIn)}
               youtube={youtubeLink(status.youtube)}
@@ -369,7 +428,7 @@ export function App() {
       )}
 
       {toast && <div className={`toast ${toast.tone}`}>{toast.text}</div>}
-      {login && (
+      {login && twitchOn && (
         <LoginDialog
           login={login}
           onOpen={() => void window.rascal?.openExternal(login.verificationUri)}

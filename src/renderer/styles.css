@@ -833,3 +833,24 @@ label.check-row {
   .reward-list { max-height: 280px; flex: none; }
   .reward-editor { overflow: visible; }
 }
+
+.first-run {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 28px 16px;
+}
+.first-run-card {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+.first-run-card h1 { margin: 0; font-size: 1.35rem; }
+.first-run-card p { margin: 0; color: var(--muted); }
+.first-run-card .primary { justify-self: start; }
+.platform-picker { display: grid; gap: 8px; }

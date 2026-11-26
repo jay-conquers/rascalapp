@@ -1,5 +1,6 @@
 import { brand, readBrandEnv } from "../../../src/shared/brand.ts";
 import type { BotPlatform } from "../../../src/shared/platform/bot-platform.ts";
+import { normalizeEnabledIds } from "../../../src/shared/platform/selection.ts";
 import { PlatformRegistry } from "../../../src/shared/platform/registry.ts";
 import { refreshYoutubeAccessToken, type YoutubeOAuthClient } from "../../../src/shared/platform/youtube-oauth.ts";
 import type { NormalizedChatMessage } from "../../../src/shared/platform/types.ts";
@@ -30,6 +31,8 @@ export class BotState {
   protected giftTimer: ReturnType<typeof setTimeout> | null = null;
   protected bridge: ChannelTokenBridge | null = null;
   protected readonly registry = new PlatformRegistry<BotPlatform>();
+  /** Null until the desk, or a saved file, names the platforms that should connect. */
+  protected enabledPlatforms: readonly string[] | null = null;
 
   constructor(
     protected readonly store: BotStore,
@@ -117,10 +120,46 @@ export class BotState {
     });
     this.registry.register(twitch);
     this.registry.register(youtube);
+    this.enabledPlatforms = store.loadEnabledPlatforms();
     for (const platform of this.registry.list()) {
       platform.onMessage((message) => {
         void this.onPlatformMessage(message);
       });
+    }
+  }
+
+  /** A missing selection connects every registered platform. Hidden ids never count. */
+  protected platformAllowed(id: string): boolean {
+    return this.enabledPlatforms === null || this.enabledPlatforms.includes(id);
+  }
+
+  /** Remember the desk's choice before the first connect, without opening sockets yet. */
+  rememberEnabledPlatforms(ids: readonly string[]): void {
+    const enabled = normalizeEnabledIds(ids);
+    if (enabled.length === 0) throw new Error("Choose at least one platform.");
+    this.enabledPlatforms = enabled;
+    this.store.saveEnabledPlatforms(enabled);
+  }
+
+  /**
+   * Connect the chosen platforms and disconnect the rest.
+   * Disconnect stops sockets and polls. It does not delete tokens.
+   */
+  async setEnabledPlatforms(ids: readonly string[]): Promise<void> {
+    const enabled = normalizeEnabledIds(ids);
+    if (enabled.length === 0) throw new Error("Choose at least one platform.");
+    const previous = this.enabledPlatforms;
+    const same =
+      previous !== null && previous.length === enabled.length && previous.every((id, index) => id === enabled[index]);
+    this.enabledPlatforms = enabled;
+    this.store.saveEnabledPlatforms(enabled);
+    if (same || this.stopped) return;
+    for (const platform of this.registry.list()) {
+      if (this.platformAllowed(platform.id)) await platform.open();
+      else {
+        platform.cancelAccountLogin();
+        await platform.disconnect();
+      }
     }
   }
 

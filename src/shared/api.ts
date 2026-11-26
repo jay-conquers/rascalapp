@@ -7,6 +7,7 @@ import type { TtsPanel } from "./tts";
 import type { FeedToggles } from "./feed-toggles";
 import type { SendTargets } from "./send-targets";
 import type { ChatAlertSettings } from "./chat-alert";
+import type { PlatformSelection } from "./platform/selection";
 import type { MentionRoster } from "./mentions";
 import type { ModerationCommand } from "./moderation";
 import type {
@@ -29,6 +30,7 @@ export interface SettingsPatch {
   feed?: FeedToggles;
   sendTargets?: SendTargets;
   chatAlert?: ChatAlertSettings;
+  platforms?: PlatformSelection;
 }
 
 export interface RascalApi {

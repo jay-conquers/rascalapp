@@ -40,6 +40,10 @@
     "notices": false,
     "soundPath": ""
   },
+  "platforms": {
+    "confirmed": true,
+    "enabled": ["twitch", "youtube"]
+  },
   "windowBounds": {
     "x": 10,
     "y": 20,

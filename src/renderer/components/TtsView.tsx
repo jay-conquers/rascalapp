@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { platformVisible, visiblePlatforms, type PlatformSelection } from "../../shared/platform/selection";
 import { CheckRow } from "./CheckRow";
 import { brand } from "../../shared/brand";
 import type { TtsPanel } from "../../shared/tts";
@@ -11,13 +12,20 @@ const EMPTY: TtsPanel = {
   shortcuts: { enabled: false, supported: true, detail: "Checking shortcut support…" },
 };
 
-export function TtsView() {
+export function TtsView({ enabledIds }: { enabledIds?: readonly string[] } = {}) {
+  const enabled = enabledIds ?? visiblePlatforms().map((entry) => entry.id);
+  const selection = { confirmed: true, enabled: [...enabled] } satisfies PlatformSelection;
   const [panel, setPanel] = useState<TtsPanel>(EMPTY);
   const [baseUrl, setBaseUrl] = useState(EMPTY.baseUrl);
   const [testUser, setTestUser] = useState("viewer");
   const [testText, setTestText] = useState(`This is a test line from ${brand.displayName}.`);
   const [platform, setPlatform] = useState<"twitch" | "youtube">("twitch");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (enabled.includes(platform)) return;
+    setPlatform(enabled.includes("youtube") ? "youtube" : "twitch");
+  }, [enabled, platform]);
 
   useEffect(() => {
     let stopped = false;
@@ -114,15 +122,15 @@ export function TtsView() {
       ) : (
         <>
           <dl className="tts-status">
-            <div><dt>Twitch</dt><dd>{state.status.twitch || "—"}</dd></div>
-            <div><dt>YouTube</dt><dd>{state.status.youtube || "—"}</dd></div>
-            <div><dt>YouTube subs</dt><dd>{state.status.youtube_subs || "—"}</dd></div>
+            {enabled.includes("twitch") ? <div><dt>Twitch</dt><dd>{state.status.twitch || "—"}</dd></div> : null}
+            {enabled.includes("youtube") ? <div><dt>YouTube</dt><dd>{state.status.youtube || "—"}</dd></div> : null}
+            {enabled.includes("youtube") ? <div><dt>YouTube subs</dt><dd>{state.status.youtube_subs || "—"}</dd></div> : null}
             <div><dt>Overlays</dt><dd>{state.overlays_connected}</dd></div>
           </dl>
 
           <article className="tts-now">
             <h3>Now playing</h3>
-            {state.current ? <Line platform={state.current.platform} user={state.current.user} text={state.current.text} /> : <p>Idle</p>}
+            {state.current && platformVisible(state.current.platform, selection) ? <Line platform={state.current.platform} user={state.current.user} text={state.current.text} /> : <p>Idle</p>}
           </article>
 
           <div className="tts-actions">
@@ -154,7 +162,7 @@ export function TtsView() {
               <h3>Queue</h3>
               {state.queue.length === 0 ? <p className="form-note">The play queue is empty.</p> : (
                 <ul className="tts-list">
-                  {state.queue.map((item) => (
+                  {state.queue.filter((item) => platformVisible(item.platform, selection)).map((item) => (
                     <li key={`q-${item.id}`}>
                       <Line platform={item.platform} user={item.user} text={item.text} />
                     </li>
@@ -166,7 +174,7 @@ export function TtsView() {
               <h3>Waiting for approval</h3>
               {state.pending.length === 0 ? <p className="form-note">Nothing is waiting for approval.</p> : (
                 <ul className="tts-list">
-                  {state.pending.map((item) => (
+                  {state.pending.filter((item) => platformVisible(item.platform, selection)).map((item) => (
                     <li key={`p-${item.id}`}>
                       <Line platform={item.platform} user={item.user} text={item.text} />
                       <div className="tts-item-actions">
@@ -195,9 +203,9 @@ export function TtsView() {
             <div className="custom-offset">
               <label>
                 Platform
-                <select value={platform} onChange={(event) => setPlatform(event.target.value === "youtube" ? "youtube" : "twitch")}>
-                  <option value="twitch">Twitch</option>
-                  <option value="youtube">YouTube</option>
+                <select value={enabled.includes(platform) ? platform : enabled[0] === "youtube" ? "youtube" : "twitch"} onChange={(event) => setPlatform(event.target.value === "youtube" ? "youtube" : "twitch")}>
+                  {enabled.includes("twitch") ? <option value="twitch">Twitch</option> : null}
+                  {enabled.includes("youtube") ? <option value="youtube">YouTube</option> : null}
                 </select>
               </label>
               <label>
@@ -228,7 +236,7 @@ export function TtsView() {
             <h3>Recent</h3>
             {state.recent.length === 0 ? <p className="form-note">No recent lines.</p> : (
               <ul>
-                {state.recent.map((item, index) => (
+                {state.recent.filter((item) => platformVisible(item.platform, selection)).map((item, index) => (
                   <li key={`${item.t}-${index}`}>
                     <span>{item.t}</span>
                     <strong>{item.result || "line"}</strong>

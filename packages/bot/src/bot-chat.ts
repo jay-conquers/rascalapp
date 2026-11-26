@@ -29,6 +29,8 @@ const BOT_NAMES = new Set([
 
 export class BotChat extends BotEditing {
   noteNotice(input: { platform: string; kind?: string; user: string; amount?: string; text?: string }): void {
+    const platformId = input.platform === "youtube" ? "youtube" : "twitch";
+    if (!this.platformAllowed(platformId)) return;
     const kind = thankKind(input.kind);
     if (!kind || this.stopped) return;
     const planned = planThankYou({
@@ -60,6 +62,7 @@ export class BotChat extends BotEditing {
 
 
   protected async onPlatformMessage(message: NormalizedChatMessage): Promise<void> {
+    if (!this.platformAllowed(message.platform)) return;
     const platform = this.registry.get(message.platform);
     if (!platform) return;
     const line: ChatLine = {
@@ -181,6 +184,7 @@ export class BotChat extends BotEditing {
 
 
   protected async say(platform: ChatPlatform, text: string): Promise<void> {
+    if (!this.platformAllowed(platform.id)) return;
     this.outgoing = noteOutgoing(this.outgoing, platform.id, text, Date.now());
     await platform.sendMessage(text);
   }
@@ -203,6 +207,7 @@ export class BotChat extends BotEditing {
 
 
   protected async postBot(platformId: string, text: string): Promise<void> {
+    if (!this.platformAllowed(platformId)) return;
     const platform = this.registry.get(platformId);
     const line = text.trim().slice(0, 450);
     if (!platform?.capabilities.send || !line || this.stopped) return;

@@ -7,7 +7,14 @@ import {
 import { defaultFeed, mergeFeed } from "../shared/feed-toggles";
 import { defaultSendTargets, mergeSendTargets } from "../shared/send-targets";
 import { defaultChatAlert, mergeChatAlert } from "../shared/chat-alert";
+import {
+  defaultPlatformSelection,
+  migrateFromSetup,
+  resolvePlatformSelection,
+  selectionFromPatch,
+} from "../shared/platform/selection";
 import type { Settings } from "../shared/types";
+import { readPlatformSetup } from "./platform-setup";
 import { readJson, tightenFile, writePrivateJson } from "./private-file";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -20,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   feed: defaultFeed(),
   sendTargets: defaultSendTargets(),
   chatAlert: defaultChatAlert(),
+  platforms: defaultPlatformSelection(),
 };
 
 export class SettingsStore {
@@ -32,11 +40,30 @@ export class SettingsStore {
 
   load(): Settings {
     const raw = readJson(this.file);
-    if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
+    const fileExisted = Boolean(raw && typeof raw === "object");
+    const dir = path.dirname(this.file);
+    if (!fileExisted) {
+      const setup = readPlatformSetup(dir, {});
+      const selection = setup.twitch || setup.youtube ? migrateFromSetup(setup) : defaultPlatformSelection();
+      return { ...DEFAULT_SETTINGS, platforms: selection };
+    }
+    const record = raw as Record<string, unknown>;
+    const keyPresent = Object.prototype.hasOwnProperty.call(record, "platforms");
     try {
-      return mergeSettings(DEFAULT_SETTINGS, raw as Partial<Settings>);
+      const rest = { ...record };
+      delete rest.platforms;
+      const merged = mergeSettings(DEFAULT_SETTINGS, rest as Partial<Settings>);
+      const selection = resolvePlatformSelection({
+        fileExisted: true,
+        keyPresent,
+        saved: record.platforms,
+        setup: readPlatformSetup(dir, merged),
+      });
+      const next = { ...merged, platforms: { confirmed: selection.confirmed, enabled: [...selection.enabled] } };
+      if (!keyPresent) writePrivateJson(this.file, next);
+      return next;
     } catch {
-      return { ...DEFAULT_SETTINGS };
+      return { ...DEFAULT_SETTINGS, platforms: migrateFromSetup(readPlatformSetup(dir, {})) };
     }
   }
 
@@ -62,6 +89,7 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
     feed: mergeFeed(current.feed ?? defaultFeed(), patch.feed),
     sendTargets: mergeSendTargets(current.sendTargets, patch.sendTargets),
     chatAlert: mergeChatAlert(current.chatAlert, patch.chatAlert),
+    platforms: selectionFromPatch(current.platforms ?? defaultPlatformSelection(), patch.platforms),
     windowBounds: patch.windowBounds !== undefined ? patch.windowBounds : current.windowBounds,
   };
   if (next.twitchClientId && !/^[a-zA-Z0-9]{10,80}$/.test(next.twitchClientId)) {
