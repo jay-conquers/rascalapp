@@ -49,6 +49,7 @@ export function verifyKickSignature(input: {
   if (Math.abs(now - sent) > tolerance) return false;
   try {
     const key = createPublicKey(input.publicKeyPem);
+    if (key.asymmetricKeyType !== "rsa") return false;
     const signed = Buffer.from(`${input.messageId}.${input.timestamp}.${input.rawBody}`);
     const signature = Buffer.from(input.signature, "base64");
     if (signature.length < 32) return false;

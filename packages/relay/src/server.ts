@@ -2,11 +2,15 @@ import http from "node:http";
 import type { Duplex } from "node:stream";
 import { KICK_WEBHOOK_PATH, RELAY_SOCKET_PATH, relayEvent, type RelayEvent } from "../../../src/shared/kick/protocol.ts";
 import { pemFromPublicKeyBody, secretsMatch, verifyKickSignature } from "../../../src/shared/kick/signature.ts";
-import { acceptKey, encodeServerFrame, readFrames } from "./ws.ts";
+import { acceptKey, encodeServerFrame, MAX_FRAME, readFrames } from "./ws.ts";
 
 const MAX_BODY = 1_000_000;
+const MAX_KEY_BYTES = 16_384;
 const AUTH_WAIT_MS = 5_000;
 const DEDUP_MS = 10 * 60_000;
+const KEY_HOUR_MS = 60 * 60_000;
+const KEY_RETRY_MS = 60_000;
+const DEFAULT_MAX_CLIENTS = 32;
 
 export interface RelayOptions {
   secret: string;
@@ -17,6 +21,10 @@ export interface RelayOptions {
   publicKeyUrl?: string;
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** Open sockets, including ones still waiting to authenticate. */
+  maxClients?: number;
+  /** Tests use a short value. An upgraded socket must stay open past it. */
+  requestTimeoutMs?: number;
 }
 
 export interface RelayHandle {
@@ -29,6 +37,7 @@ interface Client {
   authed: boolean;
   buffer: Buffer;
   timer: NodeJS.Timeout | null;
+  closed: boolean;
 }
 
 /**
@@ -41,16 +50,24 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
   const now = options.now ?? Date.now;
   const fetchImpl = options.fetchImpl ?? fetch;
   const keyUrl = options.publicKeyUrl ?? "https://api.kick.com/public/v1/public-key";
+  const maxClients = options.maxClients && options.maxClients > 0 ? Math.floor(options.maxClients) : DEFAULT_MAX_CLIENTS;
   let pem = options.publicKeyPem?.trim() ?? "";
   let fetchedAt = pem ? now() : 0;
+  let nextFetchAt = 0;
   const seen = new Map<string, number>();
   const clients = new Set<Client>();
 
   async function publicKey(force: boolean): Promise<string> {
-    if (pem && !force && (options.publicKeyPem || now() - fetchedAt < 60 * 60_000)) return pem;
-    const response = await fetchImpl(keyUrl);
+    const fresh = Boolean(pem) && (Boolean(options.publicKeyPem) || now() - fetchedAt < KEY_HOUR_MS);
+    if (fresh && !force) return pem;
+    if (now() < nextFetchAt) {
+      if (pem) return pem;
+      throw new Error("Kick public key was not available.");
+    }
+    nextFetchAt = now() + KEY_RETRY_MS;
+    const response = await fetchImpl(keyUrl, { redirect: "error" });
     if (!response.ok) throw new Error("Kick public key was not available.");
-    const next = pemFromPublicKeyBody(await response.text());
+    const next = pemFromPublicKeyBody(await readPublicKeyBody(response));
     if (!next.includes("BEGIN PUBLIC KEY")) throw new Error("Kick public key was not a PEM key.");
     pem = next;
     fetchedAt = now();
@@ -75,7 +92,7 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
     const text = JSON.stringify(event);
     const frame = encodeServerFrame(1, Buffer.from(text));
     for (const client of clients) {
-      if (!client.authed) continue;
+      if (!client.authed || client.closed) continue;
       try {
         client.socket.write(frame);
       } catch {
@@ -85,16 +102,20 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
   }
 
   function drop(client: Client): void {
+    if (client.closed) return;
+    client.closed = true;
     if (client.timer) clearTimeout(client.timer);
     clients.delete(client);
     client.socket.destroy();
   }
 
   function sendJson(client: Client, value: unknown): void {
+    if (client.closed) return;
     client.socket.write(encodeServerFrame(1, Buffer.from(JSON.stringify(value))));
   }
 
   function onFrame(client: Client, opcode: number, payload: Buffer): void {
+    if (client.closed) return;
     if (opcode === 0x8) {
       drop(client);
       return;
@@ -129,8 +150,12 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
       return;
     }
     const key = req.headers["sec-websocket-key"];
-    if (typeof key !== "string" || !key.trim()) {
+    if (typeof key !== "string" || !key.trim() || String(req.headers.upgrade ?? "").toLowerCase() !== "websocket") {
       socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    if (clients.size >= maxClients) {
+      socket.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
     const authorization = req.headers.authorization;
@@ -146,7 +171,7 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
     socket.write(
       `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${acceptKey(key)}\r\n\r\n`,
     );
-    const client: Client = { socket, authed, buffer: Buffer.from(head), timer: null };
+    const client: Client = { socket, authed, buffer: Buffer.from(head), timer: null, closed: false };
     clients.add(client);
     if (!authed) {
       client.timer = setTimeout(() => drop(client), AUTH_WAIT_MS);
@@ -155,9 +180,11 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
       sendJson(client, { type: "ready" });
     }
     const consume = () => {
+      if (client.closed) return;
       try {
         const parsed = readFrames(client.buffer);
         client.buffer = parsed.rest;
+        if (client.buffer.length > MAX_FRAME + 14) throw new Error("frame too large");
         for (const frame of parsed.frames) onFrame(client, frame.opcode, frame.payload);
       } catch {
         drop(client);
@@ -165,12 +192,14 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
     };
     consume();
     socket.on("data", (chunk: Buffer) => {
+      if (client.closed) return;
       client.buffer = Buffer.concat([client.buffer, chunk]);
       consume();
     });
     socket.on("error", () => drop(client));
     socket.on("close", () => {
       if (client.timer) clearTimeout(client.timer);
+      client.closed = true;
       clients.delete(client);
     });
   }
@@ -182,25 +211,26 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
     const eventType = header(req, "kick-event-type");
     const version = header(req, "kick-event-version") || "1";
     if (!messageId || !timestamp || !signature) {
-      send(res, 400);
+      reject(req, res, 400);
       return;
     }
     let raw = "";
     try {
       raw = (await readBody(req)).toString("utf8");
-    } catch {
-      send(res, 413);
+    } catch (err) {
+      const tooBig = err instanceof Error && err.message === "body too large";
+      reject(req, res, tooBig ? 413 : 400);
       return;
     }
     let key = "";
     try {
       key = await publicKey(false);
     } catch {
-      send(res, 503);
+      reject(req, res, 503);
       return;
     }
     let ok = verifyKickSignature({ publicKeyPem: key, messageId, timestamp, rawBody: raw, signature, now: now() });
-    if (!ok && !options.publicKeyPem) {
+    if (!ok && !options.publicKeyPem && now() >= nextFetchAt) {
       try {
         key = await publicKey(true);
         ok = verifyKickSignature({ publicKeyPem: key, messageId, timestamp, rawBody: raw, signature, now: now() });
@@ -209,14 +239,14 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
       }
     }
     if (!ok) {
-      send(res, 401);
+      reject(req, res, 401);
       return;
     }
     let body: unknown;
     try {
       body = JSON.parse(raw) as unknown;
     } catch {
-      send(res, 400);
+      reject(req, res, 400);
       return;
     }
     if (remember(messageId)) {
@@ -236,12 +266,14 @@ export async function startRelay(options: RelayOptions): Promise<RelayHandle> {
       void webhook(req, res);
       return;
     }
-    send(res, 404);
+    reject(req, res, 404);
   });
+  server.requestTimeout = options.requestTimeoutMs ?? 20_000;
+  server.headersTimeout = Math.min(10_000, server.requestTimeout);
   server.on("upgrade", (req, socket, head) => accept(req, socket, head));
 
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
+  await new Promise<void>((resolve, rejectListen) => {
+    server.once("error", rejectListen);
     server.listen(options.port ?? 0, options.host ?? "127.0.0.1", () => resolve());
   });
   const address = server.address();
@@ -266,20 +298,62 @@ function send(res: http.ServerResponse, status: number): void {
   res.end();
 }
 
+function reject(req: http.IncomingMessage, res: http.ServerResponse, status: number): void {
+  if (!res.writableEnded) {
+    res.writeHead(status, { "Cache-Control": "no-store", Connection: "close" });
+    res.end(() => req.destroy());
+    return;
+  }
+  req.destroy();
+}
+
 function readBody(req: http.IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, rejectBody) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let failed = false;
+    const fail = (err: Error) => {
+      if (failed) return;
+      failed = true;
+      req.pause();
+      rejectBody(err);
+    };
     req.on("data", (chunk: Buffer) => {
+      if (failed) return;
       size += chunk.length;
       if (size > MAX_BODY) {
-        reject(new Error("body too large"));
-        req.destroy();
+        fail(new Error("body too large"));
         return;
       }
       chunks.push(chunk);
     });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+    req.on("end", () => {
+      if (!failed) resolve(Buffer.concat(chunks));
+    });
+    req.on("error", (err: Error) => fail(err));
   });
+}
+
+async function readPublicKeyBody(response: Response): Promise<string> {
+  const declared = Number(response.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > MAX_KEY_BYTES) throw new Error("Kick public key was not a PEM key.");
+  if (!response.body) {
+    const text = await response.text();
+    if (text.length > MAX_KEY_BYTES) throw new Error("Kick public key was not a PEM key.");
+    return text;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const step = await reader.read();
+    if (step.done) break;
+    size += step.value.byteLength;
+    if (size > MAX_KEY_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("Kick public key was not a PEM key.");
+    }
+    chunks.push(step.value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
