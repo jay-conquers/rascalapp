@@ -3,10 +3,12 @@ import type { SettingsPatch } from "../../shared/api";
 import { brand } from "../../shared/brand";
 import { NOTICE_LABELS, type FeedToggles, type NoticeKind } from "../../shared/feed-toggles";
 import { defaultChatAlert, type ChatAlertSettings } from "../../shared/chat-alert";
+import { TABS_SUMMARY, setTabShown, tabsPlatformSummary } from "../../shared/desk-tabs";
 import { isPlatformEnabled, setPlatformEnabled } from "../../shared/platform/selection";
 import { playChatChime } from "../chat-sound";
 import { CHATTER_SCOPE, MODERATE_MANAGE_SCOPES, MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { CheckRow } from "./CheckRow";
+import { TabPicker } from "./DeskTabs";
 import { PlatformPicker } from "./PlatformPicker";
 import type { AuthState, ConnectionStatus, Settings } from "../../shared/types";
 
@@ -118,6 +120,16 @@ export function SettingsView({
     }
   }
 
+  async function changeTab(id: string, shown: boolean): Promise<void> {
+    setError(null);
+    setSaved(false);
+    try {
+      await onSave({ tabs: setTabShown(settings.tabs, id, shown) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save that tab.");
+    }
+  }
+
   async function save(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -160,6 +172,11 @@ export function SettingsView({
             Choose the platforms you stream on. At least one stays on. Turning one off hides it and stops its connection. Logins and settings stay saved.
           </p>
           <PlatformPicker selection={settings.platforms} onToggle={(id, on) => void changePlatform(id, on)} />
+
+          <h3>Tabs</h3>
+          <p className="count">{TABS_SUMMARY}</p>
+          <p className="count">{tabsPlatformSummary()}</p>
+          <TabPicker tabs={settings.tabs} platforms={settings.platforms} onToggle={(id, shown) => void changeTab(id, shown)} />
 
           {twitchOn ? (
           <>

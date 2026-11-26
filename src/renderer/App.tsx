@@ -15,6 +15,7 @@ import { TtsView } from "./components/TtsView";
 import { BotView } from "./components/BotView";
 import { brand } from "../shared/brand";
 import { moderationOffer, youtubeModLogConnected } from "../shared/moderation";
+import { resolveDeskView, setTabShown, type DeskView, type TabSettings } from "../shared/desk-tabs";
 import { confirmPlatformSelection, isPlatformEnabled, platformsNeedingLogin, type PlatformSelection } from "../shared/platform/selection";
 import { twitchLoginMissesReadScopes } from "../shared/scopes";
 import { twitchLink, youtubeLink, type SendTargets } from "../shared/send-targets";
@@ -22,6 +23,7 @@ import { defaultChatAlert } from "../shared/chat-alert";
 import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
 import { StatusPill } from "./components/StatusPill";
+import { DeskTabs } from "./components/DeskTabs";
 import { FirstRunPlatforms } from "./components/PlatformPicker";
 
 export function App() {
@@ -33,7 +35,7 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [stream, setStream] = useState<StreamInfo | null>(null);
   const [login, setLogin] = useState<LoginPrompt | null>(null);
-  const [view, setView] = useState<"desk" | "settings" | "redeems" | "stream" | "chat" | "tts" | "bot">("desk");
+  const [view, setView] = useState<DeskView>("desk");
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
@@ -41,6 +43,7 @@ export function App() {
   const [modLog, setModLog] = useState<ModAction[]>([]);
   const [modOpen, setModOpen] = useState(false);
   const sendSeq = useRef(0);
+  const tabSeq = useRef(0);
   const alertRef = useRef(defaultChatAlert());
   alertRef.current = settings?.chatAlert ?? alertRef.current;
   const [banner, setBanner] = useState(true);
@@ -121,7 +124,8 @@ export function App() {
 
   useEffect(() => {
     if (!settings) return;
-    if (view === "redeems" && !isPlatformEnabled(settings.platforms, "twitch")) setView("desk");
+    const next = resolveDeskView(view, settings.tabs, settings.platforms);
+    if (next !== view) setView(next);
   }, [view, settings]);
 
   useEffect(() => {
@@ -142,6 +146,22 @@ export function App() {
     if (!window.rascal) return Promise.reject(new Error(`${brand.displayName} is still starting.`));
     return window.rascal.searchCategories(query);
   }, []);
+
+  async function saveTabs(next: TabSettings): Promise<void> {
+    if (!settings) return;
+    const seq = ++tabSeq.current;
+    const previous = settings.tabs;
+    setSettings((current) => (current ? { ...current, tabs: next } : current));
+    try {
+      const saved = await window.rascal!.updateSettings({ tabs: next });
+      if (seq !== tabSeq.current) return;
+      setSettings(saved);
+    } catch (err) {
+      if (seq !== tabSeq.current) return;
+      setSettings((current) => (current ? { ...current, tabs: previous } : current));
+      setToast({ tone: "error", text: err instanceof Error ? err.message : "Could not hide that tab." });
+    }
+  }
 
   async function saveSendTargets(next: SendTargets): Promise<void> {
     const seq = ++sendSeq.current;
@@ -205,6 +225,7 @@ export function App() {
     );
   }
 
+  const shownView = resolveDeskView(view, settings.tabs, settings.platforms);
   const twitchOn = isPlatformEnabled(settings.platforms, "twitch");
   const youtubeOn = isPlatformEnabled(settings.platforms, "youtube");
   const shownChannel = twitchOn ? settings.twitchChannel || auth.login || "" : "";
@@ -260,49 +281,19 @@ export function App() {
             <PinIcon />
             <span className="sr">Always on top</span>
           </button>
-          {twitchOn ? (
-            <button
-              type="button"
-              className={view === "redeems" ? "text-button on" : "text-button"}
-              onClick={() => setView((current) => (current === "redeems" ? "desk" : "redeems"))}
-            >
-              Redeems
-            </button>
-          ) : null}
+          <DeskTabs
+            view={shownView}
+            tabs={settings.tabs}
+            platforms={settings.platforms}
+            onOpen={setView}
+            onHide={(id) => void saveTabs(setTabShown(settings.tabs, id, false))}
+          />
           <button
             type="button"
-            className={view === "stream" ? "text-button on" : "text-button"}
-            onClick={() => setView((current) => (current === "stream" ? "desk" : "stream"))}
-          >
-            Stream info
-          </button>
-          <button
-            type="button"
-            className={view === "chat" ? "text-button on" : "text-button"}
-            onClick={() => setView((current) => (current === "chat" ? "desk" : "chat"))}
-          >
-            Chat overlay
-          </button>
-          <button
-            type="button"
-            className={view === "tts" ? "text-button on" : "text-button"}
-            onClick={() => setView((current) => (current === "tts" ? "desk" : "tts"))}
-          >
-            TTS
-          </button>
-          <button
-            type="button"
-            className={view === "bot" ? "text-button on" : "text-button"}
-            onClick={() => setView((current) => (current === "bot" ? "desk" : "bot"))}
-          >
-            Bot
-          </button>
-          <button
-            type="button"
-            className={view === "settings" ? "icon-button on" : "icon-button"}
-            aria-pressed={view === "settings"}
+            className={shownView === "settings" ? "icon-button on" : "icon-button"}
+            aria-pressed={shownView === "settings"}
             title="Settings"
-            onClick={() => setView((current) => (current === "settings" ? "desk" : "settings"))}
+            onClick={() => setView(shownView === "settings" ? "desk" : "settings")}
           >
             <GearIcon />
             <span className="sr">Settings</span>
@@ -310,7 +301,7 @@ export function App() {
         </div>
       </header>
 
-      {banner && twitchOn && !auth.clientIdSet && view === "desk" && (
+      {banner && twitchOn && !auth.clientIdSet && shownView === "desk" && (
         <div className="banner">
           <p>Add a Twitch client ID in Settings to edit stream info and send chat. The combined feed works before you log in.</p>
           <button type="button" onClick={() => setBanner(false)}>
@@ -319,7 +310,7 @@ export function App() {
         </div>
       )}
 
-      {view === "chat" ? (
+      {shownView === "chat" ? (
         <ChatOverlayView
           file={chatOverlay}
           messages={messages}
@@ -327,11 +318,11 @@ export function App() {
           overlayUrl={`http://${status.overlay.host}:${status.overlay.port}/overlay/chat`}
           onFile={setChatOverlay}
         />
-      ) : view === "tts" ? (
+      ) : shownView === "tts" ? (
         <TtsView enabledIds={enabledIds} />
-      ) : view === "bot" ? (
+      ) : shownView === "bot" ? (
         <BotView enabledIds={enabledIds} />
-      ) : view === "stream" ? (
+      ) : shownView === "stream" ? (
         <StreamInfoView
           auth={auth}
           stream={stream}
@@ -345,9 +336,9 @@ export function App() {
           onLogin={() => void loginFlow()}
           onOpenSettings={() => setView("settings")}
         />
-      ) : view === "redeems" && redeems ? (
+      ) : shownView === "redeems" && redeems ? (
         <RedeemsView state={redeems} onLogin={() => void loginFlow()} />
-      ) : view === "settings" ? (
+      ) : shownView === "settings" ? (
         <SettingsView
           settings={settings}
           auth={auth}

@@ -497,6 +497,27 @@ code {
   padding: 6px 10px;
 }
 .text-button.on, .text-button:hover { color: var(--cream); border-color: var(--chocolate); background: #3a2618; }
+.tab-picker { display: grid; gap: 8px; }
+.tab-menu-host { position: fixed; width: 0; height: 0; }
+.tab-menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 148px;
+  padding: 6px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.tab-menu button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.tab-menu button:hover { background: var(--bg-hot); }
 
 .redeems {
   min-height: 0;

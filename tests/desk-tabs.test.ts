@@ -1,8 +1,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SettingsStore } from "../src/main/settings";
+import { DeskTabs, HideTabMenu, TabPicker } from "../src/renderer/components/DeskTabs";
+import { SettingsView } from "../src/renderer/components/SettingsView";
+import type { AuthState, ConnectionStatus } from "../src/shared/types";
 import {
   CHAT_ALWAYS_NOTE,
   DESK_TABS,
@@ -48,6 +53,7 @@ describe("desk tab rules", () => {
     expect(DESK_TABS.find((tab) => tab.id === "overlay")).toMatchObject({ label: "Chat overlay", view: "chat" });
     expect(defaultTabs()).toEqual({ hidden: [] });
     expect(TABS_SUMMARY).toMatch(/Chat always stays/);
+    expect(TABS_SUMMARY).toMatch(/Settings stays too/);
     expect(TABS_SUMMARY).toMatch(/bot, overlays, and connections keep running/);
     expect(tabsPlatformSummary()).toMatch(/Redeems is also hidden while Twitch is turned off/);
     expect(tabsPlatformSummary()).toMatch(/unless it is hidden here/);
@@ -161,6 +167,110 @@ describe("desk tab storage", () => {
       tabs: { chat: false, stream: false, overlay: true },
     });
     expect(new SettingsStore(dir).load().tabs).toEqual({ hidden: ["stream"] });
+  });
+});
+
+const AUTH: AuthState = { loggedIn: false, login: null, userId: null, scopes: [], missingScopes: [], clientIdSet: false };
+const STATUS: ConnectionStatus = {
+  twitch: { state: "idle", detail: "" },
+  youtube: { state: "idle", detail: "" },
+  overlay: { listening: false, host: "127.0.0.1", port: 4777 },
+};
+
+describe("desk tab window", () => {
+  it("shows the same panels as before when nothing is hidden", () => {
+    const html = renderToStaticMarkup(
+      createElement(DeskTabs, { view: "desk", tabs: defaultTabs(), platforms: BOTH, onOpen: () => undefined, onHide: () => undefined }),
+    );
+    expect(html).toContain('data-testid="desk-tab-redeems"');
+    expect(html).toContain('data-testid="desk-tab-stream"');
+    expect(html).toContain('data-testid="desk-tab-overlay"');
+    expect(html).toContain('data-testid="desk-tab-tts"');
+    expect(html).toContain('data-testid="desk-tab-bot"');
+    expect(html).not.toContain('data-testid="desk-tab-chat"');
+    expect(html).toContain("Redeems");
+    expect(html).toContain("Stream info");
+    expect(html).toContain("Chat overlay");
+    expect(html).toContain("TTS");
+    expect(html).toContain("Bot");
+    expect(html).toContain("Right-click to hide");
+    expect(html).not.toContain("Hide tab");
+    expect(html.toLowerCase()).not.toContain("jeeves");
+  });
+
+  it("drops a hidden panel, and drops Redeems while Twitch is off without forgetting the checkbox", () => {
+    const hidden = renderToStaticMarkup(
+      createElement(DeskTabs, {
+        view: "bot",
+        tabs: { hidden: ["tts", "bot"] },
+        platforms: BOTH,
+        onOpen: () => undefined,
+        onHide: () => undefined,
+      }),
+    );
+    expect(hidden).not.toContain('data-testid="desk-tab-tts"');
+    expect(hidden).not.toContain('data-testid="desk-tab-bot"');
+    expect(hidden).toContain('data-testid="desk-tab-redeems"');
+    expect(hidden).toContain('data-testid="desk-tab-stream"');
+    expect(hidden).toContain('data-testid="desk-tab-overlay"');
+
+    const youtube = renderToStaticMarkup(
+      createElement(DeskTabs, { view: "desk", tabs: defaultTabs(), platforms: YOUTUBE_ONLY, onOpen: () => undefined, onHide: () => undefined }),
+    );
+    expect(youtube).not.toContain('data-testid="desk-tab-redeems"');
+    expect(youtube).toContain('data-testid="desk-tab-bot"');
+
+    const menu = renderToStaticMarkup(createElement(HideTabMenu, { x: 12, y: 16, onHide: () => undefined }));
+    expect(menu).toContain("Hide tab");
+    expect(menu).toContain('data-testid="hide-tab"');
+  });
+
+  it("lists every tab in Settings, with Chat checked and locked", () => {
+    const dir = tempDir();
+    const store = new SettingsStore(dir);
+    const settings = store.update({
+      platforms: { confirmed: true, enabled: ["twitch", "youtube"] },
+      tabs: { hidden: ["bot"] },
+    });
+    const html = renderToStaticMarkup(
+      createElement(SettingsView, {
+        settings,
+        auth: AUTH,
+        status: STATUS,
+        version: "0.11.0",
+        onSave: async () => undefined,
+        onLogin: () => undefined,
+        onLogout: () => undefined,
+        onOpenConsole: () => undefined,
+      }),
+    );
+    expect(html).toContain("<h3>Tabs</h3>");
+    expect(html).toContain(TABS_SUMMARY);
+    expect(html).toContain(tabsPlatformSummary());
+    expect(html).toContain(CHAT_ALWAYS_NOTE);
+    expect(html).toMatch(/id="tab-chat"[^>]*checked/);
+    expect(html).toMatch(/id="tab-chat"[^>]*disabled/);
+    expect(html).toContain('id="tab-redeems"');
+    expect(html).toContain('id="tab-stream"');
+    expect(html).toContain('id="tab-overlay"');
+    expect(html).toContain('id="tab-tts"');
+    expect(html).toContain('id="tab-bot"');
+    const bot = html.match(/id="tab-bot"[^>]*/)?.[0] ?? "";
+    expect(bot).not.toContain("checked");
+    expect(bot).not.toContain("disabled");
+    expect(html.toLowerCase()).not.toContain("jeeves");
+
+    const gated = renderToStaticMarkup(
+      createElement(TabPicker, {
+        tabs: defaultTabs(),
+        platforms: YOUTUBE_ONLY,
+        onToggle: () => undefined,
+      }),
+    );
+    expect(gated).toContain("Hidden while Twitch is off.");
+    const redeems = gated.match(/id="tab-redeems"[^>]*/)?.[0] ?? "";
+    expect(redeems).toContain("checked");
+    expect(redeems).not.toContain("disabled");
   });
 });
 

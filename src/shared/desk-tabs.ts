@@ -48,7 +48,7 @@ export interface TabSettings {
 }
 
 export const TABS_SUMMARY =
-  "Choose which panels stay in the bar. Chat always stays. Hiding a panel removes it from this window. The bot, overlays, and connections keep running.";
+  "Choose which panels stay in the bar. Chat always stays. Settings stays too, so a hidden panel can be turned back on here. Hiding a panel removes it from this window. The bot, overlays, and connections keep running.";
 
 export const CHAT_ALWAYS_NOTE = "Chat always shows.";
 
