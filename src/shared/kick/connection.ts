@@ -1,5 +1,7 @@
 import type { KickClientFile, KickTokens } from "./account.ts";
-import { KickApi, scopesFromToken } from "./api.ts";
+import { KickApi, scopesFromToken, type KickIdentity } from "./api.ts";
+import { kickTitleBlock } from "./channel.ts";
+import type { CategoryHit } from "../types.ts";
 import { waitForKickCallback } from "./callback.ts";
 import { kickTimeoutMinutes, mapKickChatEvent, mapKickLiveEvent, mapKickModerationEvent, type KickChatLine, type KickLiveLine, type KickModerationLine } from "./events.ts";
 import { createKickAuthRequest, exchangeKickCode, refreshKickAccessToken, type KickAuthRequest } from "./oauth.ts";
@@ -38,12 +40,12 @@ export class KickConnection {
   private poll: ReturnType<typeof setInterval> | null = null;
   private detail = "Kick is off.";
   private state: "idle" | "connecting" | "connected" | "reconnecting" | "error" = "idle";
-  private identity: { userId: string; login: string; slug: string; title: string; category: string; live: boolean; viewers: number | null } | null = null;
+  private identity: { userId: string; login: string; slug: string; title: string; category: string; categoryId: string; live: boolean; viewers: number | null } | null = null;
   private subscribed = false;
 
   constructor(private readonly deps: KickConnectionDeps) {}
 
-  snapshot(): { detail: string; state: KickConnection["state"]; account: string | null; userId: string | null; live: boolean; viewers: number | null; title: string } {
+  snapshot(): { detail: string; state: KickConnection["state"]; account: string | null; userId: string | null; live: boolean; viewers: number | null; title: string; category: string; categoryId: string } {
     const tokens = this.deps.tokens();
     return {
       detail: this.detail,
@@ -53,6 +55,8 @@ export class KickConnection {
       live: this.identity?.live === true,
       viewers: this.identity?.viewers ?? null,
       title: this.identity?.title ?? "",
+      category: this.identity?.category ?? "",
+      categoryId: this.identity?.categoryId ?? "",
     };
   }
 
@@ -138,7 +142,7 @@ export class KickConnection {
       const api = new KickApi({ token: async () => tokens.accessToken, fetchImpl: this.fetchImpl() });
       const who = await api.identity();
       this.deps.saveTokens({ ...tokens, userId: who.userId, login: who.name || who.slug, slug: who.slug });
-      this.identity = { userId: who.userId, login: who.name || who.slug, slug: who.slug, title: who.title, category: who.category, live: who.live, viewers: who.viewers };
+      this.remember(who);
       this.prompt = null;
       this.deps.log?.("info", "kick login succeeded");
       this.deps.onChange?.();
@@ -185,6 +189,37 @@ export class KickConnection {
     return (await this.api()).lookupSlug(login);
   }
 
+  /**
+   * Read the signed-in channel. This is a public API call and does not open the relay.
+   */
+  async readChannel(): Promise<KickIdentity> {
+    const who = await (await this.api()).identity();
+    this.remember(who);
+    return who;
+  }
+
+  /** Category search for the stream form. Does not require channel:write or a relay. */
+  searchCategories(query: string): Promise<CategoryHit[]> {
+    if (!this.deps.tokens()) throw new Error("Log in with Kick.");
+    return this.api().then((api) => api.searchCategories(query));
+  }
+
+  /**
+   * PATCH the title and category. A missing channel:write scope fails before any request.
+   * The relay is not used.
+   */
+  async updateStream(title: string, categoryId = ""): Promise<void> {
+    const block = kickTitleBlock({ loggedIn: Boolean(this.deps.tokens()), scopes: this.scopes() });
+    if (block) throw new Error(block);
+    const api = await this.api();
+    await api.updateChannel({ title, categoryId });
+    try {
+      this.remember(await api.identity());
+    } catch {
+      // The title was saved. A later read fills the form.
+    }
+  }
+
   private async connect(generation: number): Promise<void> {
     if (this.stopped || generation !== this.generation) return;
     const tokens = this.deps.tokens();
@@ -203,7 +238,7 @@ export class KickConnection {
       const api = await this.api();
       if (!this.identity) {
         const who = await api.identity();
-        this.identity = { userId: who.userId, login: who.name || who.slug, slug: who.slug, title: who.title, category: who.category, live: who.live, viewers: who.viewers };
+        this.remember(who);
         this.deps.onLive?.({ live: who.live, title: who.title, broadcasterId: who.userId, channelSlug: who.slug });
       }
       if (!this.subscribed) {
@@ -301,7 +336,7 @@ export class KickConnection {
   private async refreshIdentity(): Promise<void> {
     try {
       const who = await (await this.api()).identity();
-      this.identity = { userId: who.userId, login: who.name || who.slug, slug: who.slug, title: who.title, category: who.category, live: who.live, viewers: who.viewers };
+      this.remember(who);
       this.deps.onLive?.({ live: who.live, title: who.title, broadcasterId: who.userId, channelSlug: who.slug });
     } catch {
       // The next poll tries again. Chat still arrives on the relay.
@@ -324,6 +359,19 @@ export class KickConnection {
     this.state = state;
     this.detail = detail;
     this.deps.onStatus?.(state, detail);
+  }
+
+  private remember(who: KickIdentity): void {
+    this.identity = {
+      userId: who.userId,
+      login: who.name || who.slug,
+      slug: who.slug,
+      title: who.title,
+      category: who.category,
+      categoryId: who.categoryId,
+      live: who.live,
+      viewers: who.viewers,
+    };
   }
 
   private fetchImpl(): typeof fetch {

@@ -7,6 +7,7 @@ import { TABS_SUMMARY, setTabShown, tabsPlatformSummary } from "../../shared/des
 import { isPlatformEnabled, enableKick, requestPlatformToggle } from "../../shared/platform/selection";
 import { kickRelayStatus } from "../../shared/kick/protocol";
 import { KICK_RELAY_DOCS_URL } from "../../shared/kick/docs";
+import { KICK_TITLE_RELOGIN } from "../../shared/kick/channel";
 import type { KickDeskState } from "../../shared/kick/desk-state";
 import { KickRelayDialog } from "./KickRelayNotice";
 import { playChatChime } from "../chat-sound";
@@ -346,6 +347,9 @@ export function SettingsView({
               <p className="count">
                 {kickDesk?.loggedIn ? `Signed in as ${kickDesk.account || "your Kick account"}.` : "Not signed in."} Kick posts as this account. A separate bot account, channel-point redeems, follow age, and shoutouts are not available on Kick.
               </p>
+              {kickDesk?.loggedIn && !kickDesk.scopes.includes("channel:write") ? (
+                <p className="form-error">{KICK_TITLE_RELOGIN}</p>
+              ) : null}
             </div>
           ) : null}
           <label>

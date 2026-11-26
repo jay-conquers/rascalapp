@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { redact } from "../src/shared/redact";
 import { assertAllowedExternal } from "../src/main/browser";
+import { youtubeStudioUrl } from "../src/shared/platform/youtube-studio";
 import { Logger } from "../src/main/logger";
 import { writePrivateJson } from "../src/main/private-file";
 import { mergeSettings, SettingsStore } from "../src/main/settings";
@@ -81,5 +82,22 @@ describe("secret handling", () => {
     expect(assertAllowedExternal("https://dev.twitch.tv/console/apps")).toBe("https://dev.twitch.tv/console/apps");
     expect(() => assertAllowedExternal("https://evil.example/activate")).toThrow(/cannot be opened/);
     expect(() => assertAllowedExternal("https://www.twitch.tv/examplechannel")).toThrow(/cannot be opened/);
+  });
+
+  it("opens YouTube Studio for a known broadcast, channel, or the Studio home", () => {
+    const channel = `UC${"a".repeat(22)}`;
+    const broadcast = youtubeStudioUrl({ broadcastId: "abcdefghijk", channelId: channel });
+    const channelOnly = youtubeStudioUrl({ broadcastId: "not-an-id", channelId: channel });
+    const home = youtubeStudioUrl({ broadcastId: "../watch", channelId: "channel" });
+    expect(broadcast).toBe("https://studio.youtube.com/video/abcdefghijk/livestreaming");
+    expect(channelOnly).toBe(`https://studio.youtube.com/channel/${channel}/livestreaming`);
+    expect(home).toBe("https://studio.youtube.com/");
+    expect(assertAllowedExternal(broadcast)).toBe(broadcast);
+    expect(assertAllowedExternal(channelOnly)).toBe(channelOnly);
+    expect(assertAllowedExternal(home)).toBe(home);
+    expect(() => assertAllowedExternal("https://studio.youtube.com/video/abcdefghijk/edit")).toThrow(/cannot be opened/);
+    expect(() => assertAllowedExternal("https://studio.youtube.com/watch?v=abcdefghijk")).toThrow(/cannot be opened/);
+    expect(() => assertAllowedExternal("https://evil.example/video/abcdefghijk/livestreaming")).toThrow(/cannot be opened/);
+    expect(() => assertAllowedExternal("https://studio.youtube.com.evil.example/")).toThrow(/cannot be opened/);
   });
 });

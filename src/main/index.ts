@@ -11,6 +11,7 @@ import { redactError } from "../shared/redact";
 import { readChatSoundFile } from "./chat-sound-file";
 import type { SettingsPatch } from "../shared/api";
 import { normalizePlacement, type RedeemMapping } from "../shared/redeems";
+import type { PlatformStreamDraft, StreamEditRequest } from "../shared/stream-edit";
 import type { StreamUpdate } from "../shared/types";
 import { asRecord } from "../shared/record";
 
@@ -18,7 +19,7 @@ const PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: http://127.0.0.1:* http://localhost:* https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com https://files.kick.com",
+  "img-src 'self' data: http://127.0.0.1:* http://localhost:* https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com https://files.kick.com https://kick.com",
   "connect-src 'self'",
   "font-src 'self'",
 ].join("; ");
@@ -192,15 +193,19 @@ function registerIpc(runtime: Runtime): void {
   );
   ipcMain.handle("app:moderate", (_event, command: unknown) => guard(() => runtime.moderate(command)));
   ipcMain.handle("app:mentions", (_event, query: unknown) => guard(() => runtime.mentions(typeof query === "string" ? query : "")));
-  ipcMain.handle("app:search-categories", (_event, query: unknown) =>
+  ipcMain.handle("app:search-categories", (_event, query: unknown, platform: unknown) =>
     guard(() => {
       if (typeof query !== "string") return [];
-      return runtime.searchCategories(query);
+      return runtime.searchCategories(query, platform === "kick" ? "kick" : "twitch");
     }),
   );
   ipcMain.handle("app:update-stream", (_event, update: unknown) =>
     guard(() => runtime.updateStream(asStreamUpdate(update))),
   );
+  ipcMain.handle("app:update-streams", (_event, request: unknown) =>
+    guard(() => runtime.updateStreams(asStreamEditRequest(request))),
+  );
+  ipcMain.handle("app:kick-stream", () => guard(() => runtime.kickStream()));
   ipcMain.handle("app:update-settings", (_event, patch: unknown) =>
     guard(() => runtime.updateSettings(asSettingsPatch(patch))),
   );
@@ -373,6 +378,30 @@ async function guard<T>(fn: () => Promise<T> | T): Promise<T> {
   } catch (err) {
     throw new Error(redactError(err));
   }
+}
+
+function asStreamEditRequest(value: unknown): StreamEditRequest {
+  const row = asRecord(value);
+  if (!row || typeof row.applyAll !== "boolean" || typeof row.title !== "string" || !Array.isArray(row.edits)) {
+    throw new Error("Stream info was incomplete.");
+  }
+  const edits = row.edits.map((item): PlatformStreamDraft => {
+    const edit = asRecord(item);
+    const platform = edit?.platform;
+    if (platform !== "twitch" && platform !== "youtube" && platform !== "kick") throw new Error("Stream info was incomplete.");
+    if (!edit || typeof edit.title !== "string") throw new Error("Stream info was incomplete.");
+    const tags = edit.tags;
+    if (tags !== undefined && (!Array.isArray(tags) || !tags.every((tag) => typeof tag === "string"))) {
+      throw new Error("Tags must be text.");
+    }
+    return {
+      platform,
+      title: edit.title,
+      gameId: typeof edit.gameId === "string" ? edit.gameId : undefined,
+      tags: Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : undefined,
+    };
+  });
+  return { applyAll: row.applyAll, title: row.title, edits };
 }
 
 function asStreamUpdate(value: unknown): StreamUpdate {

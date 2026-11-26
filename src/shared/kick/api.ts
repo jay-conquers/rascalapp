@@ -1,4 +1,6 @@
+import { buildKickChannelPatch, kickCategorySearchPath, KICK_TITLE_RELOGIN, parseKickCategories } from "./channel.ts";
 import type { KickTokenResult } from "./oauth.ts";
+import type { CategoryHit } from "../types.ts";
 
 const API = "https://api.kick.com/public/v1";
 
@@ -14,6 +16,7 @@ export interface KickIdentity {
   slug: string;
   title: string;
   category: string;
+  categoryId: string;
   live: boolean;
   viewers: number | null;
   startedAt: string;
@@ -31,6 +34,7 @@ export class KickApi {
       slug: channel.slug,
       title: channel.title,
       category: channel.category,
+      categoryId: channel.categoryId,
       live: channel.live,
       viewers: channel.viewers,
       startedAt: channel.startedAt,
@@ -67,6 +71,25 @@ export class KickApi {
     });
   }
 
+  /** PATCH /public/v1/channels. The relay is not involved. */
+  async updateChannel(input: { title: string; categoryId?: string }): Promise<void> {
+    const body = buildKickChannelPatch(input);
+    try {
+      await this.request("PATCH", "/channels", { body });
+    } catch (err) {
+      if (err instanceof KickHttpError && err.status === 403) throw new Error(KICK_TITLE_RELOGIN);
+      throw err;
+    }
+  }
+
+  /** Current category search. A query shorter than 3 characters is not sent. */
+  async searchCategories(query: string): Promise<CategoryHit[]> {
+    const path = kickCategorySearchPath(query);
+    if (!path) return [];
+    const payload = await this.request("GET", path, { base: "https://api.kick.com/public/v2" });
+    return parseKickCategories(payload);
+  }
+
   async lookupSlug(slug: string): Promise<string | null> {
     const name = slug.trim().toLowerCase();
     if (!name) return null;
@@ -95,7 +118,7 @@ export class KickApi {
     return { userId: text(user?.user_id), name: text(user?.name) };
   }
 
-  private async channel(): Promise<{ broadcasterUserId: string; slug: string; title: string; category: string; live: boolean; viewers: number | null; startedAt: string }> {
+  private async channel(): Promise<{ broadcasterUserId: string; slug: string; title: string; category: string; categoryId: string; live: boolean; viewers: number | null; startedAt: string }> {
     const payload = await this.request("GET", "/channels");
     const channel = firstRecord(payload);
     const stream = record(channel?.stream);
@@ -106,15 +129,16 @@ export class KickApi {
       slug: text(channel?.slug),
       title: text(channel?.stream_title),
       category: text(category?.name),
+      categoryId: text(category?.id),
       live: stream?.is_live === true,
       viewers: typeof viewers === "number" ? viewers : null,
       startedAt: text(stream?.start_time),
     };
   }
 
-  private async request(method: string, path: string, input: { body?: unknown } = {}): Promise<unknown> {
+  private async request(method: string, path: string, input: { body?: unknown; base?: string } = {}): Promise<unknown> {
     const token = await this.deps.token();
-    const response = await (this.deps.fetchImpl ?? fetch)(`${API}${path}`, {
+    const response = await (this.deps.fetchImpl ?? fetch)(`${input.base ?? API}${path}`, {
       method,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -124,8 +148,14 @@ export class KickApi {
       body: input.body ? JSON.stringify(input.body) : undefined,
     });
     const json = await readBody(response);
-    if (!response.ok) throw new Error(kickFailure(json, response.status));
+    if (!response.ok) throw new KickHttpError(kickFailure(json, response.status), response.status);
     return json;
+  }
+}
+
+class KickHttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
   }
 }
 

@@ -1,6 +1,14 @@
 import { redact } from "../redact";
 import type { NormalizedChatMessage } from "./types";
 import { normalizeYoutubeLiveChatItem } from "./normalize";
+import {
+  assertYoutubeTitle,
+  buildYoutubeBroadcastTitleUpdate,
+  pickEditableBroadcast,
+  youtubeResourceId,
+  YOUTUBE_TITLE_RELOGIN,
+  type YoutubeEditableBroadcast,
+} from "./youtube-broadcast";
 import { YOUTUBE_QUOTA_COSTS, type YoutubeQuotaMeter } from "./youtube-quota";
 import { asRecord } from "../record";
 
@@ -77,6 +85,39 @@ export class YoutubeDataApi {
       meter?: YoutubeQuotaMeter;
     },
   ) {}
+
+  /**
+   * One list for a known video, then the active list, then upcoming.
+   * Called when the streamer saves a title. Nothing polls this.
+   */
+  async findEditableBroadcast(preferredVideoId?: string): Promise<YoutubeEditableBroadcast | null> {
+    const preferred = youtubeResourceId(preferredVideoId);
+    if (preferred) {
+      const rows = await this.listBroadcastResources({ id: preferred });
+      const picked = pickEditableBroadcast(rows, preferred);
+      if (picked?.id === preferred) return picked;
+    }
+    const active = pickEditableBroadcast(await this.listBroadcastResources({ mine: "true", broadcastStatus: "active" }));
+    if (active) return active;
+    return pickEditableBroadcast(await this.listBroadcastResources({ mine: "true", broadcastStatus: "upcoming" }));
+  }
+
+  /**
+   * Fetch the broadcast, then PUT liveBroadcasts with the same snippet and a new title.
+   * The list is 1 unit. The update is 50. Description is not changed.
+   */
+  async updateLiveTitle(title: string, preferredVideoId?: string): Promise<void> {
+    assertYoutubeTitle(title);
+    const broadcast = await this.findEditableBroadcast(preferredVideoId);
+    if (!broadcast) throw new Error("No active or upcoming YouTube live stream to update.");
+    const update = buildYoutubeBroadcastTitleUpdate(broadcast, title);
+    try {
+      await this.request("PUT", "/liveBroadcasts", YOUTUBE_QUOTA_COSTS.liveBroadcastsUpdate, { part: update.part }, update.body);
+    } catch (err) {
+      if (err instanceof YoutubeApiError && err.reason === "insufficientPermissions") throw new Error(YOUTUBE_TITLE_RELOGIN);
+      throw err;
+    }
+  }
 
   async listActiveBroadcast(preferredVideoId?: string): Promise<YoutubeBroadcast | null> {
     const json = await this.request("GET", "/liveBroadcasts", YOUTUBE_QUOTA_COSTS.liveBroadcastsList, {
@@ -176,6 +217,15 @@ export class YoutubeDataApi {
     const title = text(asRecord(row?.snippet)?.title);
     if (!channelId) throw new YoutubeApiError(404, "channelNotFound");
     return { channelId, title: title || channelId };
+  }
+
+  private async listBroadcastResources(query: Record<string, string>): Promise<unknown[]> {
+    const json = await this.request("GET", "/liveBroadcasts", YOUTUBE_QUOTA_COSTS.liveBroadcastsList, {
+      part: "snippet,status,contentDetails",
+      maxResults: "10",
+      ...query,
+    });
+    return arrayOf(json.items);
   }
 
   private async request(

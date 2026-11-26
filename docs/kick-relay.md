@@ -74,7 +74,9 @@ In Settings, with Kick on:
 3. Kick client ID and client secret. Choose **Save Kick app**.
 4. Choose **Log in with Kick** and approve the app.
 
-The login asks for `user:read`, `channel:read`, `chat:write`, `events:subscribe`, `moderation:ban`, and `moderation:chat_message:manage`. After that, Rascal subscribes to `chat.message.sent`, `livestream.status.updated`, and `moderation.banned`. Kick posts those to the webhook URL on the app. The relay checks the signature and forwards the event to Rascal.
+The login asks for `user:read`, `channel:read`, `channel:write`, `chat:write`, `events:subscribe`, `moderation:ban`, and `moderation:chat_message:manage`. After that, Rascal subscribes to `chat.message.sent`, `livestream.status.updated`, and `moderation.banned`. Kick posts those to the webhook URL on the app. The relay checks the signature and forwards the event to Rascal.
+
+Stream title and category use `PATCH /public/v1/channels` (`stream_title` and `category_id`). That is a normal API call. It does not use the relay, so it works when the relay address is empty. `channel:write` is what that call needs. A login from before that scope was requested can still read and moderate chat. Stream info says to log in again before the title can be saved. Category search uses `GET /public/v2/categories`.
 
 The address is saved in `settings.json` as `kickRelayUrl`. The secret is saved in `kick-relay.json`. The login is saved in `kick-tokens.json`.
 

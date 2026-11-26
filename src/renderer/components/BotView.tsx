@@ -49,6 +49,7 @@ const EMPTY_DESK: YoutubeDeskState = {
   connected: false,
   account: null,
   channelId: null,
+  scopes: [],
   status: "",
   login: null,
   purpose: null,
