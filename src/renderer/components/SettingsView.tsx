@@ -7,7 +7,6 @@ import { TABS_SUMMARY, setTabShown, tabsPlatformSummary } from "../../shared/des
 import { isPlatformEnabled, enableKick, requestPlatformToggle } from "../../shared/platform/selection";
 import { kickRelayStatus } from "../../shared/kick/protocol";
 import { KICK_RELAY_DOCS_URL } from "../../shared/kick/docs";
-import { KICK_TITLE_RELOGIN } from "../../shared/kick/channel";
 import type { KickDeskState } from "../../shared/kick/desk-state";
 import { KickRelayDialog } from "./KickRelayNotice";
 import { playChatChime } from "../chat-sound";
@@ -305,7 +304,7 @@ export function SettingsView({
                           Logged in as <strong>{auth.login}</strong>
                         </p>
                         {auth.missingScopes.length > 0 && (
-                          <p className="form-error">Missing scopes: {auth.missingScopes.join(", ")}. Log in again to grant them.</p>
+                          <p className="form-error">This login is missing a permission. Log out and log in again to grant it.</p>
                         )}
                         <button type="button" className="ghost" aria-label="Log out of Twitch" onClick={onLogout}>
                           Log out
@@ -330,7 +329,7 @@ export function SettingsView({
                   <Field
                     id="settings-youtube-channel"
                     label="YouTube channel ID"
-                    hint="Leave blank to skip YouTube chat. The ID is in YouTube Studio. This reads chat with no Google login. Sending from the chat box needs a Google client on the Bot tab (youtube.force-ssl)."
+                    hint="Leave blank to skip YouTube chat. Find your channel ID in YouTube Studio. Reading chat works without signing in; sending chat requires connecting Google on the Bot tab."
                   >
                     <input
                       id="settings-youtube-channel"
@@ -443,14 +442,16 @@ export function SettingsView({
                   <p className="count">
                     {kickDesk?.loggedIn ? `Signed in as ${kickDesk.account || "your Kick account"}.` : "Not signed in."} Kick posts as this account. A separate bot account, channel-point redeems, follow age, and shoutouts are not available on Kick.
                   </p>
-                  {kickDesk?.loggedIn && !kickDesk.scopes.includes("channel:write") ? <p className="form-error">{KICK_TITLE_RELOGIN}</p> : null}
+                  {kickDesk?.loggedIn && !kickDesk.scopes.includes("channel:write") ? (
+                    <p className="form-error">Log out and log in again to edit the Kick title and category. Chat keeps working.</p>
+                  ) : null}
                 </div>
               ) : null}
             </SettingsSection>
 
             <SettingsSection id="chat">
               <h4>Emotes</h4>
-              <p className="count">Twitch and YouTube emotes in the message itself always render. These switches cover the extra catalogs. They start on.</p>
+              <p className="count">Twitch and YouTube emotes in a message always show. These switches add the extra emote sets. They start on.</p>
               <CheckRow id="settings-emote-bttv" setting="feed.emotes.bttv" checked={feed.emotes.bttv} onChange={(checked) => setEmote("bttv", checked)}>
                 BetterTTV global and channel emotes
               </CheckRow>
@@ -479,7 +480,7 @@ export function SettingsView({
 
               <h4>Bot connection</h4>
               <p className="count">
-                Embedded mode runs the bot on this computer. Server mode controls one bot on a server you run and does not start a second copy. The address must be https, except for localhost.
+                Embedded runs the bot on this computer. Server controls a bot you host and does not start a second copy. The address must be https. A server on this computer can use http://localhost.
               </p>
               <Field id="settings-bot-mode" label="Mode">
                 <select
@@ -513,7 +514,7 @@ export function SettingsView({
                   autoComplete="off"
                   onKeyDown={blockEnter}
                   onChange={(event) => setBotToken(event.target.value)}
-                  placeholder={botTokenSet ? "A token is saved. Type a new one to replace it." : `Same value as ${brand.envPrefix}_BOT_API_KEY`}
+                  placeholder={botTokenSet ? "A token is saved. Type a new one to replace it." : "Admin token from the server you run"}
                   spellCheck={false}
                 />
               </Field>
@@ -664,6 +665,7 @@ export function SettingsView({
             <SettingsSection id="advanced">
               <h4>This computer</h4>
               <p className="count">Tokens stay in the config folder for this account and are never shown here.</p>
+              <p className="count">If you run the bot on a server, the admin token is the same value as {brand.envPrefix}_BOT_API_KEY.</p>
 
               {twitchOn ? (
                 <div className="settings-block register">

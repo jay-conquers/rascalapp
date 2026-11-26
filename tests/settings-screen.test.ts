@@ -130,7 +130,9 @@ describe("settings screen sections", () => {
     expect(platforms).toContain(">Log in<");
     expect(platforms).toContain('data-setting="youtubeChannelId"');
     expect(platforms).toContain("YouTube channel ID");
-    expect(platforms).toContain("youtube.force-ssl");
+    expect(platforms).toContain("Find your channel ID in YouTube Studio.");
+    expect(platforms).toContain("sending chat requires connecting Google on the Bot tab.");
+    expect(platforms).not.toContain("youtube.force-ssl");
     expect(platforms).toContain('data-testid="kick-settings"');
     expect(platforms).toContain('data-testid="kick-relay-status"');
     expect(platforms).toContain("No relay configured");
@@ -163,7 +165,9 @@ describe("settings screen sections", () => {
     expect(chat).toContain('data-setting="botLink.serverUrl"');
     expect(chat).toContain('data-setting="botLink.adminToken"');
     expect(chat).toContain("Save bot connection");
-    expect(chat).toContain("RASCAL_BOT_API_KEY");
+    expect(chat).toContain("Admin token from the server you run");
+    expect(chat).not.toContain("RASCAL_BOT_API_KEY");
+    expect(chat).not.toContain("youtube.force-ssl");
 
     expect(tabs).toContain('data-setting="tabs"');
     expect(tabs).toContain('data-testid="tab-picker"');
@@ -194,6 +198,7 @@ describe("settings screen sections", () => {
     expect(app).toContain("Import Firebot reward files on startup");
 
     expect(advanced).toContain("Tokens stay in the config folder");
+    expect(advanced).toContain("RASCAL_BOT_API_KEY");
     expect(advanced).toContain('data-testid="settings-client-id"');
     expect(advanced).toContain('data-setting="twitchClientId"');
     expect(advanced).toContain("Twitch client ID");
@@ -230,7 +235,8 @@ describe("settings screen sections", () => {
     const platforms = section(signedIn, "platforms");
     expect(platforms).toContain("Logged in as");
     expect(platforms).toContain("examplechannel");
-    expect(platforms).toContain("Missing scopes: moderator:read:followers");
+    expect(platforms).toContain("This login is missing a permission. Log out and log in again to grant it.");
+    expect(platforms).not.toContain("moderator:read:followers");
     expect(platforms).toContain('aria-label="Log out of Twitch"');
     expect(platforms).toContain(">Log out<");
     expect(platforms).not.toContain('aria-label="Log in to Twitch"');
