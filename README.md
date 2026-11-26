@@ -1,6 +1,6 @@
 # Rascal
 
-Rascal is a free, open-source streaming desk for Twitch and YouTube. It replaces the usual split between a chat client, Firebot-style channel-point alerts, and a StreamElements-style chat bot. The desktop build shipped today is a Linux AppImage, with an optional headless bot you can host yourself. The source is also set up for unsigned Windows and macOS builds.
+Rascal is a free, open-source streaming desk for Twitch, YouTube, and Kick. Kick chat only arrives through a relay you run, or through Rascal hosting once that exists. Hosting is not available yet. It replaces the usual split between a chat client, Firebot-style channel-point alerts, and a StreamElements-style chat bot. The desktop build shipped today is a Linux AppImage, with an optional headless bot you can host yourself. The source is also set up for unsigned Windows and macOS builds.
 
 ## Features
 
@@ -22,9 +22,9 @@ The buttons along the top can be hidden from Settings, under Tabs. Chat always s
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.11.0.AppImage
+chmod +x Rascal-0.12.0.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.11.0.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.12.0.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -72,6 +72,18 @@ The page asks Rascal to wait, often about 5 seconds, before the next chat fetch.
 
 The bot finds `liveChatId` with `liveBroadcasts.list` (`mine=true`, active) when it needs to post or moderate. A moderator account does not own the broadcast, so that call can come back empty. Rascal then uses the video id the page reader already has, and `videos.list` `liveStreamingDetails.activeLiveChatId`.
 
+## Kick
+
+Kick does not give chat to a desktop app directly. Events are webhooks, and a webhook needs a public HTTPS address. Kick works with a relay you run. Rascal hosting would use that same relay later. It is not available yet.
+
+Turning Kick on explains this and waits until you tick **I understand**. Cancel leaves Kick off. The choice is saved. Without a relay address and secret, Kick's status says **No relay configured**.
+
+The steps for the Docker relay, the Kick developer app, the webhook URL, and the desktop settings are in [docs/kick-relay.md](docs/kick-relay.md). The same page is at <https://github.com/jay-conquers/rascalapp/blob/main/docs/kick-relay.md>.
+
+What you can do once that is connected: read chat, send a message as the account you signed in with, and delete, time out, ban, or unban from the moderation menu. A Kick timeout is 1 minute to 7 days, in whole minutes.
+
+What you cannot do on Kick in this version: channel-point redeems, a separate bot account, `!followage`, `!accountage`, `!so`, a viewer list beyond people who spoke this session, and follows, subscriptions, gifted subscriptions, or Kicks gifts in the chat column. BetterTTV, FrankerFaceZ, and 7TV do not apply to Kick messages. Turning Kick off stops its connections and leaves the login saved. An upgrade from 0.11.0 does not turn Kick on.
+
 #### Quota
 
 Google's default project quota is **10,000 units per day** and it resets at midnight Pacific time. Costs below are from [Google's quota calculator](https://developers.google.com/youtube/v3/determine_quota_cost) as published in November 2026. The numbers in Rascal live in `src/shared/platform/youtube-quota.ts`.
@@ -100,7 +112,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.11.0.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.12.0.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 
@@ -143,7 +155,7 @@ The port is 4777 unless you change it in Settings. The paths stay the same.
 
 ## Source layout
 
-The desk (Electron) and the headless bot share `src/shared`. The bot does not import the desktop. Chat sites implement one `ChatPlatform` interface; Twitch and YouTube are the two adapters today. How to add a platform, and where config loading stops and the command engine starts, is in [docs/architecture.md](docs/architecture.md).
+The desk (Electron) and the headless bot share `src/shared`. The bot does not import the desktop. Chat sites implement one `ChatPlatform` interface. Twitch, YouTube, and Kick are the adapters. Kick's events go through the relay in `packages/relay`. How to add a platform, and where config loading stops and the command engine starts, is in [docs/architecture.md](docs/architecture.md).
 
 ## Self-host the bot
 

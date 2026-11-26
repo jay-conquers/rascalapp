@@ -16,25 +16,25 @@ import {
 
 describe("send targets", () => {
   it("defaults to Twitch only and keeps a YouTube check across reloads and unrelated saves", () => {
-    expect(defaultSendTargets()).toEqual({ twitch: true, youtube: false });
+    expect(defaultSendTargets()).toEqual({ twitch: true, youtube: false, kick: false });
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-send-"));
     const store = new SettingsStore(dir);
-    expect(store.load().sendTargets).toEqual({ twitch: true, youtube: false });
-    store.update({ sendTargets: { twitch: true, youtube: true } });
+    expect(store.load().sendTargets).toEqual({ twitch: true, youtube: false, kick: false });
+    store.update({ sendTargets: { twitch: true, youtube: true, kick: false } });
     store.update({ twitchChannel: "examplechannel" });
     const loaded = new SettingsStore(dir).load();
-    expect(loaded.sendTargets).toEqual({ twitch: true, youtube: true });
+    expect(loaded.sendTargets).toEqual({ twitch: true, youtube: true, kick: false });
     expect(loaded.twitchChannel).toBe("examplechannel");
   });
 
   it("stays checked while YouTube is offline, skips the send, then includes it when live chat returns", () => {
-    const saved: SendTargets = { twitch: true, youtube: true };
+    const saved: SendTargets = { twitch: true, youtube: true, kick: false };
     const offline = planSend(saved, {
       twitch: twitchLink({ state: "connected" }, true),
       youtube: youtubeLink({ state: "offline", canSend: true }),
     });
     expect(offline.saved).toEqual(saved);
-    expect(offline.deliver).toEqual({ twitch: true, youtube: false });
+    expect(offline.deliver).toEqual({ twitch: true, youtube: false, kick: false });
     expect(offline.offline.youtube).toBe(true);
     expect(saved.youtube).toBe(true);
 
@@ -43,12 +43,12 @@ describe("send targets", () => {
       youtube: youtubeLink({ state: "live", canSend: true }),
     });
     expect(online.saved.youtube).toBe(true);
-    expect(online.deliver).toEqual({ twitch: true, youtube: true });
+    expect(online.deliver).toEqual({ twitch: true, youtube: true, kick: false });
     expect(online.offline.youtube).toBe(false);
   });
 
   it("keeps the same rule when Twitch chat itself is down", () => {
-    const saved: SendTargets = { twitch: true, youtube: false };
+    const saved: SendTargets = { twitch: true, youtube: false, kick: false };
     const down = planSend(saved, {
       twitch: twitchLink({ state: "reconnecting" }, true),
       youtube: youtubeLink({ state: "idle", canSend: false }),
@@ -64,7 +64,7 @@ describe("send targets", () => {
   });
 
   it("shows the YouTube check still on after the chat box is remounted while offline", () => {
-    const remembered = { current: { twitch: true, youtube: true } as SendTargets };
+    const remembered = { current: { twitch: true, youtube: true, kick: false } as SendTargets };
     function mount(youtubeState: "offline" | "live"): string {
       return renderToStaticMarkup(
         createElement(Composer, {

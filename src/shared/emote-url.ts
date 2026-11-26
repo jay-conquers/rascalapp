@@ -7,6 +7,7 @@ const ALLOWED_HOSTS = new Set([
   "yt3.googleusercontent.com",
   "i.ytimg.com",
   "lh3.googleusercontent.com",
+  "files.kick.com",
 ]);
 
 /** Accept only https emote images on hosts this app already trusts. */

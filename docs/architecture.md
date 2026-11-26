@@ -16,7 +16,7 @@ packages/bot    the headless bot: config, command engine, HTTP API, portal
 
 ## Chat platforms
 
-A platform is a `ChatPlatform` (`src/shared/platform/types.ts`): connect, send, delete, timeout, ban, unban, look up a user, and report whether the channel is live. Incoming chat is a `NormalizedChatMessage`. Twitch and YouTube each have an adapter in `packages/bot/src/platform/`. The desk registers the same two sites on its own `PlatformRegistry` (`src/shared/platform/desk.ts`). Starting the app and sending a chat line walk that list. Twitch IRC, EventSub, and the YouTube page reader stay behind those adapters. The page reader lives in `src/shared/youtube/page-reader.ts`.
+A platform is a `ChatPlatform` (`src/shared/platform/types.ts`): connect, send, delete, timeout, ban, unban, look up a user, and report whether the channel is live. Incoming chat is a `NormalizedChatMessage`. Twitch, YouTube, and Kick each have an adapter in `packages/bot/src/platform/`. The desk registers the same sites on its own `PlatformRegistry` (`src/shared/platform/desk.ts`). Starting the app and sending a chat line walk that list. Twitch IRC, EventSub, and the YouTube page reader stay behind those adapters. The page reader lives in `src/shared/youtube/page-reader.ts`. Kick chat is not a socket on Kick's side. A relay (`packages/relay`) checks Kick's webhook signature and forwards the event. The desktop and the bot both connect out to that relay. See [docs/kick-relay.md](kick-relay.md).
 
 `BotService` constructs a Twitch adapter and a YouTube adapter and registers both on `PlatformRegistry`. Chat, timers, moderation, login, and the snapshot walk that list. The adapters implement `BotPlatform` in `src/shared/platform/bot-platform.ts`. Commands and filters ask `targetsPlatform` for the saved target string.
 
@@ -27,8 +27,9 @@ A platform is a `ChatPlatform` (`src/shared/platform/types.ts`): connect, send, 
 3. Extend `PlatformTarget` in `src/shared/platform/target.ts`. Today it is the string `"twitch"`, `"youtube"`, or `"all"`, and an unknown value loads as `"twitch"`. Adding a third site changes `bot.json`. Ship that with `normalizeBotFile` and a golden file under `tests/fixtures/config/` so an existing config still loads.
 4. Add the checkbox in the bot window. `targetFromChecks` and `checksFromTarget` are the two-site version of that mapping.
 5. If the desk should show the chat, add a reader that emits `NormalizedChatMessage` and a send path. The bot adapter and the desk reader can share the protocol code in `src/shared`.
+6. If the site only delivers events to a public webhook, receive them in the relay and forward them on the existing socket. Do not open a public port from the desktop app.
 
-Kick is the next planned site. Rumble and TikTok can follow the same steps. Nothing in this tree speaks to them yet.
+Kick is wired that way. Rumble and TikTok can follow the same steps. Nothing in this tree speaks to them yet.
 
 ## Bot config and engine
 

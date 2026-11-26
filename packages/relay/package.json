@@ -1,0 +1,9 @@
+{
+  "name": "@rascal/relay",
+  "version": "0.12.0",
+  "private": true,
+  "type": "module",
+  "description": "Forwards signed webhooks to connected clients. Kick is the first source.",
+  "license": "AGPL-3.0-only",
+  "main": "src/cli.ts"
+}

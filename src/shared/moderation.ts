@@ -48,6 +48,12 @@ export interface ModerationContext {
     channelId: string;
     accountChannelId: string | null;
   };
+  kick?: {
+    loggedIn: boolean;
+    scopes: readonly string[];
+    userId: string | null;
+    broadcasterUserId: string | null;
+  };
 }
 
 export interface ActionAvailability {
@@ -113,6 +119,7 @@ export function moderationOffer(message: ModerationSubject, ctx: ModerationConte
     return { delete: blocked, timeout: blocked, ban: blocked, unban: blocked };
   }
   if (message.platform === "youtube") return youtubeOffer(message, ctx);
+  if (message.platform === "kick") return kickOffer(message, ctx);
   return twitchOffer(message, ctx);
 }
 
@@ -128,6 +135,9 @@ export function isBroadcasterTarget(message: ModerationSubject, ctx: ModerationC
       return true;
     }
     return false;
+  }
+  if (message.platform === "kick") {
+    return Boolean(message.authorId && ctx.kick?.broadcasterUserId && message.authorId === ctx.kick.broadcasterUserId);
   }
   if (message.authorId && ctx.youtube.channelId && message.authorId === ctx.youtube.channelId) return true;
   if (
@@ -154,7 +164,7 @@ export function describeDeskMod(input: {
   action: DeskModerationAction;
   durationSeconds: number | null;
 }): string {
-  const where = input.platform === "twitch" ? "Twitch" : "YouTube";
+  const where = input.platform === "twitch" ? "Twitch" : input.platform === "kick" ? "Kick" : "YouTube";
   const who = input.actor.trim() || "A moderator";
   const target = input.target.trim() || "a user";
   if (input.action === "delete") return `${who} deleted a message from ${target} on ${where}.`;
@@ -202,6 +212,27 @@ function twitchOffer(message: ModerationSubject, ctx: ModerationContext): Modera
   return { delete: deleteAction, timeout: userAction, ban: userAction, unban: userAction };
 }
 
+function kickOffer(message: ModerationSubject, ctx: ModerationContext): ModerationOffer {
+  if (!ctx.kick?.loggedIn) {
+    const blocked = deny("Log in with Kick to moderate this chat.");
+    return { delete: blocked, timeout: blocked, ban: blocked, unban: blocked };
+  }
+  const scopes = new Set(ctx.kick.scopes);
+  const deleteAction = scopes.has("moderation:chat_message:manage")
+    ? message.deleted
+      ? deny("That message is already deleted.")
+      : deletableMessageId("kick", message.id)
+        ? allow()
+        : deny("This line has no Kick message id to delete.")
+    : deny("Log in again to grant moderation:chat_message:manage.");
+  const userAction = scopes.has("moderation:ban")
+    ? /^\d{1,20}$/.test(message.authorId ?? "")
+      ? allow()
+      : deny("This message has no Kick user id.")
+    : deny("Log in again to grant moderation:ban.");
+  return { delete: deleteAction, timeout: userAction, ban: userAction, unban: userAction };
+}
+
 function youtubeOffer(message: ModerationSubject, ctx: ModerationContext): ModerationOffer {
   if (!ctx.youtube.canModerate) {
     const blocked = deny("Connect a YouTube account that can moderate this chat.");
@@ -223,6 +254,7 @@ function youtubeOffer(message: ModerationSubject, ctx: ModerationContext): Moder
 export function deletableMessageId(platform: Platform, id: string): boolean {
   if (!id || /^(yt-|twitch-|redeem-|follow-|notice-|mod-)/.test(id)) return false;
   if (platform === "twitch") return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  if (platform === "kick") return /^[A-Za-z0-9_-]{8,80}$/.test(id);
   return id.length >= 8 && id.length <= 200 && !/\s/.test(id);
 }
 

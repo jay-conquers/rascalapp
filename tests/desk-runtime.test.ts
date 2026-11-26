@@ -90,7 +90,7 @@ describe("desk chat send", () => {
   it("checks the message, then sends to the signed-in channel with Helix", async () => {
     const { runtime, calls } = desk({ loggedIn: true });
     await expect(runtime.sendChat("   ")).rejects.toThrow("Message is empty.");
-    await expect(runtime.sendChat("hi", { twitch: false, youtube: false })).rejects.toThrow("Pick Twitch or YouTube.");
+    await expect(runtime.sendChat("hi", { twitch: false, youtube: false })).rejects.toThrow("Pick a platform.");
     await expect(runtime.sendChat("x".repeat(501))).rejects.toThrow("Twitch messages stop at 500 characters.");
     await runtime.sendChat("  hello\r\nchat  ");
     const sent = calls.filter((call) => call.where === "api.twitch.tv/helix/chat/messages");

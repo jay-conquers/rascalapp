@@ -31,6 +31,20 @@ services:
       start_period: 10s
     # Starts as root only to hand /data to the node user. The bot then listens as that user.
 
+  # Optional. Kick webhooks land here. `docker compose --profile kick up -d --build`
+  relay:
+    profiles: ["kick"]
+    build:
+      context: ../..
+      dockerfile: packages/relay/Dockerfile
+    environment:
+      RELAY_SECRET: ${RELAY_SECRET:-}
+      RELAY_BIND: 0.0.0.0
+      RELAY_PORT: "8790"
+    expose:
+      - "8790"
+    restart: unless-stopped
+
   caddy:
     image: caddy:2
     depends_on:

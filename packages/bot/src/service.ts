@@ -296,6 +296,18 @@ export class BotService extends BotChat {
     await this.registry.get("youtube")?.open();
   }
 
+  /** Close and open one platform again. Tokens stay. A platform that is off stays closed. */
+  async reconnectPlatform(id: string): Promise<void> {
+    const platform = this.registry.get(id);
+    if (!platform || this.stopped) return;
+    if (!this.platformAllowed(id)) {
+      platform.cancelAccountLogin();
+      await platform.disconnect();
+      return;
+    }
+    await platform.reconnect();
+  }
+
 
 
   protected platformSections(): PlatformSection[] {

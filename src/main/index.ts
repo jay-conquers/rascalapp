@@ -18,7 +18,7 @@ const PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: http://127.0.0.1:* http://localhost:* https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com",
+  "img-src 'self' data: http://127.0.0.1:* http://localhost:* https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com https://files.kick.com",
   "connect-src 'self'",
   "font-src 'self'",
 ].join("; ");
@@ -319,6 +319,12 @@ function registerIpc(runtime: Runtime): void {
   ipcMain.handle("app:youtube-connect", () => guard(() => runtime.youtubeConnect()));
   ipcMain.handle("app:youtube-cancel", () => guard(() => runtime.youtubeCancel()));
   ipcMain.handle("app:youtube-logout", () => guard(() => runtime.youtubeLogout()));
+  ipcMain.handle("app:kick-desk", () => guard(() => runtime.kickDeskState()));
+  ipcMain.handle("app:kick-connect", () => guard(() => runtime.kickConnect()));
+  ipcMain.handle("app:kick-cancel", () => guard(() => runtime.kickCancel()));
+  ipcMain.handle("app:kick-logout", () => guard(() => runtime.kickLogout()));
+  ipcMain.handle("app:kick-client", (_event, patch: unknown) => guard(() => runtime.kickSaveClient(patch)));
+  ipcMain.handle("app:kick-relay", (_event, patch: unknown) => guard(() => runtime.kickSaveRelay(patch)));
   ipcMain.handle("app:chat-sound-pick", () =>
     guard(async () => {
       const result = await dialog.showOpenDialog({

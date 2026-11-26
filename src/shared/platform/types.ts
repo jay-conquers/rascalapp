@@ -1,6 +1,6 @@
 /**
- * Chat platforms plug in here. Twitch and YouTube are implemented.
- * Kick, Rumble, and TikTok can register the same interface later.
+ * Chat platforms plug in here. Twitch, YouTube, and Kick are implemented.
+ * Rumble and TikTok can register the same interface later.
  */
 export type ChatRole = "everyone" | "sub" | "vip" | "mod" | "broadcaster";
 

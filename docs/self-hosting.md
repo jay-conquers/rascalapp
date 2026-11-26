@@ -101,7 +101,11 @@ docker compose start bot
 
 The volume name is `<compose-project>_bot-data`. `docker volume ls` shows it. Restore by stopping the bot, extracting that archive into a fresh volume, and starting again. Keep the archive off the server and off git.
 
-## 9. Upgrades and logs
+## 9. Kick
+
+Kick chat does not arrive at the bot by itself. It needs the relay in this same compose file, started with the `kick` profile. The steps, the webhook URL, and the desktop settings are in [docs/kick-relay.md](kick-relay.md).
+
+## 10. Upgrades and logs
 
 ```bash
 git pull

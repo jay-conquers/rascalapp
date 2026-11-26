@@ -2,6 +2,7 @@
   "twitchClientId": "abc1234567890xyz",
   "twitchChannel": "examplechannel",
   "youtubeChannelId": "",
+  "kickRelayUrl": "",
   "overlayPort": 4790,
   "alwaysOnTop": false,
   "autoImportFirebot": false,
@@ -31,7 +32,8 @@
   },
   "sendTargets": {
     "twitch": false,
-    "youtube": true
+    "youtube": true,
+    "kick": false
   },
   "chatAlert": {
     "enabled": true,
@@ -42,7 +44,8 @@
   },
   "platforms": {
     "confirmed": true,
-    "enabled": ["twitch", "youtube"]
+    "enabled": ["twitch", "youtube"],
+    "kickAcknowledged": false
   },
   "tabs": {
     "hidden": []

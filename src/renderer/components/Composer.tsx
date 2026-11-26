@@ -14,6 +14,7 @@ export function Composer({
   onTargets,
   twitch,
   youtube,
+  kick,
   canSendYoutube,
   youtubeAccount,
   sendHint,
@@ -24,17 +25,18 @@ export function Composer({
 }: {
   channel: string;
   targets: SendTargets;
-  /** Platforms the desk has turned on. Omitted means both checks stay available. */
-  shown?: { twitch: boolean; youtube: boolean };
+  /** Platforms the desk has turned on. Omitted means Twitch and YouTube stay available. */
+  shown?: { twitch: boolean; youtube: boolean; kick?: boolean };
   onTargets: (next: SendTargets) => void;
   twitch: PlatformLink;
   youtube: PlatformLink;
+  kick?: PlatformLink;
   canSendYoutube: boolean;
   youtubeAccount: string | null;
   sendHint?: string;
   onOpenSettings?: () => void;
   onOpenBot?: () => void;
-  onSend: (text: string, destinations: { twitch: boolean; youtube: boolean }) => Promise<void>;
+  onSend: (text: string, destinations: { twitch: boolean; youtube: boolean; kick?: boolean }) => Promise<void>;
   loadMentions?: (query: string) => Promise<MentionRoster>;
 }) {
   const box = useRef<HTMLTextAreaElement>(null);
@@ -50,10 +52,11 @@ export function Composer({
   const tokenKey = token ? `${token.start}:${token.query}` : "";
   const listOpen = Boolean(token) && dismissed !== tokenKey && suggestions.length > 0;
   const selected = suggestions.length === 0 ? 0 : Math.min(index, suggestions.length - 1);
-  const plan = planSend(targets, { twitch, youtube }, shown);
+  const plan = planSend(targets, { twitch, youtube, kick }, shown);
   const showTwitch = shown?.twitch !== false;
   const showYoutube = shown?.youtube !== false;
-  const canDeliver = plan.deliver.twitch || plan.deliver.youtube;
+  const showKick = shown?.kick === true;
+  const canDeliver = plan.deliver.twitch || plan.deliver.youtube || plan.deliver.kick;
   const limit = showYoutube && targets.youtube ? YOUTUBE_MESSAGE_MAX : TWITCH_MESSAGE_MAX;
   const remaining = limit - text.length;
 
@@ -117,12 +120,16 @@ export function Composer({
   }
 
   const placeholder = canDeliver
-    ? plan.deliver.youtube && !plan.deliver.twitch
+    ? plan.deliver.kick && !plan.deliver.twitch && !plan.deliver.youtube
+      ? "Message Kick chat"
+      : plan.deliver.youtube && !plan.deliver.twitch
       ? "Message YouTube chat"
       : channel
         ? `Message #${channel}`
         : "Message"
-    : plan.offline.youtube
+    : showKick && !showTwitch && !showYoutube
+      ? "Log in with Kick and connect a relay before sending."
+      : plan.offline.youtube
       ? "YouTube is offline. The check stays on."
       : canSendYoutube
         ? "Choose a platform to send"
@@ -147,6 +154,12 @@ export function Composer({
           <CheckRow id="send-youtube" checked={targets.youtube} onChange={(checked) => onTargets({ ...targets, youtube: checked })}>
             {youtubeAccount ? `YouTube as ${youtubeAccount}` : "YouTube"}
             {plan.offline.youtube ? <em className="offline-note">offline</em> : null}
+          </CheckRow>
+        ) : null}
+        {showKick ? (
+          <CheckRow id="send-kick" checked={targets.kick === true} onChange={(checked) => onTargets({ ...targets, kick: checked })}>
+            Kick
+            {plan.offline.kick ? <em className="offline-note">offline</em> : null}
           </CheckRow>
         ) : null}
       </div>

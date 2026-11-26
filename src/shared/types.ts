@@ -6,7 +6,7 @@ import type { PlatformSelection } from "./platform/selection";
 
 export type { FeedToggles, NoticeKind } from "./feed-toggles";
 
-export type Platform = "twitch" | "youtube";
+export type Platform = "twitch" | "youtube" | "kick";
 
 export type BadgeKind =
   | "mod"
@@ -42,7 +42,7 @@ export interface EmoteSegment {
   type: "emote";
   text: string;
   url: string;
-  source: "twitch" | "youtube" | "bttv" | "ffz" | "7tv";
+  source: "twitch" | "youtube" | "kick" | "bttv" | "ffz" | "7tv";
 }
 
 export type Segment = TextSegment | EmoteSegment;
@@ -106,6 +106,8 @@ export interface Settings {
   twitchClientId: string;
   twitchChannel: string;
   youtubeChannelId: string;
+  /** WebSocket address of a relay. The shared secret is not stored here. */
+  kickRelayUrl: string;
   overlayPort: number;
   alwaysOnTop: boolean;
   /** Fill empty redeem files from Firebot on startup. Defaults to on. */
@@ -159,6 +161,10 @@ export interface ConnectionStatus {
     sendHint?: string;
     /** Signed-in YouTube channel. Used to refuse moderating that channel's own account. */
     accountChannelId?: string | null;
+  };
+  kick: ConnectionSide & {
+    viewers?: number | null;
+    account?: string | null;
   };
   overlay: { listening: boolean; host: string; port: number };
 }

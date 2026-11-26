@@ -73,8 +73,10 @@ export function BotView({ enabledIds }: { enabledIds?: readonly string[] } = {})
   const [desk, setDesk] = useState<YoutubeDeskState>(EMPTY_DESK);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [commandTwitch, setCommandTwitch] = useState(showTwitch || !showYoutube);
-  const [commandYoutube, setCommandYoutube] = useState(showYoutube && !showTwitch);
+  const showKick = enabled.includes("kick");
+  const [commandTwitch, setCommandTwitch] = useState(showTwitch || (!showYoutube && !showKick));
+  const [commandYoutube, setCommandYoutube] = useState(showYoutube && !showTwitch && !showKick);
+  const [commandKick, setCommandKick] = useState(showKick && !showTwitch && !showYoutube);
   const [keywords, setKeywords] = useState("");
   const [thanks, setThanks] = useState<ThanksSettings>(defaultThanks());
   const [shoutout, setShoutout] = useState<ShoutoutSettings>(defaultShoutout());
@@ -348,7 +350,7 @@ export function BotView({ enabledIds }: { enabledIds?: readonly string[] } = {})
           Response
           <textarea value={response} onChange={(event) => setResponse(event.target.value)} />
         </label>
-        <PlatformChecks enabledIds={enabled} target={targetFromChecks(commandTwitch, commandYoutube)} disabled={busy} onChange={(platforms) => { const next = checksFromTarget(platforms); setCommandTwitch(next.twitch); setCommandYoutube(next.youtube); }} />
+        <PlatformChecks enabledIds={enabled} target={targetFromChecks(commandTwitch, commandYoutube, commandKick)} disabled={busy} onChange={(platforms) => { const next = checksFromTarget(platforms); setCommandTwitch(next.twitch); setCommandYoutube(next.youtube); setCommandKick(next.kick); }} />
         <p className="form-note">
           A keyword fires when that word or phrase appears in a normal message. The cooldown above stops it repeating. Variables: {"{user}"} {"{touser}"} {"{1}"} {"{count}"} {"{uptime}"} {"{game}"} {"{title}"} {"{followage}"} {"{random.chatter}"} {"{random:yes|no}"} {"{random:{user} is better|{touser} is better}"}
         </p>
@@ -366,7 +368,7 @@ export function BotView({ enabledIds }: { enabledIds?: readonly string[] } = {})
                 cooldownSec: Number(cooldown) || 0,
                 userCooldownSec: 15,
                 enabled: true,
-                platforms: targetFromChecks(commandTwitch, commandYoutube),
+                platforms: targetFromChecks(commandTwitch, commandYoutube, commandKick),
               }),
             )
           }

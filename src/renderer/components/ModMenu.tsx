@@ -22,7 +22,7 @@ export function ModMenu({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hint = offerHint(offer);
-  const platform = message.platform === "twitch" ? "Twitch" : "YouTube";
+  const platform = message.platform === "twitch" ? "Twitch" : message.platform === "kick" ? "Kick" : "YouTube";
 
   async function run(action: DeskModerationAction, seconds?: number): Promise<void> {
     const gate = action === "timeout" ? offer.timeout : offer[action];

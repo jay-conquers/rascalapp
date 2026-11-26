@@ -72,15 +72,15 @@ function action(platform: "twitch" | "youtube", id: string): ModAction {
 }
 
 describe("platform catalog", () => {
-  it("lists Twitch and YouTube, and keeps Kick hidden until it ships", () => {
+  it("lists Twitch, YouTube, and Kick", () => {
     expect(PLATFORM_CATALOG.map((entry) => entry.id)).toEqual(["twitch", "youtube", "kick"]);
-    expect(PLATFORM_CATALOG.find((entry) => entry.id === "kick")?.hidden).toBe(true);
-    expect(visiblePlatforms().map((entry) => entry.id)).toEqual(["twitch", "youtube"]);
+    expect(PLATFORM_CATALOG.find((entry) => entry.id === "kick")?.hidden).toBe(false);
+    expect(visiblePlatforms().map((entry) => entry.id)).toEqual(["twitch", "youtube", "kick"]);
     expect(visiblePlatforms().every((entry) => entry.label.trim().length > 0)).toBe(true);
   });
 
   it("starts a new install on Twitch and waits for the picker", () => {
-    expect(defaultPlatformSelection()).toEqual({ confirmed: false, enabled: ["twitch"] });
+    expect(defaultPlatformSelection()).toEqual({ confirmed: false, enabled: ["twitch"], kickAcknowledged: false });
   });
 });
 
@@ -89,41 +89,41 @@ describe("platform selection rules", () => {
 
   it("refuses to turn off the last platform and ignores a hidden one", () => {
     expect(() => setPlatformEnabled(fresh, "twitch", false)).toThrow(/at least one platform/i);
-    expect(() => setPlatformEnabled(fresh, "kick", true)).toThrow(/not available/i);
-    expect(setPlatformEnabled(fresh, "youtube", true)).toEqual({ confirmed: false, enabled: ["twitch", "youtube"] });
+    expect(() => setPlatformEnabled(fresh, "kick", true)).toThrow(/relay/i);
+    expect(setPlatformEnabled(fresh, "youtube", true)).toEqual({ confirmed: false, enabled: ["twitch", "youtube"], kickAcknowledged: false });
     const both = setPlatformEnabled(fresh, "youtube", true);
-    expect(setPlatformEnabled(both, "twitch", false)).toEqual({ confirmed: false, enabled: ["youtube"] });
+    expect(setPlatformEnabled(both, "twitch", false)).toEqual({ confirmed: false, enabled: ["youtube"], kickAcknowledged: false });
   });
 
   it("confirms the picker only when something visible is selected", () => {
-    expect(confirmPlatformSelection(fresh)).toEqual({ confirmed: true, enabled: ["twitch"] });
-    expect(confirmPlatformSelection({ confirmed: false, enabled: ["kick", "youtube"] })).toEqual({ confirmed: true, enabled: ["youtube"] });
+    expect(confirmPlatformSelection(fresh)).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
+    expect(confirmPlatformSelection({ confirmed: false, enabled: ["kick", "youtube"] })).toEqual({ confirmed: true, enabled: ["youtube"], kickAcknowledged: false });
     expect(() => confirmPlatformSelection({ confirmed: false, enabled: ["kick"] })).toThrow(/at least one platform/i);
   });
 
   it("migrates an older install from what is already set up, and does not show the picker", () => {
-    expect(migrateFromSetup({ twitch: false, youtube: false })).toEqual({ confirmed: true, enabled: ["twitch"] });
-    expect(migrateFromSetup({ twitch: true, youtube: false })).toEqual({ confirmed: true, enabled: ["twitch"] });
-    expect(migrateFromSetup({ twitch: false, youtube: true })).toEqual({ confirmed: true, enabled: ["youtube"] });
-    expect(migrateFromSetup({ twitch: true, youtube: true })).toEqual({ confirmed: true, enabled: ["twitch", "youtube"] });
+    expect(migrateFromSetup({ twitch: false, youtube: false })).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
+    expect(migrateFromSetup({ twitch: true, youtube: false })).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
+    expect(migrateFromSetup({ twitch: false, youtube: true })).toEqual({ confirmed: true, enabled: ["youtube"], kickAcknowledged: false });
+    expect(migrateFromSetup({ twitch: true, youtube: true })).toEqual({ confirmed: true, enabled: ["twitch", "youtube"], kickAcknowledged: false });
   });
 
   it("shows the picker only when nothing has been saved or connected", () => {
     expect(resolvePlatformSelection({ fileExisted: false, keyPresent: false, saved: undefined, setup: { twitch: false, youtube: false } })).toEqual(fresh);
     expect(
       resolvePlatformSelection({ fileExisted: true, keyPresent: false, saved: undefined, setup: { twitch: false, youtube: true } }),
-    ).toEqual({ confirmed: true, enabled: ["youtube"] });
+    ).toEqual({ confirmed: true, enabled: ["youtube"], kickAcknowledged: false });
     expect(
       resolvePlatformSelection({ fileExisted: true, keyPresent: false, saved: undefined, setup: { twitch: false, youtube: false } }),
-    ).toEqual({ confirmed: true, enabled: ["twitch"] });
+    ).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
     expect(
       resolvePlatformSelection({ fileExisted: false, keyPresent: false, saved: undefined, setup: { twitch: true, youtube: false } }),
-    ).toEqual({ confirmed: true, enabled: ["twitch"] });
-    const saved: PlatformSelection = { confirmed: true, enabled: ["youtube"] };
+    ).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
+    const saved: PlatformSelection = { confirmed: true, enabled: ["youtube"], kickAcknowledged: false };
     expect(resolvePlatformSelection({ fileExisted: true, keyPresent: true, saved, setup: { twitch: true, youtube: true } })).toEqual(saved);
     expect(
       resolvePlatformSelection({ fileExisted: true, keyPresent: true, saved: { confirmed: false, enabled: ["twitch", "kick"] }, setup: { twitch: false, youtube: false } }),
-    ).toEqual({ confirmed: false, enabled: ["twitch"] });
+    ).toEqual({ confirmed: false, enabled: ["twitch"], kickAcknowledged: false });
   });
 });
 
@@ -139,22 +139,23 @@ describe("platform filtering", () => {
     ];
     expect(filterEnabled(rows, (row) => row.platform, twitchOnly).map((row) => row.text)).toEqual(["a"]);
     expect(filterEnabled(rows, (row) => row.platform, both).map((row) => row.text)).toEqual(["a", "b"]);
-    const saved = { twitch: true, youtube: true };
-    expect(maskSendTargets(saved, twitchOnly)).toEqual({ twitch: true, youtube: false });
-    expect(saved).toEqual({ twitch: true, youtube: true });
+    const saved = { twitch: true, youtube: true, kick: false };
+    expect(maskSendTargets(saved, twitchOnly)).toEqual({ twitch: true, youtube: false, kick: false });
+    expect(saved).toEqual({ twitch: true, youtube: true, kick: false });
     const plan = planSend(saved, {
       twitch: twitchLink({ state: "connected" }, true),
       youtube: youtubeLink({ state: "live", canSend: true }),
     }, { twitch: true, youtube: false });
-    expect(plan.deliver).toEqual({ twitch: true, youtube: false });
+    expect(plan.deliver).toEqual({ twitch: true, youtube: false, kick: false });
     expect(plan.saved).toEqual(saved);
     expect(plan.offline.youtube).toBe(false);
     expect(sendTargetsForSelection(twitchOnly, saved)).toEqual(saved);
     expect(sendTargetsForSelection({ confirmed: true, enabled: ["youtube"] }, { twitch: true, youtube: false })).toEqual({
       twitch: true,
       youtube: true,
+      kick: false,
     });
-    expect(saved).toEqual({ twitch: true, youtube: true });
+    expect(saved).toEqual({ twitch: true, youtube: true, kick: false });
   });
 
   it("describes the empty feed from the platforms that are on", () => {
@@ -198,34 +199,34 @@ describe("settings store", () => {
   it("leaves a fresh install unconfirmed and does not write a file until something else is saved", () => {
     const dir = tempDir();
     const loaded = new SettingsStore(dir).load();
-    expect(loaded.platforms).toEqual({ confirmed: false, enabled: ["twitch"] });
+    expect(loaded.platforms).toEqual({ confirmed: false, enabled: ["twitch"], kickAcknowledged: false });
     expect(fs.existsSync(path.join(dir, "settings.json"))).toBe(false);
   });
 
   it("pre-selects platforms that are already set up and does not show the picker", () => {
     const youtubeOnly = tempDir();
     writeJson(youtubeOnly, "settings.json", { youtubeChannelId: YOUTUBE_CHANNEL });
-    expect(new SettingsStore(youtubeOnly).load().platforms).toEqual({ confirmed: true, enabled: ["youtube"] });
+    expect(new SettingsStore(youtubeOnly).load().platforms).toEqual({ confirmed: true, enabled: ["youtube"], kickAcknowledged: false });
 
     const twitchChannel = tempDir();
     writeJson(twitchChannel, "settings.json", { twitchChannel: "examplechannel" });
-    expect(new SettingsStore(twitchChannel).load().platforms).toEqual({ confirmed: true, enabled: ["twitch"] });
+    expect(new SettingsStore(twitchChannel).load().platforms).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
 
     const both = tempDir();
     writeJson(both, "settings.json", { twitchClientId: "client1234567890", youtubeChannelId: YOUTUBE_CHANNEL });
     writeJson(both, "tokens.json", { accessToken: "desk-access", login: "examplechannel" });
     writeJson(both, "youtube-tokens.json", { accessToken: "ya29.token", channelId: YOUTUBE_CHANNEL });
-    expect(new SettingsStore(both).load().platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"] });
+    expect(new SettingsStore(both).load().platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"], kickAcknowledged: false });
 
     const untouched = tempDir();
     writeJson(untouched, "settings.json", { overlayPort: 4777 });
-    expect(new SettingsStore(untouched).load().platforms).toEqual({ confirmed: true, enabled: ["twitch"] });
+    expect(new SettingsStore(untouched).load().platforms).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
 
     const tokensOnly = tempDir();
     writeJson(tokensOnly, "tokens.json", { accessToken: "desk-access", login: "examplechannel" });
     writeJson(tokensOnly, "bot-youtube-tokens.json", { accessToken: "ya29.token", channelId: YOUTUBE_CHANNEL });
     const fromTokens = new SettingsStore(tokensOnly).load();
-    expect(fromTokens.platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"] });
+    expect(fromTokens.platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"], kickAcknowledged: false });
     expect(fs.existsSync(path.join(tokensOnly, "settings.json"))).toBe(false);
   });
 
@@ -239,12 +240,12 @@ describe("settings store", () => {
     expect(() => store.update({ platforms: { confirmed: true, enabled: [] } })).toThrow(/at least one platform/i);
     expect(() => store.update({ platforms: { confirmed: true, enabled: ["kick"] } })).toThrow(/at least one platform/i);
     const saved = store.update({ platforms: { confirmed: true, enabled: ["twitch"] } });
-    expect(saved.platforms).toEqual({ confirmed: true, enabled: ["twitch"] });
+    expect(saved.platforms).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
     expect(saved.youtubeChannelId).toBe(YOUTUBE_CHANNEL);
     expect(saved.twitchChannel).toBe("examplechannel");
     expect(JSON.parse(fs.readFileSync(path.join(dir, "tokens.json"), "utf8")).login).toBe("examplechannel");
     expect(JSON.parse(fs.readFileSync(path.join(dir, "youtube-tokens.json"), "utf8")).channelId).toBe(YOUTUBE_CHANNEL);
-    expect(new SettingsStore(dir).load().platforms).toEqual({ confirmed: true, enabled: ["twitch"] });
+    expect(new SettingsStore(dir).load().platforms).toEqual({ confirmed: true, enabled: ["twitch"], kickAcknowledged: false });
     const restored = store.update({ platforms: { confirmed: true, enabled: ["twitch", "youtube"] } });
     expect(restored.platforms.enabled).toEqual(["twitch", "youtube"]);
     expect(restored.youtubeChannelId).toBe(YOUTUBE_CHANNEL);
@@ -252,11 +253,12 @@ describe("settings store", () => {
 });
 
 describe("platform picker and filtered surfaces", () => {
-  it("checks Twitch by default, offers YouTube, and does not show Kick", () => {
+  it("checks Twitch by default and offers YouTube and Kick", () => {
     const html = renderToStaticMarkup(createElement(PlatformPicker, { selection: defaultPlatformSelection(), onToggle: () => undefined }));
     expect(html).toContain("Twitch");
     expect(html).toContain("YouTube");
-    expect(html).not.toContain("Kick");
+    expect(html).toContain('id="platform-kick"');
+    expect(html).not.toMatch(/id="platform-kick"[^>]*checked/);
     expect(html).toContain("At least one platform stays on.");
     expect(html).toContain('id="platform-twitch"');
     expect(html).toMatch(/id="platform-twitch"[^>]*disabled/);
@@ -275,7 +277,8 @@ describe("platform picker and filtered surfaces", () => {
     expect(html).toContain("Which platforms do you stream on?");
     expect(html).toContain("Continue");
     expect(html).toContain("Twitch");
-    expect(html).not.toContain("Kick");
+    expect(html).toContain('id="platform-kick"');
+    expect(html).not.toMatch(/id="platform-kick"[^>]*checked/);
     expect(html.toLowerCase()).not.toContain("jeeves");
   });
 
@@ -354,7 +357,9 @@ describe("bot platform selection", () => {
       expect(fs.existsSync(path.join(fixture.dir, "bot-youtube-tokens.json"))).toBe(true);
       expect(JSON.parse(fs.readFileSync(path.join(fixture.dir, "enabled-platforms.json"), "utf8")).enabled).toEqual(["youtube"]);
       await expect(fixture.service.setEnabledPlatforms([])).rejects.toThrow(/at least one platform/i);
-      await expect(fixture.service.setEnabledPlatforms(["kick"])).rejects.toThrow(/at least one platform/i);
+      await fixture.service.setEnabledPlatforms(["kick"]);
+      expect(fixture.service.snapshot(1).platforms.map((platform) => platform.id)).toEqual(["kick"]);
+      expect(fixture.service.snapshot(1).platforms[0]?.status).toMatch(/log in|relay/i);
       expect(fs.existsSync(path.join(fixture.dir, "bot-tokens.json"))).toBe(true);
     } finally {
       fixture.stop();
