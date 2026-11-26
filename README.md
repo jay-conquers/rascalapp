@@ -44,8 +44,8 @@ From a git checkout you can also run `./scripts/install-local.sh` after a build.
 1. Open <https://dev.twitch.tv/console/apps> and register an application.
 2. OAuth redirect URL: `http://localhost`
 3. Category: Application Integration. Client type: Public.
-4. Copy the client ID into Rascal's Settings and save.
-5. Choose **Log in with Twitch** and approve the code at `twitch.tv/activate`.
+4. Copy the client ID into Settings → Advanced and choose **Save settings**.
+5. Under Platforms → Twitch, choose **Log in** and approve the code at `twitch.tv/activate`.
 
 For the moderator portal, also add `http://localhost:4788/portal/callback`. Twitch will not save a `127.0.0.1` redirect. The process still listens on `127.0.0.1`.
 

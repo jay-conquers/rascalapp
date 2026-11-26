@@ -6,18 +6,22 @@ export function CheckRow({
   onChange,
   disabled,
   id,
+  setting,
   children,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   id?: string;
+  /** settings.json key, or a dotted key, for the control this row edits. */
+  setting?: string;
   children: ReactNode;
 }) {
   return (
     <label className="check-row" htmlFor={id}>
       <input
         id={id}
+        data-setting={setting}
         type="checkbox"
         checked={checked}
         disabled={disabled}

@@ -245,7 +245,7 @@ describe("desk tab window", () => {
         onOpenConsole: () => undefined,
       }),
     );
-    expect(html).toContain("<h3>Tabs</h3>");
+    expect(html).toContain('id="settings-tabs-title">Tabs</h3>');
     expect(html).toContain(TABS_SUMMARY);
     expect(html).toContain(tabsPlatformSummary());
     expect(html).toContain(CHAT_ALWAYS_NOTE);

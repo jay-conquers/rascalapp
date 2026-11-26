@@ -70,7 +70,7 @@ The desktop app, when it logs YouTube in on the streamer's computer, still uses 
 
 ## 6. Point the desktop app at the server
 
-In Settings, Bot connection:
+In Settings, open Chat & Bot, then Bot connection:
 
 - Mode: **Server you run**
 - Server URL: `https://bot.example.com`

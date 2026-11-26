@@ -71,8 +71,8 @@ In Settings, with Kick on:
 
 1. Relay address: `wss://<your-host>/v1/events`
 2. Relay secret: the same string as `RELAY_SECRET`. Choose **Save relay secret**.
-3. Kick client ID and client secret. Choose **Save Kick app**.
-4. Choose **Log in with Kick** and approve the app.
+3. Under Advanced, Kick client ID and client secret. Choose **Save Kick app**.
+4. Under Kick, choose **Log in** and approve the app.
 
 The login asks for `user:read`, `channel:read`, `channel:write`, `chat:write`, `events:subscribe`, `moderation:ban`, and `moderation:chat_message:manage`. After that, Rascal subscribes to `chat.message.sent`, `livestream.status.updated`, and `moderation.banned`. Kick posts those to the webhook URL on the app. The relay checks the signature and forwards the event to Rascal.
 

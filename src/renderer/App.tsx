@@ -346,7 +346,7 @@ export function App() {
 
       {banner && twitchOn && !auth.clientIdSet && shownView === "desk" && (
         <div className="banner">
-          <p>Add a Twitch client ID in Settings to edit stream info and send chat. The combined feed works before you log in.</p>
+          <p>Add a Twitch client ID under Settings → Advanced to edit stream info and send chat. The combined feed works before you log in.</p>
           <button type="button" onClick={() => setBanner(false)}>
             Dismiss
           </button>
