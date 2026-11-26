@@ -475,7 +475,7 @@ function wireChatShortcuts(): void {
 
 function electronPathHost(): PathHost {
   const base = currentPathHost();
-  const read = (name: "home" | "appData" | "documents" | "music" | "temp"): string | undefined => {
+  const read = (name: "home" | "appData" | "documents" | "music"): string | undefined => {
     try {
       return app.getPath(name);
     } catch {
@@ -490,7 +490,6 @@ function electronPathHost(): PathHost {
       appData: read("appData"),
       documents: read("documents"),
       music: read("music"),
-      temp: read("temp"),
     };
   }
   return {
@@ -499,7 +498,6 @@ function electronPathHost(): PathHost {
     appData: read("appData"),
     documents: read("documents"),
     music: read("music"),
-    temp: read("temp"),
   };
 }
 

@@ -30,8 +30,6 @@ export interface PathHost {
   documents?: string;
   /** `app.getPath("music")`. */
   music?: string;
-  /** `app.getPath("temp")`. */
-  temp?: string;
 }
 
 let activeHost: PathHost | null = null;
@@ -98,11 +96,6 @@ export function firebotRewardsFile(host: PathHost = currentPathHost()): string {
   }
   const config = host.env.XDG_CONFIG_HOME || path.join(host.homedir, ".config");
   return path.join(config, ...rest);
-}
-
-/** `app.getPath("temp")` when the desktop app supplied it, otherwise `os.tmpdir()`. */
-export function tempDir(host: PathHost = currentPathHost()): string {
-  return host.temp || os.tmpdir();
 }
 
 /** `file:` URL for a filesystem path. Handles Windows drive letters and spaces. */

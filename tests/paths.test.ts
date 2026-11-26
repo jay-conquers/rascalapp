@@ -11,7 +11,6 @@ import {
   electronUserDataDir,
   fileUrl,
   firebotRewardsFile,
-  tempDir,
   usePathHost,
   type PathHost,
 } from "../src/shared/paths";
@@ -91,12 +90,6 @@ describe("config paths", () => {
     expect(defaultAssetFolder(host("win32", { documents }))).toBe(path.join(documents, "Rascal-Assets", "Sounds"));
     expect(defaultAssetFolder(host("darwin"))).toBe(path.join("/Users", "tester", "Music", "Rascal-Assets", "Sounds"));
     expect(defaultAssetFolder(host("win32"))).toBe(path.join("/Users", "tester", "Music", "Rascal-Assets", "Sounds"));
-  });
-
-  it("uses the temp path Electron supplied", () => {
-    const temp = path.join("/custom", "tmp");
-    expect(tempDir(host("linux", { temp }))).toBe(temp);
-    expect(tempDir(host("win32"))).not.toBe("");
   });
 
   it("builds a file URL without string-joining the path", () => {
