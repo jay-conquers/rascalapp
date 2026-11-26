@@ -35,8 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build the bot image
-        run: docker build --file packages/bot/Dockerfile --tag rascal-bot:ci .
+      - name: Build the bot and relay images
+        run: |
+          docker build --file packages/bot/Dockerfile --tag rascal-bot:ci .
+          docker build --file packages/relay/Dockerfile --tag rascal-relay:ci .
 
   appimage:
     runs-on: ubuntu-latest
