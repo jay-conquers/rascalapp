@@ -5,11 +5,9 @@ import {
   chatterPageCursor,
   mentionSuggestions,
   mentionToken,
-  openMentionDirectories,
   parseChatterRows,
   stepMention,
   type ChatterDirectory,
-  type MentionPlatformGate,
 } from "../src/shared/mentions";
 
 const twitch: ChatterDirectory = {
@@ -38,24 +36,8 @@ const kick: ChatterDirectory = {
 };
 
 describe("mention directories", () => {
-  it("keeps only platforms that are connected and enabled", () => {
-    const gates: MentionPlatformGate[] = [
-      { id: "twitch", enabled: true, connected: true },
-      { id: "youtube", enabled: true, connected: false },
-      { id: "kick", enabled: false, connected: true },
-    ];
-    expect(openMentionDirectories([twitch, youtube, kick], gates).map((directory) => directory.id)).toEqual(["twitch"]);
-  });
-
   it("filters session and listed names, and lets a session-only site plug in the same way", () => {
-    const open = openMentionDirectories(
-      [twitch, youtube, kick],
-      [
-        { id: "twitch", enabled: true, connected: true },
-        { id: "youtube", enabled: true, connected: true },
-        { id: "kick", enabled: true, connected: true },
-      ],
-    );
+    const open = [twitch, youtube, kick];
     expect(mentionSuggestions(open, "").map((hit) => `${hit.platform}:${hit.name}`)).toEqual([
       "twitch:Bee",
       "youtube:Bee",

@@ -5,8 +5,6 @@ import { colorForName } from "../emote-url";
 import { twitchEmoteUrl } from "../twitch-emotes";
 import { asRecord } from "../record";
 
-export { twitchEmoteUrl } from "../twitch-emotes";
-
 /**
  * EventSub `message.fragments`. Channel, sub, follower, and global emotes all use the fragment emote id.
  * A fragment whose id is not a safe token stays text, so a name cannot become an image URL.

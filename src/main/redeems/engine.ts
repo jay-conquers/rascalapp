@@ -237,7 +237,7 @@ export class RedeemEngine {
   }
 
   async importFirebot(): Promise<RedeemSnapshot> {
-    const source = firebotRewardsPath();
+    const source = firebotRewardsFile();
     let payload: unknown;
     try {
       payload = JSON.parse(fs.readFileSync(source, "utf8"));
@@ -435,7 +435,7 @@ export class RedeemEngine {
 
   private autoImportFirebot(): void {
     if (this.ctx.settings.load().autoImportFirebot === false) return;
-    const source = firebotRewardsPath();
+    const source = firebotRewardsFile();
     if (!fs.existsSync(source)) return;
     let payload: unknown;
     try {
@@ -589,10 +589,6 @@ export class RedeemEngine {
     const auth = this.ctx.auth.state();
     return auth.loggedIn && auth.userId ? { userId: auth.userId } : null;
   }
-}
-
-export function firebotRewardsPath(): string {
-  return firebotRewardsFile();
 }
 
 function mediaKind(filePath: string, action: "video" | "sound"): "video" | "audio" | "image" {

@@ -21,7 +21,7 @@ import {
 } from "./model.ts";
 import { safeError } from "./errors.ts";
 import type { BotTokens, YoutubeBotTokens } from "./store.ts";
-import { youtubePublicRedirect } from "./public-url.ts";
+import { portalRedirectUri, youtubePublicRedirect } from "./public-url.ts";
 import { BotChat } from "./bot-chat.ts";
 
 export interface BotLoginPrompt {
@@ -91,7 +91,7 @@ export class BotService extends BotChat {
       channelLogin: this.file.channelLogin,
       broadcasterId: this.file.broadcasterId,
       portalUrl: `${base}/portal`,
-      redirectUri: `${base}/portal/callback`,
+      redirectUri: portalRedirectUri(this.file.publicUrl, portalPort),
       login: twitch?.loginPrompt() ?? null,
       commands: this.file.commands,
       timers: this.file.timers,

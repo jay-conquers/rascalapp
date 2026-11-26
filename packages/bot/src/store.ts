@@ -230,10 +230,10 @@ export class BotStore {
 
   loadSecrets(): BotSecrets {
     const row = asRecord(readJson(this.secretFile));
-    const apiKey = secretFromEnv("BOT_API_KEY") || (typeof row?.apiKey === "string" && row.apiKey.length >= 16 ? row.apiKey : randomKey());
+    const apiKey = secretFromEnv("BOT_API_KEY") || (typeof row?.apiKey === "string" && row.apiKey.length >= 16 ? row.apiKey : generateSecret());
     const sessionSecret =
       secretFromEnv("BOT_SESSION_SECRET") ||
-      (typeof row?.sessionSecret === "string" && row.sessionSecret.length >= 16 ? row.sessionSecret : randomKey());
+      (typeof row?.sessionSecret === "string" && row.sessionSecret.length >= 16 ? row.sessionSecret : generateSecret());
     const seJwt = typeof row?.seJwt === "string" ? row.seJwt : "";
     const secrets = { apiKey, sessionSecret, seJwt };
     if (!row || row.apiKey !== apiKey || row.sessionSecret !== sessionSecret) writePrivate(this.secretFile, secrets);
@@ -252,10 +252,6 @@ function secretFromEnv(suffix: string): string {
 
 export function generateSecret(): string {
   return crypto.randomBytes(32).toString("base64url");
-}
-
-function randomKey(): string {
-  return generateSecret();
 }
 
 function writePrivate(file: string, value: unknown): void {

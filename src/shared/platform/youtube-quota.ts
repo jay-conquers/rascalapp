@@ -29,16 +29,6 @@ export interface QuotaSnapshot {
   detail: string;
 }
 
-/** How many list polls the daily quota covers when nothing else is called. */
-export function youtubePollsPerDay(limit = YOUTUBE_QUOTA_COSTS.dailyUnits): number {
-  return Math.floor(limit / YOUTUBE_QUOTA_COSTS.liveChatMessagesList);
-}
-
-/** How many sent messages the daily quota covers when nothing else is called. */
-export function youtubeMessagesPerDay(limit = YOUTUBE_QUOTA_COSTS.dailyUnits): number {
-  return Math.floor(limit / YOUTUBE_QUOTA_COSTS.liveChatMessagesInsert);
-}
-
 /**
  * Wait at least as long as YouTube asked (`pollingIntervalMillis`).
  * Errors stretch that wait. A used-up quota pauses polling. A thin remainder slows the loop

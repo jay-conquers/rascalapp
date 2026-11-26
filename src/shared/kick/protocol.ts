@@ -16,10 +16,6 @@ export interface RelayEvent {
   body: unknown;
 }
 
-export interface RelayReady {
-  type: "ready";
-}
-
 export function relayEvent(input: { source: string; id: string; eventType: string; version: string; body: unknown }): RelayEvent {
   return { type: "event", source: input.source, id: input.id, eventType: input.eventType, version: input.version, body: input.body };
 }

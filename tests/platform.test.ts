@@ -4,7 +4,7 @@ import { normalizeTwitchChatFields, normalizeYoutubeLiveChatItem } from "../src/
 import { PlatformRegistry } from "../src/shared/platform/registry";
 import type { ChatPlatform, PlatformLiveStatus } from "../src/shared/platform/types";
 import { YoutubeApiError, YoutubeDataApi, isQuotaError, pickLiveBroadcast } from "../src/shared/platform/youtube-api";
-import { YOUTUBE_QUOTA_COSTS, YoutubeQuotaMeter, nextPollDelayMs, youtubeMessagesPerDay, youtubePollsPerDay } from "../src/shared/platform/youtube-quota";
+import { YOUTUBE_QUOTA_COSTS, YoutubeQuotaMeter, nextPollDelayMs } from "../src/shared/platform/youtube-quota";
 
 const facts = { title: "Ranked", game: "Valorant", uptime: "2h", followage: "400d" };
 
@@ -150,8 +150,8 @@ describe("youtube polling backoff", () => {
   });
 
   it("states the default daily quota in polls and messages", () => {
-    expect(youtubePollsPerDay()).toBe(2_000);
-    expect(youtubeMessagesPerDay()).toBe(500);
+    expect(Math.floor(YOUTUBE_QUOTA_COSTS.dailyUnits / YOUTUBE_QUOTA_COSTS.liveChatMessagesList)).toBe(2_000);
+    expect(Math.floor(YOUTUBE_QUOTA_COSTS.dailyUnits / YOUTUBE_QUOTA_COSTS.liveChatMessagesInsert)).toBe(500);
     expect(YOUTUBE_QUOTA_COSTS.liveChatBansInsert).toBe(200);
     expect(YOUTUBE_QUOTA_COSTS.liveChatMessagesDelete).toBe(20);
   });
