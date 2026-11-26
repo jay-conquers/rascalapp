@@ -8,12 +8,16 @@ export function waitForYoutubeCallback(options: {
   port?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
-} = {}): Promise<YoutubeCallback> {
+  expectedState: string;
+  onListening?: () => void;
+}): Promise<YoutubeCallback> {
   return waitForLoopbackCode({
     port: options.port ?? YOUTUBE_OAUTH_PORT,
     path: YOUTUBE_OAUTH_PATH,
+    expectedState: options.expectedState,
     timeoutMs: options.timeoutMs,
     signal: options.signal,
+    onListening: options.onListening,
     title: "YouTube",
     granted: "YouTube is connected. You can close this window.",
     denied: "Google did not grant access. You can close this window.",

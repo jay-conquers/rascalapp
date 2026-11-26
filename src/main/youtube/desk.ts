@@ -248,7 +248,7 @@ export class YoutubeDesk {
     onBot?: (tokens: YoutubeBotTokens) => void,
   ): Promise<void> {
     try {
-      const callback = await waitForYoutubeCallback({ signal: controller.signal });
+      const callback = await waitForYoutubeCallback({ signal: controller.signal, expectedState: request.state });
       if (controller.signal.aborted) return;
       if (callback.state !== request.state || !callback.code) throw new Error("That YouTube login did not match. Start again.");
       const exchanged = await exchangeYoutubeCode(client, request, callback.code, this.fetchImpl);
