@@ -22,9 +22,9 @@ The buttons along the top can be hidden from Settings, under Tabs. Chat always s
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.12.0.AppImage
+chmod +x Rascal-0.13.0.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.12.0.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.13.0.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -54,7 +54,7 @@ For the moderator portal, also add `http://localhost:4788/portal/callback`. Twit
 YouTube chat in the desk still arrives through the public live chat page. Sending, bot replies, deletes, and bans use the YouTube Data API v3 and a Google login. Rascal does not ship a Google client id or secret.
 
 1. Open [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) and enable it on a Google Cloud project you control.
-2. Open [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials). Configure the OAuth consent screen as External and Testing. Add every Google account that will post or moderate as a test user. The scope Rascal requests is `https://www.googleapis.com/auth/youtube.force-ssl` (the consent screen shows it as managing the YouTube account). That scope is what live chat send, delete, and ban require.
+2. Open [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials). Configure the OAuth consent screen as External and Testing. Add every Google account that will post or moderate as a test user. The scope Rascal requests is `https://www.googleapis.com/auth/youtube.force-ssl` (the consent screen shows it as managing the YouTube account). That scope is what live chat send, delete, ban, and the live title update require. `https://www.googleapis.com/auth/youtube` would also allow the title update. Rascal does not ask for a second YouTube scope. A login that already granted `youtube.force-ssl` can change the title without signing in again.
 3. Create an OAuth client.
    - **Desktop app.** Rascal sends the browser to Google and listens on `http://127.0.0.1:4799/youtube/callback`. Desktop clients accept that loopback redirect.
    - **Web application.** Add this exact redirect URI: `http://127.0.0.1:4799/youtube/callback`.
@@ -72,6 +72,8 @@ The page asks Rascal to wait, often about 5 seconds, before the next chat fetch.
 
 The bot finds `liveChatId` with `liveBroadcasts.list` (`mine=true`, active) when it needs to post or moderate. A moderator account does not own the broadcast, so that call can come back empty. Rascal then uses the video id the page reader already has, and `videos.list` `liveStreamingDetails.activeLiveChatId`.
 
+Stream info can change the title of the active or upcoming broadcast. Rascal loads that broadcast and sends the snippet back with only the title changed. The description is not edited. YouTube's live API has no game field. The game title is set in YouTube Studio. The YouTube status has a button that opens Studio for the current livestream, or the channel's livestreaming page when only a channel id is known. That save costs 50 quota units and is not polled. A login that already has `youtube.force-ssl` does not need to sign in again.
+
 ## Kick
 
 Kick does not give chat to a desktop app directly. Events are webhooks, and a webhook needs a public HTTPS address. Kick works with a relay you run. Rascal hosting would use that same relay later. It is not available yet.
@@ -80,7 +82,7 @@ Turning Kick on explains this and waits until you tick **I understand**. Cancel 
 
 The steps for the Docker relay, the Kick developer app, the webhook URL, and the desktop settings are in [docs/kick-relay.md](docs/kick-relay.md). The same page is at <https://github.com/jay-conquers/rascalapp/blob/main/docs/kick-relay.md>.
 
-What you can do once that is connected: read chat, send a message as the account you signed in with, and delete, time out, ban, or unban from the moderation menu. A Kick timeout is 1 minute to 7 days, in whole minutes.
+What you can do once that is connected: read chat, send a message as the account you signed in with, and delete, time out, ban, or unban from the moderation menu. A Kick timeout is 1 minute to 7 days, in whole minutes. Stream info can also set the Kick title and category. That uses Kick's public API (`PATCH /public/v1/channels`) and does not need the relay. It needs `channel:write`, which a login from 0.12.0 does not have. Chat keeps working. Log out of Kick and back in once so the title can be saved.
 
 What you cannot do on Kick in this version: channel-point redeems, a separate bot account, `!followage`, `!accountage`, `!so`, a viewer list beyond people who spoke this session, and follows, subscriptions, gifted subscriptions, or Kicks gifts in the chat column. BetterTTV, FrankerFaceZ, and 7TV do not apply to Kick messages. Turning Kick off stops its connections and leaves the login saved. An upgrade from 0.11.0 does not turn Kick on.
 
@@ -96,10 +98,11 @@ Google's default project quota is **10,000 units per day** and it resets at midn
 | `liveChatBans.insert` (timeout or ban) | 200 |
 | `liveChatBans.delete` (lift a ban) | 200 |
 | `liveBroadcasts.list`, `videos.list`, `channels.list` | 1 each |
+| `liveBroadcasts.update` (change the live title) | 50 |
 
 A normal 5-hour stream does not poll `liveChatMessages.list`. Reading chat is free. One lookup for the live chat id is 1 unit. Each bot reply or typed send is 20. Thirty replies in those 5 hours is about **601 units** (1 + 30 × 20). The same 5 hours polled on the Data API every 5 seconds is 3,600 polls × 5 = **18,000 units** before replies, or about **18,601** once those 30 replies are included. That is more than the daily quota. The Data API poll stays off.
 
-If the whole 10,000 units were spent on one kind of call, that would be 2,000 polls, 500 sent messages, 500 deletes, or 50 bans. The Bot tab shows the session estimate and the 5-hour figure.
+If the whole 10,000 units were spent on one kind of call, that would be 2,000 polls, 500 sent messages, 500 deletes, 50 bans, or 200 live title updates. The Bot tab shows the session estimate and the 5-hour figure. Changing a title fetches the broadcast (1 unit) and then updates it (50). It is not repeated on a timer.
 
 ## Build from source
 
@@ -112,7 +115,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.12.0.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.13.0.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 

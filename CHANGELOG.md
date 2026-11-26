@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.0
+
+- Stream info edits the title on every platform that is turned on. Twitch and Kick also edit the category. YouTube has no game field in the live API, so the game title stays in YouTube Studio. A checkbox applies one title to all enabled platforms. Each platform keeps its own fields. A failure on one platform is shown there and does not stop the others.
+- YouTube updates the active or upcoming live broadcast. Rascal fetches that broadcast and sends the same snippet back with only the title changed, so the description and the scheduled start stay as they were. Monitor-stream settings from that fetch are sent back unchanged, because an update drops a field it does not include. The save costs 50 quota units. It is not polled.
+- A YouTube login that already has `youtube.force-ssl` can change the title without signing in again. A saved login whose scopes do not include `youtube` or `youtube.force-ssl` says that a new login is needed. Chat keeps working either way.
+- The YouTube status has a Studio button. It opens the current livestream in the system browser when a broadcast id is known, the channel's livestreaming page when only the channel id is known, and Studio home otherwise. The address has to match the browser allowlist.
+- Kick title and category use `PATCH /public/v1/channels`. Category search uses `GET /public/v2/categories`. Neither call uses the relay. New logins ask for `channel:write`. A login from 0.12.0 can still chat. Stream info asks for a new Kick login before the title can be saved.
+
 ## 0.12.0
 
 - Kick is in the platform list. Turning it on shows a notice: Kick chat and events need Rascal hosting or a relay you run, and they do not arrive without one. Rascal hosting is not available yet. The notice links to the self-hosting steps. The Enable button stays off until **I understand** is ticked. Cancel leaves Kick off. The acknowledgement is saved, so the notice does not return every time Kick is opened. Clearing settings brings it back.
