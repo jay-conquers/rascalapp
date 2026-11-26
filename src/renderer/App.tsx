@@ -39,7 +39,7 @@ export function App() {
   const [redeems, setRedeems] = useState<RedeemSnapshot | null>(null);
   const [chatOverlay, setChatOverlay] = useState<ChatOverlayFile>(defaultChatOverlayFile());
   const [toast, setToast] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
-  const [version, setVersion] = useState("0.10.0");
+  const [version, setVersion] = useState("0.11.0");
   const [modLog, setModLog] = useState<ModAction[]>([]);
   const [modOpen, setModOpen] = useState(false);
   const sendSeq = useRef(0);

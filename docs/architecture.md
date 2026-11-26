@@ -37,3 +37,11 @@ Kick is the next planned site. Rumble and TikTok can follow the same steps. Noth
 ## Saved files
 
 The desk and the bot share one config directory (`~/.config/rascal` on Linux). Secret files are mode `0600`. The bot's own API key, Twitch tokens, and YouTube tokens are separate files from `settings.json`. See the README for paths on Windows and macOS.
+
+## Desk tabs
+
+The top bar lists Redeems, Stream info, Chat overlay, TTS, and Bot. Chat is the main panel and always shows. Settings stays in the bar so a hidden panel can be turned back on. The choice is `tabs.hidden` in `settings.json` (`src/shared/desk-tabs.ts`). A file with no `tabs` key shows every panel. A saved list that names Chat still shows Chat.
+
+Hiding a panel removes its button. If that panel is open, the desk returns to Chat. The bot, platform connections, and overlays keep running. The headless bot does not read `tabs`.
+
+Redeems is also hidden while Twitch is off in the platform picker. Turning Twitch off does not add Redeems to `tabs.hidden`. Turning Twitch back on shows Redeems again, unless the user hid it under Tabs.
