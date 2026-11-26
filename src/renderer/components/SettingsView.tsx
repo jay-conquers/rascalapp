@@ -4,7 +4,11 @@ import { brand } from "../../shared/brand";
 import { NOTICE_LABELS, type FeedToggles, type NoticeKind } from "../../shared/feed-toggles";
 import { defaultChatAlert, type ChatAlertSettings } from "../../shared/chat-alert";
 import { TABS_SUMMARY, setTabShown, tabsPlatformSummary } from "../../shared/desk-tabs";
-import { isPlatformEnabled, setPlatformEnabled } from "../../shared/platform/selection";
+import { isPlatformEnabled, enableKick, requestPlatformToggle } from "../../shared/platform/selection";
+import { kickRelayStatus } from "../../shared/kick/protocol";
+import { KICK_RELAY_DOCS_URL } from "../../shared/kick/docs";
+import type { KickDeskState } from "../../shared/kick/desk-state";
+import { KickRelayDialog } from "./KickRelayNotice";
 import { playChatChime } from "../chat-sound";
 import { CHATTER_SCOPE, MODERATE_MANAGE_SCOPES, MODERATE_READ_SCOPES } from "../../shared/scopes";
 import { CheckRow } from "./CheckRow";
@@ -49,6 +53,12 @@ export function SettingsView({
   const [clientId, setClientId] = useState(settings.twitchClientId);
   const [channel, setChannel] = useState(settings.twitchChannel);
   const [youtube, setYoutube] = useState(settings.youtubeChannelId);
+  const [kickUrl, setKickUrl] = useState(settings.kickRelayUrl);
+  const [kickSecret, setKickSecret] = useState("");
+  const [kickClientId, setKickClientId] = useState("");
+  const [kickClientSecret, setKickClientSecret] = useState("");
+  const [kickDesk, setKickDesk] = useState<KickDeskState | null>(null);
+  const [kickNotice, setKickNotice] = useState(false);
   const [port, setPort] = useState(String(settings.overlayPort));
   const [autoImport, setAutoImport] = useState(settings.autoImportFirebot !== false);
   const [feed, setFeed] = useState<FeedToggles>(settings.feed);
@@ -109,12 +119,23 @@ export function SettingsView({
 
   const twitchOn = isPlatformEnabled(settings.platforms, "twitch");
   const youtubeOn = isPlatformEnabled(settings.platforms, "youtube");
+  const kickOn = isPlatformEnabled(settings.platforms, "kick");
+
+  useEffect(() => {
+    if (!kickOn || !window.rascal) return;
+    void window.rascal.kickDeskState().then(setKickDesk).catch(() => setKickDesk(null));
+  }, [kickOn, settings.kickRelayUrl]);
 
   async function changePlatform(id: string, on: boolean): Promise<void> {
     setError(null);
     setSaved(false);
     try {
-      await onSave({ platforms: setPlatformEnabled(settings.platforms, id, on) });
+      const result = requestPlatformToggle(settings.platforms, id, on);
+      if (result.confirmKick) {
+        setKickNotice(true);
+        return;
+      }
+      await onSave({ platforms: result.next });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Choose at least one platform.");
     }
@@ -140,6 +161,7 @@ export function SettingsView({
         twitchClientId: clientId.trim(),
         twitchChannel: channel.trim(),
         youtubeChannelId: youtube.trim(),
+        kickRelayUrl: kickUrl.trim(),
         overlayPort,
         autoImportFirebot: autoImport,
         feed,
@@ -218,6 +240,113 @@ export function SettingsView({
               Leave blank to skip YouTube chat. The ID is in YouTube Studio. This reads chat with no Google login. Sending from the chat box needs a Google client on the Bot tab (youtube.force-ssl).
             </span>
           </label>
+          ) : null}
+          {kickOn ? (
+            <div className="kick-settings" data-testid="kick-settings">
+              <p className="count" data-testid="kick-relay-status">
+                {kickRelayStatus({
+                  relayUrl: settings.kickRelayUrl,
+                  secretSet: kickDesk?.relaySecretSet === true,
+                  detail: status.kick.detail,
+                })}
+              </p>
+              <p className="count">
+                Chat and events need a relay. Rascal hosting is not available yet.{" "}
+                <a
+                  href={KICK_RELAY_DOCS_URL}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void window.rascal?.openExternal(KICK_RELAY_DOCS_URL);
+                  }}
+                >
+                  Self-hosting instructions
+                </a>
+              </p>
+              <label>
+                Relay address
+                <input
+                  value={kickUrl}
+                  spellCheck={false}
+                  placeholder="wss://relay.example.com/v1/events"
+                  onChange={(event) => {
+                    setKickUrl(event.target.value);
+                    setSaved(false);
+                  }}
+                />
+              </label>
+              <label>
+                Relay secret
+                <input
+                  type="password"
+                  value={kickSecret}
+                  spellCheck={false}
+                  autoComplete="off"
+                  placeholder={kickDesk?.relaySecretSet ? "Saved. Leave blank to keep it." : "At least 16 characters"}
+                  onChange={(event) => setKickSecret(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy}
+                onClick={() => {
+                  void window.rascal?.kickSaveRelay({ secret: kickSecret }).then((next) => {
+                    setKickDesk(next);
+                    setKickSecret("");
+                  }).catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not save the relay secret."));
+                }}
+              >
+                Save relay secret
+              </button>
+              <label>
+                Kick client ID
+                <input
+                  value={kickClientId || kickDesk?.clientId || ""}
+                  spellCheck={false}
+                  placeholder="From your Kick developer app"
+                  onChange={(event) => setKickClientId(event.target.value)}
+                />
+              </label>
+              <label>
+                Kick client secret
+                <input
+                  type="password"
+                  value={kickClientSecret}
+                  spellCheck={false}
+                  autoComplete="off"
+                  placeholder={kickDesk?.clientSecretSet ? "Saved. Leave blank to keep it." : "From your Kick developer app"}
+                  onChange={(event) => setKickClientSecret(event.target.value)}
+                />
+              </label>
+              <div className="tts-actions">
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    void window.rascal?.kickSaveClient({ clientId: kickClientId || kickDesk?.clientId || "", clientSecret: kickClientSecret }).then((next) => {
+                      setKickDesk(next);
+                      setKickClientId(next.clientId);
+                      setKickClientSecret("");
+                    }).catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not save the Kick app."));
+                  }}
+                >
+                  Save Kick app
+                </button>
+                {kickDesk?.loggedIn ? (
+                  <button type="button" className="ghost" disabled={busy} onClick={() => void window.rascal?.kickLogout().then(setKickDesk)}>
+                    Log out of Kick
+                  </button>
+                ) : (
+                  <button type="button" className="primary" disabled={busy} onClick={() => void window.rascal?.kickConnect().then(setKickDesk).catch((err: unknown) => setError(err instanceof Error ? err.message : "Kick login failed."))}>
+                    Log in with Kick
+                  </button>
+                )}
+              </div>
+              <p className="count">
+                {kickDesk?.loggedIn ? `Signed in as ${kickDesk.account || "your Kick account"}.` : "Not signed in."} Kick posts as this account. A separate bot account, channel-point redeems, follow age, and shoutouts are not available on Kick.
+              </p>
+            </div>
           ) : null}
           <label>
             Overlay port
@@ -420,6 +549,19 @@ export function SettingsView({
         </>
         ) : null}
       </div>
+      {kickNotice ? (
+        <KickRelayDialog
+          confirmLabel="Enable"
+          onCancel={() => setKickNotice(false)}
+          onConfirm={() => {
+            setKickNotice(false);
+            void onSave({ platforms: enableKick(settings.platforms) }).catch((err: unknown) => {
+              setError(err instanceof Error ? err.message : "Could not turn Kick on.");
+            });
+          }}
+          onOpenDocs={(url) => void window.rascal?.openExternal(url)}
+        />
+      ) : null}
     </section>
   );
 }

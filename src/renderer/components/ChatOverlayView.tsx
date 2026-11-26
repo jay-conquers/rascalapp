@@ -384,8 +384,8 @@ export function ChatOverlayView({
                   }}
                 >
                   {draft.showPlatformIcons ? (
-                    <span className={`platform ${line.platform}`} title={line.platform === "twitch" ? "Twitch" : "YouTube"}>
-                      {line.platform === "twitch" ? <TwitchMark /> : <YouTubeMark />}
+                    <span className={`platform ${line.platform}`} title={line.platform === "twitch" ? "Twitch" : line.platform === "kick" ? "Kick" : "YouTube"}>
+                      {line.platform === "twitch" ? <TwitchMark /> : line.platform === "youtube" ? <YouTubeMark /> : "K"}
                     </span>
                   ) : null}
                   <div>

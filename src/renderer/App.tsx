@@ -18,7 +18,7 @@ import { moderationOffer, youtubeModLogConnected } from "../shared/moderation";
 import { resolveDeskView, setTabShown, type DeskView, type TabSettings } from "../shared/desk-tabs";
 import { confirmPlatformSelection, isPlatformEnabled, platformsNeedingLogin, type PlatformSelection } from "../shared/platform/selection";
 import { twitchLoginMissesReadScopes } from "../shared/scopes";
-import { twitchLink, youtubeLink, type SendTargets } from "../shared/send-targets";
+import { kickLink, twitchLink, youtubeLink, type SendTargets } from "../shared/send-targets";
 import { defaultChatAlert } from "../shared/chat-alert";
 import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
@@ -228,6 +228,7 @@ export function App() {
   const shownView = resolveDeskView(view, settings.tabs, settings.platforms);
   const twitchOn = isPlatformEnabled(settings.platforms, "twitch");
   const youtubeOn = isPlatformEnabled(settings.platforms, "youtube");
+  const kickOn = isPlatformEnabled(settings.platforms, "kick");
   const shownChannel = twitchOn ? settings.twitchChannel || auth.login || "" : "";
   const channelLabel = shownChannel ? `#${shownChannel}` : youtubeOn && settings.youtubeChannelId ? "YouTube" : "No channel";
   const youtubeTitle = status.youtube.title ? ` · ${status.youtube.title}` : "";
@@ -265,6 +266,7 @@ export function App() {
         <div className="pills">
           {twitchOn ? <StatusPill label="Twitch" state={status.twitch.state} detail={status.twitch.detail} viewers={status.twitch.viewers} /> : null}
           {youtubeOn ? <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} /> : null}
+          {kickOn ? <StatusPill label="Kick" state={status.kick.state} detail={status.kick.detail} viewers={status.kick.viewers} /> : null}
         </div>
         <div className="top-actions">
           <button
@@ -402,10 +404,11 @@ export function App() {
             <Composer
               channel={shownChannel}
               targets={settings.sendTargets}
-              shown={{ twitch: twitchOn, youtube: youtubeOn }}
+              shown={{ twitch: twitchOn, youtube: youtubeOn, kick: kickOn }}
               onTargets={(next) => void saveSendTargets(next)}
               twitch={twitchLink(status.twitch, auth.loggedIn)}
               youtube={youtubeLink(status.youtube)}
+              kick={kickLink(status.kick, Boolean(status.kick.account))}
               canSendYoutube={status.youtube.canSend === true}
               youtubeAccount={status.youtube.sendAccount ?? null}
               sendHint={status.youtube.sendHint}

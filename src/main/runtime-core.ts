@@ -1,5 +1,5 @@
 import path from "node:path";
-import { brand } from "../shared/brand";
+import { brand, readBrandEnv } from "../shared/brand";
 import { chatFeedConnected, SessionChatters, type ChatterName } from "../shared/mentions";
 import { filterEnabled, isPlatformEnabled } from "../shared/platform/selection";
 import type { DeskPlatform } from "../shared/platform/desk";
@@ -33,6 +33,10 @@ import { NoticeSocket } from "./twitch/notices";
 import { TwitchAuth } from "./twitch/oauth";
 import { normalizeYoutubeReaderMessage } from "../shared/platform/normalize";
 import { YoutubeLive } from "../shared/youtube/page-reader";
+import { kickChatMessage, kickModAction } from "../shared/kick/chat";
+import { KickConnection } from "../shared/kick/connection";
+import type { KickModerationLine } from "../shared/kick/events";
+import { clearKickTokens, loadKickClient, loadKickRelay, loadKickTokens, saveKickTokens } from "./kick/files";
 import { youtubeDesk, type YoutubeDesk } from "./youtube/desk";
 
 export class RuntimeCore {
@@ -52,6 +56,7 @@ export class RuntimeCore {
   protected readonly notices: NoticeSocket;
   protected readonly youtube: YoutubeLive;
   protected readonly youtubeSend: YoutubeDesk;
+  protected readonly kick: KickConnection;
   protected seq = 0;
   protected stream: StreamInfo | null = null;
   protected streamTimer: NodeJS.Timeout | null = null;
@@ -84,6 +89,7 @@ export class RuntimeCore {
     const settings = this.settings.load();
     const twitchOn = isPlatformEnabled(settings.platforms, "twitch");
     const youtubeOn = isPlatformEnabled(settings.platforms, "youtube");
+    const kickOn = isPlatformEnabled(settings.platforms, "kick");
     this.status = {
       twitch: !twitchOn
         ? { state: "idle", detail: "Twitch is off." }
@@ -91,8 +97,25 @@ export class RuntimeCore {
           ? { state: "connecting", detail: "Connecting to chat…" }
           : { state: "idle", detail: "Set a Twitch channel in Settings." },
       youtube: { state: "idle", detail: youtubeOn ? "Waiting to check YouTube" : "YouTube is off." },
+      kick: { state: "idle", detail: kickOn ? "No relay configured" : "Kick is off." },
       overlay: { listening: false, host: "127.0.0.1", port: settings.overlayPort },
     };
+    this.kick = new KickConnection({
+      fetchImpl: deps.fetchImpl,
+      client: () => loadKickClient(deps.dir),
+      tokens: () => loadKickTokens(deps.dir),
+      saveTokens: (tokens) => saveKickTokens(deps.dir, tokens),
+      clearTokens: () => clearKickTokens(deps.dir),
+      relayUrl: () => readBrandEnv("KICK_RELAY_URL")?.trim() || this.settings.load().kickRelayUrl,
+      relaySecret: () => loadKickRelay(deps.dir).secret,
+      log: (level, message) => this.log[level](message),
+      onChat: (line) => this.acceptChat(kickChatMessage(line)),
+      onModeration: (line) => this.pushKickMod(line),
+      onStatus: (state, detail) => this.publishKick(state, detail),
+      onLoginUrl: (url) => {
+        if (deps.openExternal) void deps.openExternal(url);
+      },
+    });
     this.server = new OverlayServer(
       () => filterEnabled(this.bus.messages, (message) => message.platform, this.settings.load().platforms),
       this.log,
@@ -278,6 +301,27 @@ export class RuntimeCore {
       }),
       mentionsOpen: () => this.youtubeOn() && this.settings.load().sendTargets.youtube && chatFeedConnected(this.status.youtube.state),
     });
+    this.platforms.register({
+      id: "kick",
+      label: "Kick",
+      start: () => {
+        void this.kick.open();
+      },
+      stop: () => {
+        void this.kick.close();
+      },
+      deliver: async (text) => {
+        await this.kick.send(text);
+        return "ok";
+      },
+      chatters: () => ({
+        id: "kick",
+        label: "Kick",
+        listed: [],
+        session: this.session.list("kick"),
+      }),
+      mentionsOpen: () => this.kickOn() && this.settings.load().sendTargets.kick === true && chatFeedConnected(this.status.kick.state),
+    });
   }
 
   attachSender(sender: (event: AppEvent) => void): void {
@@ -377,6 +421,23 @@ export class RuntimeCore {
 
   protected acceptChat(_message: ChatMessage): void {}
   protected pushMod(_action: ModAction): void {}
+  protected pushKickMod(line: KickModerationLine): void {
+    this.pushMod(kickModAction(line));
+  }
+
+  protected publishKick(state: "idle" | "connecting" | "connected" | "reconnecting" | "error", detail: string): void {
+    const snap = this.kick.snapshot();
+    this.status = {
+      ...this.status,
+      kick: {
+        state: this.kickOn() ? state : "idle",
+        detail: this.kickOn() ? detail : "Kick is off.",
+        viewers: snap.viewers,
+        account: snap.account,
+      },
+    };
+    this.emit({ type: "status", status: this.status });
+  }
   protected applyTwitchChannel(): void {}
   protected loadTwitchEmotes(_id: string): Promise<void> { return Promise.resolve(); }
   protected noteScope(_text: string): void {}
@@ -399,5 +460,9 @@ export class RuntimeCore {
 
   protected youtubeOn(): boolean {
     return isPlatformEnabled(this.settings.load().platforms, "youtube");
+  }
+
+  protected kickOn(): boolean {
+    return isPlatformEnabled(this.settings.load().platforms, "kick");
   }
 }

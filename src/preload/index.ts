@@ -65,6 +65,12 @@ const api: RascalApi = {
   youtubeConnect: () => ipcRenderer.invoke("app:youtube-connect"),
   youtubeCancel: () => ipcRenderer.invoke("app:youtube-cancel"),
   youtubeLogout: () => ipcRenderer.invoke("app:youtube-logout"),
+  kickDeskState: () => ipcRenderer.invoke("app:kick-desk"),
+  kickConnect: () => ipcRenderer.invoke("app:kick-connect"),
+  kickCancel: () => ipcRenderer.invoke("app:kick-cancel"),
+  kickLogout: () => ipcRenderer.invoke("app:kick-logout"),
+  kickSaveClient: (patch) => ipcRenderer.invoke("app:kick-client", patch),
+  kickSaveRelay: (patch) => ipcRenderer.invoke("app:kick-relay", patch),
 };
 
 contextBridge.exposeInMainWorld(brand.slug, api);

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { readBrandEnv } from "../../../src/shared/brand.ts";
+import { parseKickClient, parseKickRelay, parseKickTokens, type KickClientFile, type KickRelayFile, type KickTokens } from "../../../src/shared/kick/account.ts";
 import { chmodPrivate } from "../../../src/shared/private-mode.ts";
 import { normalizeEnabledIds } from "../../../src/shared/platform/selection.ts";
 import { normalizeBotFile, type BotFile } from "./model.ts";
@@ -46,6 +47,9 @@ export class BotStore {
   readonly deskTwitchTokenFile: string;
   readonly deskYoutubeTokenFile: string;
   readonly googleClientFile: string;
+  readonly kickClientFile: string;
+  readonly kickTokenFile: string;
+  readonly kickRelayFile: string;
   readonly enabledPlatformsFile: string;
 
   constructor(dir: string) {
@@ -56,6 +60,9 @@ export class BotStore {
     this.deskTwitchTokenFile = path.join(dir, "tokens.json");
     this.deskYoutubeTokenFile = path.join(dir, "youtube-tokens.json");
     this.googleClientFile = path.join(dir, "google-client.json");
+    this.kickClientFile = path.join(dir, "kick-client.json");
+    this.kickTokenFile = path.join(dir, "kick-tokens.json");
+    this.kickRelayFile = path.join(dir, "kick-relay.json");
     this.enabledPlatformsFile = path.join(dir, "enabled-platforms.json");
   }
 
@@ -168,6 +175,57 @@ export class BotStore {
       clientId: client.clientId.trim(),
       clientSecret: client.clientSecret || previous.clientSecret,
     });
+  }
+
+  loadKickClient(): KickClientFile {
+    const fromFile = parseKickClient(readJson(this.kickClientFile));
+    return {
+      clientId: readBrandEnv("KICK_CLIENT_ID")?.trim() || fromFile.clientId,
+      clientSecret: readBrandEnv("KICK_CLIENT_SECRET") ?? fromFile.clientSecret,
+    };
+  }
+
+  saveKickClient(client: KickClientFile): void {
+    const previous = this.loadKickClient();
+    writePrivate(this.kickClientFile, {
+      clientId: client.clientId.trim(),
+      clientSecret: client.clientSecret || previous.clientSecret,
+    });
+  }
+
+  loadKickTokens(): KickTokens | null {
+    return parseKickTokens(readJson(this.kickTokenFile));
+  }
+
+  saveKickTokens(tokens: KickTokens): void {
+    writePrivate(this.kickTokenFile, tokens);
+  }
+
+  clearKickTokens(): void {
+    try {
+      fs.rmSync(this.kickTokenFile);
+    } catch {
+      // Already gone.
+    }
+  }
+
+  loadKickRelay(): KickRelayFile {
+    const fromFile = parseKickRelay(readJson(this.kickRelayFile));
+    const secret = readBrandEnv("KICK_RELAY_SECRET") ?? fromFile.secret;
+    return { secret };
+  }
+
+  saveKickRelay(secret: string): void {
+    const previous = this.loadKickRelay();
+    writePrivate(this.kickRelayFile, { secret: secret || previous.secret });
+  }
+
+  /** The desktop stores the relay address in settings.json. An env value wins. */
+  loadKickRelayUrl(): string {
+    const fromEnv = readBrandEnv("KICK_RELAY_URL")?.trim();
+    if (fromEnv) return fromEnv;
+    const settings = asRecord(readJson(path.join(path.dirname(this.configFile), "settings.json")));
+    return typeof settings?.kickRelayUrl === "string" ? settings.kickRelayUrl.trim() : "";
   }
 
   loadSecrets(): BotSecrets {

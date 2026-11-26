@@ -129,7 +129,7 @@ describe("desk tab storage", () => {
     const before = fs.readFileSync(path.join(upgraded, "settings.json"), "utf8");
     const migrated = new SettingsStore(upgraded).load();
     expect(migrated.tabs).toEqual({ hidden: [] });
-    expect(migrated.platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"] });
+    expect(migrated.platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"], kickAcknowledged: false });
     expect(fs.readFileSync(path.join(upgraded, "settings.json"), "utf8")).toBe(before);
   });
 
@@ -145,7 +145,7 @@ describe("desk tab storage", () => {
     const store = new SettingsStore(dir);
     const saved = store.update({ tabs: { hidden: ["chat", "bot", "tts", "nope", "bot"] } });
     expect(saved.tabs).toEqual({ hidden: ["tts", "bot"] });
-    expect(saved.platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"] });
+    expect(saved.platforms).toEqual({ confirmed: true, enabled: ["twitch", "youtube"], kickAcknowledged: false });
     expect(saved.twitchChannel).toBe("examplechannel");
     expect(saved.youtubeChannelId).toBe("UCexamplechannel00000001");
     const again = new SettingsStore(dir).load();
@@ -156,7 +156,7 @@ describe("desk tab storage", () => {
 
     const platforms = store.update({ platforms: { confirmed: true, enabled: ["youtube"] } });
     expect(platforms.tabs).toEqual({ hidden: ["tts", "bot"] });
-    expect(platforms.platforms).toEqual({ confirmed: true, enabled: ["youtube"] });
+    expect(platforms.platforms).toEqual({ confirmed: true, enabled: ["youtube"], kickAcknowledged: false });
     expect(new SettingsStore(dir).load().tabs).toEqual({ hidden: ["tts", "bot"] });
   });
 
@@ -174,6 +174,7 @@ const AUTH: AuthState = { loggedIn: false, login: null, userId: null, scopes: []
 const STATUS: ConnectionStatus = {
   twitch: { state: "idle", detail: "" },
   youtube: { state: "idle", detail: "" },
+  kick: { state: "idle", detail: "Kick is off." },
   overlay: { listening: false, host: "127.0.0.1", port: 4777 },
 };
 

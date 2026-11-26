@@ -1,6 +1,9 @@
 import path from "node:path";
-import { sendTargetsForSelection } from "../shared/platform/selection";
+import { isPlatformEnabled, sendTargetsForSelection } from "../shared/platform/selection";
 import { redactError } from "../shared/redact";
+import type { KickDeskState } from "../shared/kick/desk-state";
+import { loadKickClient, loadKickRelay, saveKickClient, saveKickRelay } from "./kick/files";
+import { asRecord } from "../shared/record";
 import type { SettingsPatch } from "../shared/api";
 import type { AuthState, Settings } from "../shared/types";
 import { getRedeemEngine } from "./stages/redemptions";
@@ -55,9 +58,17 @@ export class RuntimeBot extends RuntimeChat {
       prev.platforms.confirmed !== next.platforms.confirmed ||
       prev.platforms.enabled.length !== next.platforms.enabled.length ||
       prev.platforms.enabled.some((id, index) => id !== next.platforms.enabled[index]);
+    if (next.kickRelayUrl !== prev.kickRelayUrl && isPlatformEnabled(next.platforms, "kick")) {
+      void this.kick.open();
+      void getBot()?.service.reconnectPlatform("kick");
+    }
     if (platformsChanged) {
       const sendTargets = sendTargetsForSelection(next.platforms, next.sendTargets);
-      if (sendTargets.twitch !== next.sendTargets.twitch || sendTargets.youtube !== next.sendTargets.youtube) {
+      if (
+        sendTargets.twitch !== next.sendTargets.twitch ||
+        sendTargets.youtube !== next.sendTargets.youtube ||
+        sendTargets.kick !== next.sendTargets.kick
+      ) {
         this.settings.update({ sendTargets });
       }
       this.syncEnabledPlatforms(prev.platforms);
@@ -402,6 +413,60 @@ export class RuntimeBot extends RuntimeChat {
     const bot = getBot();
     if (!bot) return;
     await bot.service.setEnabledPlatforms(enabled);
+  }
+
+  kickDeskState(): KickDeskState {
+    const dir = path.dirname(this.settings.file);
+    const client = loadKickClient(dir);
+    const relay = loadKickRelay(dir);
+    const snap = this.kick.snapshot();
+    return {
+      loggedIn: Boolean(snap.userId),
+      account: snap.account,
+      userId: snap.userId,
+      clientId: client.clientId,
+      clientSecretSet: client.clientSecret.length > 0,
+      relaySecretSet: relay.secret.length >= 16,
+      scopes: this.kick.scopes(),
+      status: this.kickOn() ? this.status.kick.detail || snap.detail : "Kick is off.",
+    };
+  }
+
+  async kickConnect(): Promise<KickDeskState> {
+    if (!this.kickOn()) throw new Error("Turn Kick on before logging in.");
+    await this.kick.beginLogin();
+    await getBot()?.service.reconnectPlatform("kick");
+    return this.kickDeskState();
+  }
+
+  kickCancel(): void {
+    this.kick.cancelLogin();
+  }
+
+  async kickLogout(): Promise<KickDeskState> {
+    this.kick.logout();
+    await getBot()?.service.reconnectPlatform("kick");
+    return this.kickDeskState();
+  }
+
+  kickSaveClient(patch: unknown): KickDeskState {
+    const row = asRecord(patch);
+    saveKickClient(path.dirname(this.settings.file), {
+      clientId: typeof row?.clientId === "string" ? row.clientId : "",
+      clientSecret: typeof row?.clientSecret === "string" ? row.clientSecret : "",
+    });
+    return this.kickDeskState();
+  }
+
+  kickSaveRelay(patch: unknown): KickDeskState {
+    const row = asRecord(patch);
+    const dir = path.dirname(this.settings.file);
+    if (typeof row?.secret === "string" && row.secret.trim()) saveKickRelay(dir, row.secret);
+    if (this.kickOn()) {
+      void this.kick.open();
+      void getBot()?.service.reconnectPlatform("kick");
+    }
+    return this.kickDeskState();
   }
 
 }

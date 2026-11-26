@@ -16,11 +16,13 @@ interface TimerDraft {
   enabled: boolean;
   twitch: boolean;
   youtube: boolean;
+  kick: boolean;
 }
 
 function blankTimerDraft(enabledIds?: readonly string[]): TimerDraft {
   const showTwitch = !enabledIds || enabledIds.includes("twitch");
   const showYoutube = !enabledIds || enabledIds.includes("youtube");
+  const showKick = Boolean(enabledIds?.includes("kick"));
   return {
     name: "",
     messagesText: "{title} is live",
@@ -30,8 +32,9 @@ function blankTimerDraft(enabledIds?: readonly string[]): TimerDraft {
     offlineIntervalSec: "1800",
     offlineMinChatLines: "5",
     enabled: true,
-    twitch: showTwitch || !showYoutube,
-    youtube: showYoutube && !showTwitch,
+    twitch: showTwitch || (!showYoutube && !showKick),
+    youtube: showYoutube && !showTwitch && !showKick,
+    kick: showKick && !showTwitch && !showYoutube,
   };
 }
 
@@ -49,6 +52,7 @@ function draftFromTimer(timer: SavedTimer): TimerDraft {
     enabled: timer.enabled,
     twitch: checks.twitch,
     youtube: checks.youtube,
+    kick: checks.kick,
   };
 }
 
@@ -152,12 +156,12 @@ export function TimerEditor({
         </div>
       ) : null}
       <PlatformChecks
-        target={targetFromChecks(draft.twitch, draft.youtube)}
+        target={targetFromChecks(draft.twitch, draft.youtube, draft.kick)}
         disabled={busy}
         enabledIds={enabledIds}
         onChange={(platforms) => {
           const next = checksFromTarget(platforms);
-          edit({ twitch: next.twitch, youtube: next.youtube });
+          edit({ twitch: next.twitch, youtube: next.youtube, kick: next.kick });
         }}
       />
       <CheckRow checked={draft.enabled} disabled={busy} onChange={(enabled) => edit({ enabled })}>
@@ -184,7 +188,7 @@ export function TimerEditor({
               offlineIntervalSec: Number(draft.offlineIntervalSec) || 1800,
               offlineMinChatLines: Number(draft.offlineMinChatLines) || 0,
               enabled: draft.enabled,
-              platforms: targetFromChecks(draft.twitch, draft.youtube),
+              platforms: targetFromChecks(draft.twitch, draft.youtube, draft.kick),
             }).then((ok) => {
               if (!ok) return;
               setDirty(false);
@@ -252,25 +256,31 @@ export function PlatformChecks({
   const checks = checksFromTarget(target);
   const showTwitch = !enabledIds || enabledIds.includes("twitch");
   const showYoutube = !enabledIds || enabledIds.includes("youtube");
-  function commit(twitch: boolean, youtube: boolean): void {
+  const showKick = !enabledIds || enabledIds.includes("kick");
+  function commit(twitch: boolean, youtube: boolean, kick: boolean): void {
     const nextTwitch = showTwitch ? twitch : checks.twitch;
     const nextYoutube = showYoutube ? youtube : checks.youtube;
-    const visibleOn = (showTwitch && nextTwitch) || (showYoutube && nextYoutube);
+    const nextKick = showKick ? kick : checks.kick;
+    const visibleOn = (showTwitch && nextTwitch) || (showYoutube && nextYoutube) || (showKick && nextKick);
     if (!visibleOn) return;
-    onChange(targetFromChecks(nextTwitch, nextYoutube));
+    onChange(targetFromChecks(nextTwitch, nextYoutube, nextKick));
   }
-  const twitchLast = showTwitch && checks.twitch && !(showYoutube && checks.youtube);
-  const youtubeLast = showYoutube && checks.youtube && !(showTwitch && checks.twitch);
+  const visibleCount = [showTwitch && checks.twitch, showYoutube && checks.youtube, showKick && checks.kick].filter(Boolean).length;
   return (
     <div className="composer-targets">
       {showTwitch ? (
-        <CheckRow checked={checks.twitch} disabled={disabled || twitchLast} onChange={(twitch) => commit(twitch, checks.youtube)}>
+        <CheckRow checked={checks.twitch} disabled={disabled || (checks.twitch && visibleCount === 1)} onChange={(twitch) => commit(twitch, checks.youtube, checks.kick)}>
           Twitch
         </CheckRow>
       ) : null}
       {showYoutube ? (
-        <CheckRow checked={checks.youtube} disabled={disabled || youtubeLast} onChange={(youtube) => commit(checks.twitch, youtube)}>
+        <CheckRow checked={checks.youtube} disabled={disabled || (checks.youtube && visibleCount === 1)} onChange={(youtube) => commit(checks.twitch, youtube, checks.kick)}>
           YouTube
+        </CheckRow>
+      ) : null}
+      {showKick ? (
+        <CheckRow checked={checks.kick} disabled={disabled || (checks.kick && visibleCount === 1)} onChange={(kick) => commit(checks.twitch, checks.youtube, kick)}>
+          Kick
         </CheckRow>
       ) : null}
     </div>
@@ -291,7 +301,9 @@ export function QuotaMeter({ quota }: { quota: { usedUnits: number; dailyLimit: 
 }
 
 export function platformLabel(target: PlatformTarget | undefined): string {
-  if (target === "all") return "Twitch and YouTube";
-  if (target === "youtube") return "YouTube";
-  return "Twitch";
+  const checks = checksFromTarget(target);
+  const names = [checks.twitch ? "Twitch" : "", checks.youtube ? "YouTube" : "", checks.kick ? "Kick" : ""].filter(Boolean);
+  if (names.length === 3) return "Twitch, YouTube, and Kick";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return names[0] || "Twitch";
 }

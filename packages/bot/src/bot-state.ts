@@ -8,6 +8,7 @@ import { detectLive } from "../../../src/shared/youtube/page-reader.ts";
 import type { SentLine } from "./chat-hook.ts";
 import { emptyMemory, type BotFile, type ModLogEntry } from "./model.ts";
 import type { GiftHold } from "./thanks.ts";
+import { KickChatPlatform } from "./platform/kick-adapter.ts";
 import { TwitchChatPlatform } from "./platform/twitch-adapter.ts";
 import { YoutubeChatPlatform } from "./platform/youtube-adapter.ts";
 import { BotStore, type BotTokens, type YoutubeBotTokens } from "./store.ts";
@@ -118,8 +119,14 @@ export class BotState {
       },
       onChanged: () => this.deps.onAccountsChanged?.(),
     });
+    const kick = new KickChatPlatform({
+      store,
+      fetchImpl,
+      log: (level, message) => this.deps.log(level, message),
+    });
     this.registry.register(twitch);
     this.registry.register(youtube);
+    this.registry.register(kick);
     this.enabledPlatforms = store.loadEnabledPlatforms();
     for (const platform of this.registry.list()) {
       platform.onMessage((message) => {
@@ -128,8 +135,12 @@ export class BotState {
     }
   }
 
-  /** A missing selection connects every registered platform. Hidden ids never count. */
+  /**
+   * A missing selection connects Twitch and YouTube, which is what an older bot did.
+   * Kick stays off until a saved list names it, so an upgrade does not turn it on.
+   */
   protected platformAllowed(id: string): boolean {
+    if (id === "kick") return this.enabledPlatforms !== null && this.enabledPlatforms.includes(id);
     return this.enabledPlatforms === null || this.enabledPlatforms.includes(id);
   }
 

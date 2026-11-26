@@ -8,6 +8,10 @@ const ALLOWED_EXTERNAL = [
   /^https:\/\/console\.cloud\.google\.com\/apis\/credentials(?:[/?#]|$)/,
   /^https:\/\/console\.cloud\.google\.com\/apis\/library\/youtube\.googleapis\.com(?:[/?#]|$)/,
   /^https:\/\/console\.cloud\.google\.com\/apis\/api\/youtube\.googleapis\.com(?:[/?#]|$)/,
+  /^https:\/\/id\.kick\.com\/oauth\/authorize(?:[?#]|$)/,
+  /^https:\/\/kick\.com\/settings\/developer(?:[/?#]|$)/,
+  /^https:\/\/docs\.kick\.com\/(?:[^\s]*)?$/,
+  /^https:\/\/github\.com\/jay-conquers\/rascalapp\/blob\/main\/docs\/kick-relay\.md(?:[?#]|$)/,
 ];
 
 export function assertAllowedExternal(url: string): string {

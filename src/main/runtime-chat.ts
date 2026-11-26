@@ -20,24 +20,37 @@ import { getRedeemEngine } from "./stages/redemptions";
 import { RuntimeCore } from "./runtime-core";
 
 export class RuntimeChat extends RuntimeCore {
-  async sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean }): Promise<void> {
+  async sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean; kick?: boolean }): Promise<void> {
     const message = text.replace(/\r/g, "").trim();
     if (!message) throw new Error("Message is empty.");
     const selection = this.settings.load().platforms;
     const askedTwitch = destinations ? destinations.twitch === true : true;
     const askedYoutube = destinations?.youtube === true;
-    if (!askedTwitch && !askedYoutube) throw new Error("Pick Twitch or YouTube.");
+    const askedKick = destinations?.kick === true;
+    if (!askedTwitch && !askedYoutube && !askedKick) throw new Error("Pick a platform.");
     const twitch = askedTwitch && isPlatformEnabled(selection, "twitch");
     const youtube = askedYoutube && isPlatformEnabled(selection, "youtube");
-    if (!twitch && !youtube) return;
+    const kick = askedKick && isPlatformEnabled(selection, "kick");
+    if (!twitch && !youtube && !kick) return;
     const youtubeLive = this.status.youtube.state === "live" && this.status.youtube.canSend === true && Boolean(this.status.youtube.videoId);
     const sendYoutube = youtube && youtubeLive;
     const sendTwitch = twitch && this.auth.state().loggedIn;
-    if (!sendTwitch && !sendYoutube) return;
+    const sendKick = kick && Boolean(this.kick.snapshot().userId);
+    if (!sendTwitch && !sendYoutube && !sendKick) return;
     if (sendTwitch && message.length > TWITCH_MESSAGE_MAX) throw new Error("Twitch messages stop at 500 characters.");
+    if (sendKick && [...message].length > 500) throw new Error("Kick messages stop at 500 characters.");
     if (sendYoutube && message.length > 200) throw new Error("YouTube live chat stops at 200 characters.");
     if (Date.now() - this.lastSend < 800) throw new Error("Wait a moment before sending another message.");
     if (sendTwitch) await this.platforms.get("twitch")?.deliver(message);
+    if (sendKick) {
+      try {
+        await this.platforms.get("kick")?.deliver(message);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "Kick did not accept that message.";
+        if (sendTwitch || sendYoutube) throw new Error(`Sent on the other chats. ${detail}`);
+        throw err;
+      }
+    }
     if (sendYoutube) {
       try {
         const result = await this.platforms.get("youtube")?.deliver(message);
@@ -357,6 +370,7 @@ export class RuntimeChat extends RuntimeCore {
   protected syncEnabledPlatforms(previous?: PlatformSelection): void {
     const twitch = this.twitchOn();
     const youtube = this.youtubeOn();
+    const kick = this.kickOn();
     const wasTwitch = previous ? isPlatformEnabled(previous, "twitch") : twitch;
     if (twitch) {
       this.platforms.get("twitch")?.start();
@@ -402,6 +416,18 @@ export class RuntimeChat extends RuntimeCore {
       this.emit({ type: "status", status: this.status });
       getBot()?.service.setYoutubeLive({ live: false, known: false });
     }
+    if (kick) {
+      const wasOff = this.status.kick.detail === "Kick is off.";
+      this.platforms.get("kick")?.start();
+      if (wasOff) {
+        this.status = { ...this.status, kick: { ...this.status.kick, state: "idle", detail: "Connecting to Kick…" } };
+        this.emit({ type: "status", status: this.status });
+      }
+    } else {
+      this.platforms.get("kick")?.stop();
+      this.status = { ...this.status, kick: { state: "idle", detail: "Kick is off.", viewers: null, account: this.status.kick.account } };
+      this.emit({ type: "status", status: this.status });
+    }
     getRedeemEngine()?.setPlatformEnabled(twitch);
     getChatOverlay()?.refresh();
   }
@@ -415,6 +441,8 @@ export class RuntimeChat extends RuntimeCore {
     const sameLogin = Boolean(auth.login && channel && auth.login.toLowerCase() === channel);
     const twitch = isPlatformEnabled(settings.platforms, "twitch");
     const youtube = isPlatformEnabled(settings.platforms, "youtube");
+    const kick = isPlatformEnabled(settings.platforms, "kick");
+    const kickTokens = this.kick.snapshot();
     return {
       twitch: {
         loggedIn: twitch && auth.loggedIn,
@@ -429,6 +457,12 @@ export class RuntimeChat extends RuntimeCore {
         live: youtube && (this.status.youtube.state === "live" || Boolean(this.status.youtube.videoId)),
         channelId: settings.youtubeChannelId.trim(),
         accountChannelId: desk.channelId,
+      },
+      kick: {
+        loggedIn: kick && Boolean(kickTokens.userId),
+        scopes: this.kick.scopes(),
+        userId: kickTokens.userId,
+        broadcasterUserId: this.kick.broadcasterUserId() || kickTokens.userId,
       },
     };
   }
@@ -452,6 +486,10 @@ export class RuntimeChat extends RuntimeCore {
       await this.helix.deleteChatMessage(await this.twitchBroadcasterId(), user.userId, message.id);
       return;
     }
+    if (message.platform === "kick") {
+      await this.kick.deleteMessage(message.id);
+      return;
+    }
     await this.youtubeSend.deleteLiveMessage(message.id);
   }
 
@@ -461,6 +499,11 @@ export class RuntimeChat extends RuntimeCore {
     if (message.platform === "twitch") {
       const user = this.requireUser();
       await this.helix.banUser(await this.twitchBroadcasterId(), user.userId, message.authorId, seconds, "");
+      return;
+    }
+    if (message.platform === "kick") {
+      if (seconds === null) await this.kick.banUser(message.authorId, "");
+      else await this.kick.timeoutUser(message.authorId, seconds, "");
       return;
     }
     await this.youtubeSend.banLiveUser(message.authorId, seconds, this.status.youtube.videoId);
@@ -474,6 +517,10 @@ export class RuntimeChat extends RuntimeCore {
       await this.helix.unbanUser(await this.twitchBroadcasterId(), user.userId, message.authorId);
       return;
     }
+    if (message.platform === "kick") {
+      await this.kick.unbanUser(message.authorId);
+      return;
+    }
     await this.youtubeSend.unbanLiveUser(message.authorId);
   }
 
@@ -481,7 +528,11 @@ export class RuntimeChat extends RuntimeCore {
   private recordMod(message: ChatMessage, command: ModerationCommand): void {
     const action = command.action;
     const durationSeconds = action === "timeout" ? command.seconds ?? null : null;
-    const actor = message.platform === "twitch" ? this.auth.state().login || "A moderator" : this.youtubeSend.state().account || "A moderator";
+    const actor = message.platform === "twitch"
+      ? this.auth.state().login || "A moderator"
+      : message.platform === "kick"
+        ? this.kick.snapshot().account || "A moderator"
+        : this.youtubeSend.state().account || "A moderator";
     const target = message.displayName || message.username;
     this.pushMod({
       id: `desk-${action}-${message.id}-${Date.now()}-${this.modSeq++}`,

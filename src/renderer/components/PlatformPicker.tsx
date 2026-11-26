@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { visiblePlatforms, setPlatformEnabled, type PlatformSelection } from "../../shared/platform/selection";
+import { visiblePlatforms, enableKick, requestPlatformToggle, type PlatformSelection } from "../../shared/platform/selection";
 import { RascalMark } from "./icons";
 import { CheckRow } from "./CheckRow";
+import { KickRelayDialog } from "./KickRelayNotice";
 
-/** The same list the first-run screen and Settings use. Hidden platforms, including Kick, are omitted. */
+/** The same list the first-run screen and Settings use. */
 export function PlatformPicker({
   selection,
   onToggle,
@@ -40,6 +41,7 @@ export function FirstRunPlatforms({
   onContinue: (selection: PlatformSelection) => void;
 }) {
   const [draft, setDraft] = useState(initial);
+  const [notice, setNotice] = useState(false);
   return (
     <main className="first-run">
       <section className="first-run-card" data-testid="first-run">
@@ -52,7 +54,9 @@ export function FirstRunPlatforms({
           selection={draft}
           onToggle={(id, on) => {
             try {
-              setDraft(setPlatformEnabled(draft, id, on));
+              const result = requestPlatformToggle(draft, id, on);
+              setDraft(result.next);
+              if (result.confirmKick) setNotice(true);
             } catch {
               setDraft(draft);
             }
@@ -63,6 +67,17 @@ export function FirstRunPlatforms({
           {busy ? "Saving" : "Continue"}
         </button>
       </section>
+      {notice ? (
+        <KickRelayDialog
+          confirmLabel="Continue"
+          onOpenDocs={(url) => void window.rascal?.openExternal(url)}
+          onCancel={() => setNotice(false)}
+          onConfirm={() => {
+            setDraft(enableKick(draft));
+            setNotice(false);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

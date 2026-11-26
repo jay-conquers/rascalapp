@@ -2,6 +2,7 @@ import type { ChatOverlayFile, ChatOverlayStyle } from "./chat-overlay";
 import type { RedeemMapping, RedeemSnapshot } from "./redeems";
 export type { BotSnapshot } from "../../packages/bot/src/index";
 import type { BotSnapshot } from "../../packages/bot/src/index";
+import type { KickDeskState } from "./kick/desk-state";
 import type { YoutubeDeskState } from "./youtube/desk-state";
 import type { TtsPanel } from "./tts";
 import type { FeedToggles } from "./feed-toggles";
@@ -25,6 +26,7 @@ export interface SettingsPatch {
   twitchClientId?: string;
   twitchChannel?: string;
   youtubeChannelId?: string;
+  kickRelayUrl?: string;
   overlayPort?: number;
   alwaysOnTop?: boolean;
   autoImportFirebot?: boolean;
@@ -38,7 +40,7 @@ export interface SettingsPatch {
 export interface RascalApi {
   getSnapshot(): Promise<AppSnapshot>;
   onEvent(listener: (event: AppEvent) => void): () => void;
-  sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean }): Promise<void>;
+  sendChat(text: string, destinations?: { twitch?: boolean; youtube?: boolean; kick?: boolean }): Promise<void>;
   moderate(command: ModerationCommand): Promise<void>;
   mentions(query: string): Promise<MentionRoster>;
   searchCategories(query: string): Promise<CategoryHit[]>;
@@ -93,4 +95,10 @@ export interface RascalApi {
   youtubeConnect(): Promise<YoutubeDeskState>;
   youtubeCancel(): Promise<YoutubeDeskState>;
   youtubeLogout(): Promise<YoutubeDeskState>;
+  kickDeskState(): Promise<KickDeskState>;
+  kickConnect(): Promise<KickDeskState>;
+  kickCancel(): Promise<void>;
+  kickLogout(): Promise<KickDeskState>;
+  kickSaveClient(patch: { clientId?: string; clientSecret?: string }): Promise<KickDeskState>;
+  kickSaveRelay(patch: { secret?: string }): Promise<KickDeskState>;
 }

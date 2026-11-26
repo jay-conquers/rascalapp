@@ -8,6 +8,7 @@ import { defaultFeed, mergeFeed } from "../shared/feed-toggles";
 import { defaultSendTargets, mergeSendTargets } from "../shared/send-targets";
 import { defaultChatAlert, mergeChatAlert } from "../shared/chat-alert";
 import { defaultTabs, tabsFromPatch } from "../shared/desk-tabs";
+import { normalizeRelayUrl } from "../shared/kick/protocol";
 import {
   defaultPlatformSelection,
   migrateFromSetup,
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   twitchClientId: "",
   twitchChannel: DEFAULT_TWITCH_CHANNEL,
   youtubeChannelId: DEFAULT_YOUTUBE_CHANNEL_ID,
+  kickRelayUrl: "",
   overlayPort: DEFAULT_OVERLAY_PORT,
   alwaysOnTop: false,
   autoImportFirebot: true,
@@ -61,7 +63,10 @@ export class SettingsStore {
         saved: record.platforms,
         setup: readPlatformSetup(dir, merged),
       });
-      const next = { ...merged, platforms: { confirmed: selection.confirmed, enabled: [...selection.enabled] } };
+      const next = {
+        ...merged,
+        platforms: { confirmed: selection.confirmed, enabled: [...selection.enabled], kickAcknowledged: selection.kickAcknowledged },
+      };
       if (!keyPresent) writePrivateJson(this.file, next);
       return next;
     } catch {
@@ -84,6 +89,7 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
         ? patch.twitchChannel.trim().replace(/^#/, "").toLowerCase()
         : current.twitchChannel,
     youtubeChannelId: patch.youtubeChannelId !== undefined ? patch.youtubeChannelId.trim() : current.youtubeChannelId,
+    kickRelayUrl: patch.kickRelayUrl !== undefined ? normalizeRelayUrl(patch.kickRelayUrl) : current.kickRelayUrl,
     overlayPort: patch.overlayPort !== undefined ? Number(patch.overlayPort) : current.overlayPort,
     alwaysOnTop: patch.alwaysOnTop !== undefined ? Boolean(patch.alwaysOnTop) : current.alwaysOnTop,
     autoImportFirebot:
