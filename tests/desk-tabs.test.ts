@@ -285,7 +285,7 @@ describe("desk tabs stay a window choice", () => {
       expect(text, file).not.toContain("tabInBar");
       expect(text, file).not.toContain("resolveDeskView");
     }
-    const ipc = fs.readFileSync("src/main/index.ts", "utf8");
+    const ipc = fs.readFileSync("src/main/ipc-args.ts", "utf8");
     expect(ipc).toContain("patch.tabs");
     const runtime = fs.readFileSync("src/main/runtime-bot.ts", "utf8");
     expect(runtime).not.toContain("tabs");
