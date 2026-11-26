@@ -184,6 +184,9 @@ function registerAppProtocol(): void {
 }
 
 function registerIpc(runtime: Runtime): void {
+  const on = (channel: string, fn: (...args: unknown[]) => unknown): void => {
+    ipcMain.handle(channel, (_event, ...args) => guard(() => fn(...args)));
+  };
   ipcMain.handle("app:snapshot", () => runtime.snapshot());
   ipcMain.handle("app:send-chat", (_event, text: unknown, destinations: unknown) =>
     guard(() => {
@@ -191,7 +194,7 @@ function registerIpc(runtime: Runtime): void {
       return runtime.sendChat(text, asDestinations(destinations));
     }),
   );
-  ipcMain.handle("app:moderate", (_event, command: unknown) => guard(() => runtime.moderate(command)));
+  on("app:moderate", (command) => runtime.moderate(command));
   ipcMain.handle("app:mentions", (_event, query: unknown) => guard(() => runtime.mentions(typeof query === "string" ? query : "")));
   ipcMain.handle("app:search-categories", (_event, query: unknown, platform: unknown) =>
     guard(() => {
@@ -205,13 +208,13 @@ function registerIpc(runtime: Runtime): void {
   ipcMain.handle("app:update-streams", (_event, request: unknown) =>
     guard(() => runtime.updateStreams(asStreamEditRequest(request))),
   );
-  ipcMain.handle("app:kick-stream", () => guard(() => runtime.kickStream()));
+  on("app:kick-stream", () => runtime.kickStream());
   ipcMain.handle("app:update-settings", (_event, patch: unknown) =>
     guard(() => runtime.updateSettings(asSettingsPatch(patch))),
   );
-  ipcMain.handle("app:login", () => guard(() => runtime.startLogin()));
-  ipcMain.handle("app:cancel-login", () => guard(async () => runtime.cancelLogin()));
-  ipcMain.handle("app:logout", () => guard(async () => runtime.logout()));
+  on("app:login", () => runtime.startLogin());
+  on("app:cancel-login", () => runtime.cancelLogin());
+  on("app:logout", () => runtime.logout());
   ipcMain.handle("app:open-external", (_event, url: unknown) =>
     guard(async () => {
       if (typeof url !== "string") throw new Error("That link cannot be opened.");
@@ -221,7 +224,7 @@ function registerIpc(runtime: Runtime): void {
   ipcMain.handle("app:always-on-top", (_event, value: unknown) =>
     guard(async () => runtime.setAlwaysOnTop(Boolean(value))),
   );
-  ipcMain.handle("app:redeems-refresh", () => guard(() => runtime.refreshRedeems()));
+  on("app:redeems-refresh", () => runtime.refreshRedeems());
   ipcMain.handle("app:redeems-save", (_event, mapping: unknown) =>
     guard(() => runtime.saveRedeem(asMapping(mapping))),
   );
@@ -242,16 +245,16 @@ function registerIpc(runtime: Runtime): void {
       });
     }),
   );
-  ipcMain.handle("app:redeems-import", () => guard(() => runtime.importFirebot()));
+  on("app:redeems-import", () => runtime.importFirebot());
   ipcMain.handle("app:redeems-test", (_event, rewardId: unknown, mapping: unknown) =>
     guard(() => {
       if (typeof rewardId !== "string") throw new Error("Missing reward.");
       return runtime.testRedeem(rewardId, mapping ? asMapping(mapping) : undefined);
     }),
   );
-  ipcMain.handle("app:redeems-skip", () => guard(() => runtime.skipAlert()));
-  ipcMain.handle("app:redeems-clear", () => guard(() => runtime.clearAlerts()));
-  ipcMain.handle("app:chat-overlay-save", (_event, preset: unknown) => guard(() => runtime.saveChatPreset(preset)));
+  on("app:redeems-skip", () => runtime.skipAlert());
+  on("app:redeems-clear", () => runtime.clearAlerts());
+  on("app:chat-overlay-save", (preset) => runtime.saveChatPreset(preset));
   ipcMain.handle("app:chat-overlay-create", (_event, name: unknown, basedOnId: unknown) =>
     guard(() => {
       if (typeof name !== "string" || typeof basedOnId !== "string") throw new Error("Name the new preset first.");
@@ -264,35 +267,35 @@ function registerIpc(runtime: Runtime): void {
       return runtime.deleteChatPreset(id);
     }),
   );
-  ipcMain.handle("app:tts-state", () => guard(() => runtime.ttsPanel()));
+  on("app:tts-state", () => runtime.ttsPanel());
   ipcMain.handle("app:tts-command", (_event, command: unknown, id: unknown) =>
     guard(() => {
       if (typeof command !== "string") throw new Error("Missing TTS control.");
       return runtime.ttsCommand(command, typeof id === "string" ? id : undefined);
     }),
   );
-  ipcMain.handle("app:tts-inject", (_event, payload: unknown) => guard(() => runtime.ttsInject(payload)));
-  ipcMain.handle("app:tts-settings", (_event, patch: unknown) => guard(() => runtime.saveTtsSettings(patch)));
-  ipcMain.handle("app:bot-state", () => guard(() => runtime.botState()));
-  ipcMain.handle("app:bot-login", () => guard(() => runtime.botLogin()));
-  ipcMain.handle("app:bot-logout", () => guard(() => runtime.botLogout()));
-  ipcMain.handle("app:bot-command", (_event, command: unknown) => guard(() => runtime.botSaveCommand(command)));
+  on("app:tts-inject", (payload) => runtime.ttsInject(payload));
+  on("app:tts-settings", (patch) => runtime.saveTtsSettings(patch));
+  on("app:bot-state", () => runtime.botState());
+  on("app:bot-login", () => runtime.botLogin());
+  on("app:bot-logout", () => runtime.botLogout());
+  on("app:bot-command", (command) => runtime.botSaveCommand(command));
   ipcMain.handle("app:bot-command-delete", (_event, id: unknown) =>
     guard(() => {
       if (typeof id !== "string") throw new Error("Missing command.");
       return runtime.botDeleteCommand(id);
     }),
   );
-  ipcMain.handle("app:bot-timer", (_event, timer: unknown) => guard(() => runtime.botSaveTimer(timer)));
+  on("app:bot-timer", (timer) => runtime.botSaveTimer(timer));
   ipcMain.handle("app:bot-timer-delete", (_event, id: unknown) =>
     guard(() => {
       if (typeof id !== "string") throw new Error("Missing timer.");
       return runtime.botDeleteTimer(id);
     }),
   );
-  ipcMain.handle("app:bot-filters", (_event, filters: unknown) => guard(() => runtime.botSaveFilters(filters)));
-  ipcMain.handle("app:bot-extras", (_event, patch: unknown) => guard(() => runtime.botSaveExtras(patch)));
-  ipcMain.handle("app:bot-hook", (_event, hook: unknown) => guard(() => runtime.botSaveHook(hook)));
+  on("app:bot-filters", (filters) => runtime.botSaveFilters(filters));
+  on("app:bot-extras", (patch) => runtime.botSaveExtras(patch));
+  on("app:bot-hook", (hook) => runtime.botSaveHook(hook));
   ipcMain.handle("app:bot-hook-delete", (_event, id: unknown) =>
     guard(() => {
       if (typeof id !== "string") throw new Error("Missing hook.");
@@ -311,25 +314,25 @@ function registerIpc(runtime: Runtime): void {
       return runtime.botImportSe(typeof jwt === "string" ? jwt : "");
     }),
   );
-  ipcMain.handle("app:bot-import-json", (_event, payload: unknown) => guard(() => runtime.botImportJson(payload)));
-  ipcMain.handle("app:bot-link", () => guard(() => runtime.botLink()));
-  ipcMain.handle("app:bot-link-save", (_event, patch: unknown) => guard(() => runtime.saveBotLink(patch)));
-  ipcMain.handle("app:bot-export", () => guard(() => runtime.botExport()));
-  ipcMain.handle("app:bot-youtube-login", () => guard(() => runtime.botYoutubeLogin()));
-  ipcMain.handle("app:bot-youtube-logout", () => guard(() => runtime.botYoutubeLogout()));
-  ipcMain.handle("app:bot-youtube-cancel", () => guard(() => runtime.botYoutubeCancel()));
-  ipcMain.handle("app:bot-accounts", (_event, patch: unknown) => guard(() => runtime.botSaveAccounts(patch)));
-  ipcMain.handle("app:bot-google-client", (_event, patch: unknown) => guard(() => runtime.botSaveGoogleClient(patch)));
-  ipcMain.handle("app:youtube-desk", () => guard(() => runtime.youtubeDeskState()));
-  ipcMain.handle("app:youtube-connect", () => guard(() => runtime.youtubeConnect()));
-  ipcMain.handle("app:youtube-cancel", () => guard(() => runtime.youtubeCancel()));
-  ipcMain.handle("app:youtube-logout", () => guard(() => runtime.youtubeLogout()));
-  ipcMain.handle("app:kick-desk", () => guard(() => runtime.kickDeskState()));
-  ipcMain.handle("app:kick-connect", () => guard(() => runtime.kickConnect()));
-  ipcMain.handle("app:kick-cancel", () => guard(() => runtime.kickCancel()));
-  ipcMain.handle("app:kick-logout", () => guard(() => runtime.kickLogout()));
-  ipcMain.handle("app:kick-client", (_event, patch: unknown) => guard(() => runtime.kickSaveClient(patch)));
-  ipcMain.handle("app:kick-relay", (_event, patch: unknown) => guard(() => runtime.kickSaveRelay(patch)));
+  on("app:bot-import-json", (payload) => runtime.botImportJson(payload));
+  on("app:bot-link", () => runtime.botLink());
+  on("app:bot-link-save", (patch) => runtime.saveBotLink(patch));
+  on("app:bot-export", () => runtime.botExport());
+  on("app:bot-youtube-login", () => runtime.botYoutubeLogin());
+  on("app:bot-youtube-logout", () => runtime.botYoutubeLogout());
+  on("app:bot-youtube-cancel", () => runtime.botYoutubeCancel());
+  on("app:bot-accounts", (patch) => runtime.botSaveAccounts(patch));
+  on("app:bot-google-client", (patch) => runtime.botSaveGoogleClient(patch));
+  on("app:youtube-desk", () => runtime.youtubeDeskState());
+  on("app:youtube-connect", () => runtime.youtubeConnect());
+  on("app:youtube-cancel", () => runtime.youtubeCancel());
+  on("app:youtube-logout", () => runtime.youtubeLogout());
+  on("app:kick-desk", () => runtime.kickDeskState());
+  on("app:kick-connect", () => runtime.kickConnect());
+  on("app:kick-cancel", () => runtime.kickCancel());
+  on("app:kick-logout", () => runtime.kickLogout());
+  on("app:kick-client", (patch) => runtime.kickSaveClient(patch));
+  on("app:kick-relay", (patch) => runtime.kickSaveRelay(patch));
   ipcMain.handle("app:chat-sound-pick", () =>
     guard(async () => {
       const result = await dialog.showOpenDialog({

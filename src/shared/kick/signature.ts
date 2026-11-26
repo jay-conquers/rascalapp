@@ -3,7 +3,9 @@ import { createHash, createPublicKey, timingSafeEqual, verify } from "node:crypt
 /** Kick signs `messageId.timestamp.rawBody` with RSA-SHA256 (PKCS#1 v1.5). */
 export const KICK_SIGNATURE_TOLERANCE_MS = 5 * 60_000;
 
+/** Hash both sides so the compare does not leak the length or the bytes. An empty side never matches. */
 export function secretsMatch(left: string, right: string): boolean {
+  if (!left || !right) return false;
   const a = createHash("sha256").update(left).digest();
   const b = createHash("sha256").update(right).digest();
   return timingSafeEqual(a, b);
