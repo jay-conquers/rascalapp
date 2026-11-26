@@ -11,6 +11,7 @@ export const KICK_OAUTH_PATH = "/kick/callback";
 export const KICK_SCOPES = [
   "user:read",
   "channel:read",
+  "channel:write",
   "chat:write",
   "events:subscribe",
   "moderation:ban",

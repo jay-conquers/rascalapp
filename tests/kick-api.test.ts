@@ -41,6 +41,7 @@ describe("Kick API", () => {
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("code_challenge")?.length).toBeGreaterThan(20);
+    expect(url.searchParams.get("scope")).toContain("channel:write");
     expect(url.searchParams.get("redirect_uri")).toBe("http://localhost:4801/kick/callback");
     expect(request.url).not.toContain("super-secret-value");
     expect(request.verifier.length).toBeGreaterThan(20);
