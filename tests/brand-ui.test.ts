@@ -51,7 +51,13 @@ describe("cat icon", () => {
     expect(fur[1]).toBeGreaterThan(60);
     expect(fur[2]).toBeLessThan(160);
     const svg = readFileSync(new URL("../build/icon.svg", import.meta.url), "utf8");
-    expect(svg).toContain("#2B2B2B");
+    expect(svg).toContain("#2F2F2E");
+    expect(svg).toContain("#7A502E");
+    expect(svg).toContain("#4E3928");
+    expect(svg).toContain("#EFE6DA");
     expect(svg.toLowerCase()).not.toMatch(/flame|ember/);
+    const mark = readFileSync(new URL("../src/renderer/components/icons.tsx", import.meta.url), "utf8");
+    const body = svg.match(/<path d="([^"]+)" fill="#7A502E"/)?.[1];
+    expect(body && mark.includes(body)).toBe(true);
   });
 });

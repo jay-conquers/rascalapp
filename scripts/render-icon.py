@@ -43,10 +43,19 @@ def parse_color(value: str | None):
     return tuple(int(hex_color[i : i + 2], 16) / 255 for i in (0, 2, 4)) + (1.0,)
 
 
-def flatten_cubic(p0, p1, p2, p3, steps=8):
+def curve_steps(points) -> int:
+    length = 0.0
+    for start, end in zip(points, points[1:]):
+        length += math.hypot(end[0] - start[0], end[1] - start[1])
+    # Short segments keep ear tips and the tail curl smooth at 512px.
+    return max(12, min(48, int(length * 3) + 1))
+
+
+def flatten_cubic(p0, p1, p2, p3, steps=0):
+    count = steps or curve_steps((p0, p1, p2, p3))
     points = []
-    for step in range(1, steps + 1):
-        t = step / steps
+    for step in range(1, count + 1):
+        t = step / count
         u = 1 - t
         points.append((
             u ** 3 * p0[0] + 3 * u ** 2 * t * p1[0] + 3 * u * t ** 2 * p2[0] + t ** 3 * p3[0],
@@ -55,10 +64,11 @@ def flatten_cubic(p0, p1, p2, p3, steps=8):
     return points
 
 
-def flatten_quad(p0, p1, p2, steps=8):
+def flatten_quad(p0, p1, p2, steps=0):
+    count = steps or curve_steps((p0, p1, p2))
     points = []
-    for step in range(1, steps + 1):
-        t = step / steps
+    for step in range(1, count + 1):
+        t = step / count
         u = 1 - t
         points.append((
             u ** 2 * p0[0] + 2 * u * t * p1[0] + t ** 2 * p2[0],
@@ -258,9 +268,27 @@ def add_stroke(shapes, contours, color, width, cap, dash):
         return
     points = [point for start, end, _radius, _cap in segments for point in (start, end)]
     box = bounds_of(points, pad=width)
+    # Bin segments so a detailed outline does not test every sample against every segment.
+    cell = max(width * 2, 4.0)
+    grid: dict[tuple[int, int], list] = {}
+    for segment in segments:
+        start, end, radius, _cap_name = segment
+        min_x = min(start[0], end[0]) - radius
+        max_x = max(start[0], end[0]) + radius
+        min_y = min(start[1], end[1]) - radius
+        max_y = max(start[1], end[1]) + radius
+        for gx in range(math.floor(min_x / cell), math.floor(max_x / cell) + 1):
+            for gy in range(math.floor(min_y / cell), math.floor(max_y / cell) + 1):
+                grid.setdefault((gx, gy), []).append(segment)
 
     def hit(x, y):
-        return any(segment_hit(x, y, start[0], start[1], end[0], end[1], radius, cap_name) for start, end, radius, cap_name in segments)
+        bucket = grid.get((math.floor(x / cell), math.floor(y / cell)))
+        if not bucket:
+            return False
+        return any(
+            segment_hit(x, y, start[0], start[1], end[0], end[1], radius, cap_name)
+            for start, end, radius, cap_name in bucket
+        )
 
     shapes.append(Shape(color, box, hit))
 
