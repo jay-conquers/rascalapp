@@ -6,6 +6,8 @@
 export const YOUTUBE_QUOTA_COSTS = {
   dailyUnits: 10_000,
   liveBroadcastsList: 1,
+  /** liveBroadcasts.update. A write is 50 units. https://developers.google.com/youtube/v3/getting-started */
+  liveBroadcastsUpdate: 50,
   videosList: 1,
   channelsList: 1,
   liveChatMessagesList: 5,

@@ -3,6 +3,8 @@ export const DEFAULT_YOUTUBE_CHANNEL_ID = "";
 export const DEFAULT_OVERLAY_PORT = 4777;
 export const MAX_CHAT_MESSAGES = 500;
 export const TWITCH_TITLE_MAX = 140;
+export const YOUTUBE_TITLE_MAX = 100;
+export const KICK_TITLE_MAX = 200;
 export const TWITCH_MESSAGE_MAX = 500;
 
 /**
