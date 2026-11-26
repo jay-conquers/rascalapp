@@ -54,7 +54,7 @@ function htmlFor(settings: Settings, auth: AuthState = AUTH): string {
       settings,
       auth,
       status: STATUS,
-      version: "0.14.1",
+      version: "0.14.2",
       onSave: async () => undefined,
       onLogin: () => undefined,
       onLogout: () => undefined,
@@ -193,7 +193,7 @@ describe("settings screen sections", () => {
     expect(moderation).toContain("never posted to chat");
 
     expect(app).toContain('data-testid="settings-version"');
-    expect(app).toContain("0.14.1");
+    expect(app).toContain("0.14.2");
     expect(app).toContain('data-setting="autoImportFirebot"');
     expect(app).toContain("Import Firebot reward files on startup");
 
