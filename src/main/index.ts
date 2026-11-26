@@ -9,7 +9,7 @@ import { Runtime } from "./runtime";
 import { setChatShortcutHooks } from "./stages/chat";
 import { redactError } from "../shared/redact";
 import { readChatSoundFile } from "./chat-sound-file";
-import type { SettingsPatch } from "../shared/api";
+import { asDestinations, asSettingsPatch } from "./ipc-args";
 import { normalizePlacement, type RedeemMapping } from "../shared/redeems";
 import type { PlatformStreamDraft, StreamEditRequest } from "../shared/stream-edit";
 import type { StreamUpdate } from "../shared/types";
@@ -413,24 +413,6 @@ function asStreamUpdate(value: unknown): StreamUpdate {
   return { title: row.title, gameId: row.gameId, tags: row.tags };
 }
 
-function asSettingsPatch(value: unknown): SettingsPatch {
-  const row = asRecord(value);
-  if (!row) throw new Error("Settings were incomplete.");
-  const patch: SettingsPatch = {};
-  if (typeof row.twitchClientId === "string") patch.twitchClientId = row.twitchClientId;
-  if (typeof row.twitchChannel === "string") patch.twitchChannel = row.twitchChannel;
-  if (typeof row.youtubeChannelId === "string") patch.youtubeChannelId = row.youtubeChannelId;
-  if (typeof row.overlayPort === "number") patch.overlayPort = row.overlayPort;
-  if (typeof row.alwaysOnTop === "boolean") patch.alwaysOnTop = row.alwaysOnTop;
-  if (typeof row.autoImportFirebot === "boolean") patch.autoImportFirebot = row.autoImportFirebot;
-  if (row.feed && typeof row.feed === "object") patch.feed = row.feed as SettingsPatch["feed"];
-  if (row.sendTargets && typeof row.sendTargets === "object") patch.sendTargets = row.sendTargets as SettingsPatch["sendTargets"];
-  if (row.chatAlert && typeof row.chatAlert === "object") patch.chatAlert = row.chatAlert as SettingsPatch["chatAlert"];
-  if (row.platforms && typeof row.platforms === "object") patch.platforms = row.platforms as SettingsPatch["platforms"];
-  if (row.tabs && typeof row.tabs === "object") patch.tabs = row.tabs as SettingsPatch["tabs"];
-  return patch;
-}
-
 function asMapping(value: unknown): RedeemMapping {
   const row = asRecord(value);
   if (!row || typeof row.title !== "string") throw new Error("That mapping is incomplete.");
@@ -446,16 +428,6 @@ function asMapping(value: unknown): RedeemMapping {
     placement: normalizePlacement(row.placement),
   };
 }
-
-function asDestinations(value: unknown): { twitch?: boolean; youtube?: boolean } | undefined {
-  const row = asRecord(value);
-  if (!row) return undefined;
-  const destinations: { twitch?: boolean; youtube?: boolean } = {};
-  if (typeof row.twitch === "boolean") destinations.twitch = row.twitch;
-  if (typeof row.youtube === "boolean") destinations.youtube = row.youtube;
-  return destinations;
-}
-
 
 function readVersion(): string {
   try {
