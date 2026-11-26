@@ -17,7 +17,7 @@ export function writePrivateBytes(file: string, data: string | NodeJS.ArrayBuffe
   const tmp = `${file}.${process.pid}.tmp`;
   const fd = fs.openSync(tmp, "w", 0o600);
   try {
-    if (typeof data === "string") fs.writeSync(fd, data, "utf8");
+    if (typeof data === "string") fs.writeSync(fd, data);
     else fs.writeSync(fd, data);
     fs.fsyncSync(fd);
   } finally {
