@@ -1,10 +1,10 @@
 /** Desk colors. Overlay output defaults stay in chat-overlay.ts. */
 export const theme = {
-  bg: "#0C0D11",
-  accent: "#C8873E",
-  accentDeep: "#B07834",
-  chocolate: "#5A3A22",
-  cream: "#F3E3C8",
+  bg: "#121110",
+  accent: "#C98E59",
+  accentDeep: "#B57C4A",
+  chocolate: "#4E3928",
+  cream: "#EFE6DA",
   onAccent: "#1C120A",
 } as const;
 

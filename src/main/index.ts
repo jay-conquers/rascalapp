@@ -112,7 +112,7 @@ function createWindow(runtime: Runtime): void {
     minWidth: 760,
     minHeight: 560,
     show: false,
-    backgroundColor: "#0b0c10",
+    backgroundColor: "#121110",
     title: brand.displayName,
     autoHideMenuBar: true,
     icon: iconPath(),

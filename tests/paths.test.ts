@@ -113,8 +113,9 @@ describe("icon source", () => {
   it("keeps the tabby svg as the mark the icon build reads", () => {
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
     const svg = readFileSync(path.join(root, "build", "icon.svg"), "utf8");
-    expect(svg).toContain("#2B2B2B");
-    expect(svg).toContain("#C48A4A");
+    expect(svg).toContain("#2F2F2E");
+    expect(svg).toContain("#7A502E");
+    expect(svg).toContain("#EFE6DA");
     expect(svg.toLowerCase()).not.toMatch(/flame|ember/);
   });
 });
