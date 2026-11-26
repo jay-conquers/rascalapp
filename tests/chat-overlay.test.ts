@@ -183,7 +183,7 @@ describe("chat overlay socket", () => {
   });
 
   it("serves the page with no-store and pushes a filtered frame", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ember-chat-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-chat-"));
     dirs.push(dir);
     const bus = new ChatBus();
     const server = new OverlayServer(() => bus.messages, new Logger(null));

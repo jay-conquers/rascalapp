@@ -168,15 +168,13 @@ Nothing in `deploy/fly` is deployed by this repository. The steps, the cost note
 
 ## Configuration
 
-On Linux, settings, tokens, redeem mappings, and the bot files live in `~/.config/rascal` (`XDG_CONFIG_HOME` is honored). Electron's own window data stays in `~/.config/Rascal`. The first launch copies `~/.config/ember` into `~/.config/rascal` when that folder is missing, and `~/.config/Ember` into `~/.config/Rascal`, and leaves the old folders in place.
+On Linux, settings, tokens, redeem mappings, and the bot files live in `~/.config/rascal` (`XDG_CONFIG_HOME` is honored). Electron's own window data stays in `~/.config/Rascal`.
 
 On Windows those files live in `%APPDATA%\Rascal`. On macOS they live in `~/Library/Application Support/Rascal`.
 
 Secret files are mode `0600` on Linux and macOS, and their directory is mode `0700`. Windows has no Unix permission bits. Rascal does not call chmod there, so startup does not crash, and access control is the user profile ACL.
 
 The default alert media folder is `~/Streaming/Rascal-Assets/Sounds` on Linux. On Windows and macOS it is `Rascal-Assets/Sounds` inside Music (Documents if Music is not available). A `soundFolder` already saved in `redeems.json` is left as it is.
-
-The log records that a config copy happened and does not include file contents.
 
 ## License
 

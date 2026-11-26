@@ -2,9 +2,8 @@ import { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, net, protoco
 import fs from "node:fs";
 import path from "node:path";
 import { brand, readBrandEnv } from "../shared/brand";
-import { configDir, configHome, currentPathHost, fileUrl, usePathHost, type PathHost } from "../shared/paths";
+import { configDir, currentPathHost, fileUrl, usePathHost, type PathHost } from "../shared/paths";
 import { assertAllowedExternal } from "./browser";
-import { migrateLegacyConfig } from "./migrate-config";
 import { Runtime } from "./runtime";
 import { setChatShortcutHooks } from "./stages/chat";
 import { redactError } from "../shared/redact";
@@ -73,7 +72,6 @@ async function boot(): Promise<void> {
   }
   const host = electronPathHost();
   usePathHost(host);
-  const migrations = migrateLegacyConfig(configHome(host));
   const runtime = new Runtime({
     dir: configDir(host),
     version: readVersion(),
@@ -89,9 +87,6 @@ async function boot(): Promise<void> {
       if (win && !win.isDestroyed()) win.setAlwaysOnTop(value, "floating");
     },
   });
-  for (const item of migrations) {
-    runtime.log.info(`copied ${item.files} files from the ${path.basename(item.from)} config directory into ${path.basename(item.to)}`);
-  }
   try {
     await runtime.start();
   } catch (err) {

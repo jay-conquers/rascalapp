@@ -10,10 +10,7 @@ const withTokens = args.includes("--with-tokens");
 const withSe = args.includes("--with-se");
 const dir = dirFlag >= 0 ? args[dirFlag + 1] : configDir();
 const rawOrigin = urlFlag >= 0 ? args[urlFlag + 1] : "";
-const token = process.env.RASCAL_BOT_API_KEY || process.env.EMBER_BOT_API_KEY || "";
-if (!process.env.RASCAL_BOT_API_KEY && process.env.EMBER_BOT_API_KEY) {
-  console.warn("EMBER_BOT_API_KEY is deprecated; set RASCAL_BOT_API_KEY instead.");
-}
+const token = process.env.RASCAL_BOT_API_KEY || "";
 
 if (!rawOrigin || !token) {
   console.error("Usage: RASCAL_BOT_API_KEY=... node deploy/fly/push-config.mjs --url https://rascal.fly.dev [--dir <config dir>] [--with-tokens] [--with-se]");

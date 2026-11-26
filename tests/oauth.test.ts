@@ -10,7 +10,7 @@ import { expectPrivateMode } from "./expect-mode";
 
 describe("twitch device login", () => {
   it("polls until approval, stores a 0600 token, and never logs the token", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ember-oauth-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-oauth-"));
     const tokens = new TokenStore(dir);
     const log = new Logger(null);
     const calls: { url: string; body?: string; authorization?: string }[] = [];

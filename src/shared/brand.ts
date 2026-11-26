@@ -8,11 +8,7 @@ export const brand = {
   productName: "Rascal",
   appId: "app.rascal.desktop",
   configDirName: "rascal",
-  legacyConfigDirName: "ember",
-  /** Electron's old userData folder used the product name. */
-  legacyElectronDirName: "Ember",
   envPrefix: "RASCAL",
-  legacyEnvPrefix: "EMBER",
   flyAppName: "rascal",
   flyAppFallback: "rascalapp",
   flyVolume: "rascal_bot_data",
@@ -24,7 +20,6 @@ export const brand = {
   protocol: "rascal",
   logFile: "rascal.log",
   exportFile: "rascal-bot-config.json",
-  legacyExportFile: "ember-bot-config.json",
   soundFolderName: "Rascal-Assets",
   packageName: "rascal",
   botPackageName: "@rascal/bot",
@@ -35,21 +30,9 @@ export const brand = {
   portalPort: 4788,
 } as const;
 
-const warnedEnv = new Set<string>();
-
-/** Read RASCAL_*, then the old EMBER_* name. The log line names the variables, never the value. */
-export function readBrandEnv(suffix: string, log: (message: string) => void = console.warn): string | undefined {
-  const nextName = `${brand.envPrefix}_${suffix}`;
-  const legacyName = `${brand.legacyEnvPrefix}_${suffix}`;
-  const next = process.env[nextName];
-  if (next !== undefined && next !== "") return next;
-  const legacy = process.env[legacyName];
-  if (legacy !== undefined && legacy !== "") {
-    if (!warnedEnv.has(legacyName)) {
-      warnedEnv.add(legacyName);
-      log(`${legacyName} is deprecated; set ${nextName} instead.`);
-    }
-    return legacy;
-  }
+/** Read `RASCAL_<suffix>`. An empty value is treated as unset. */
+export function readBrandEnv(suffix: string): string | undefined {
+  const value = process.env[`${brand.envPrefix}_${suffix}`];
+  if (value !== undefined && value !== "") return value;
   return undefined;
 }

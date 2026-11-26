@@ -211,7 +211,7 @@ export function BotLibrary(props: {
           JSON import
           <textarea value={jsonText} onChange={(event) => setJsonText(event.target.value)} placeholder='{"commands":[{"name":"so","response":"Go see {touser}"}]}' />
           <span className="hint">
-            Paste {brand.exportFile}. An older {brand.legacyExportFile} uses the same shape and imports the same way.
+            Paste {brand.exportFile}.
           </span>
         </label>
         <button
