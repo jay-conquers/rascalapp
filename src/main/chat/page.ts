@@ -106,7 +106,8 @@ const pageTemplate = `<!doctype html>
           "yt3.ggpht.com": 1,
           "yt3.googleusercontent.com": 1,
           "i.ytimg.com": 1,
-          "lh3.googleusercontent.com": 1
+          "lh3.googleusercontent.com": 1,
+          "files.kick.com": 1
         };
         return allowed[parsed.hostname] === 1 && !parsed.username;
       }

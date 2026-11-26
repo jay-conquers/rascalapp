@@ -32,6 +32,8 @@ describe("Kick API", () => {
     expect(JSON.parse(calls[2]?.body ?? "")).toEqual({ broadcaster_user_id: 5, user_id: 9, reason: "spam", duration: 2 });
     expect(JSON.parse(calls[3]?.body ?? "")).toEqual({ broadcaster_user_id: 5, user_id: 9 });
     expect(calls.every((call) => call.authorization === "Bearer kick-access")).toBe(true);
+    await expect(api.moderate("5", "9007199254740993", null, "")).rejects.toThrow(/numeric user id/);
+    await expect(api.deleteMessage("")).rejects.toThrow(/message/);
   });
 
   it("builds an OAuth 2.1 authorize URL with PKCE and without the client secret", () => {
