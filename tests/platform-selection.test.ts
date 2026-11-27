@@ -416,6 +416,15 @@ describe("platform picker and filtered surfaces", () => {
     expect(none).toContain("Turn a platform on in Settings");
     expect(renderToStaticMarkup(createElement(YoutubeStudioButton, { enabled: false, onOpen: () => undefined }))).toBe("");
   });
+
+  it("keeps YouTube Studio on the stream tab and out of the desk header", () => {
+    const app = fs.readFileSync("src/renderer/App.tsx", "utf8");
+    expect(app).not.toContain("YoutubeStudioButton");
+    expect(app).not.toContain("youtube-status");
+    const stream = fs.readFileSync("src/renderer/components/StreamInfoView.tsx", "utf8");
+    expect(stream).toContain("YoutubeStudioButton");
+    expect(stream).toContain('section.id === "youtube"');
+  });
 });
 
 describe("bot platform selection", () => {

@@ -80,7 +80,7 @@ export class RuntimeCore {
     openExternal?: (url: string) => Promise<void>;
     fetchImpl?: typeof fetch;
   }) {
-    this.version = deps.version ?? "0.14.3";
+    this.version = deps.version ?? "0.14.4";
     this.log = new Logger(path.join(deps.dir, "logs", brand.logFile));
     this.youtubeSend = youtubeDesk(deps.dir, { log: this.log, fetchImpl: deps.fetchImpl });
     this.youtubeSend.setOnChange(() => this.publishYoutubeSend());

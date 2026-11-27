@@ -130,7 +130,21 @@ export function StreamInfoView({
           </form>
         ) : null}
         {sections.map((section) => (
-          <PlatformSection key={section.id} id={section.id} title={section.title}>
+          <PlatformSection
+            key={section.id}
+            id={section.id}
+            title={section.title}
+            accessory={
+              section.id === "youtube" ? (
+                <YoutubeStudioButton
+                  enabled
+                  broadcastId={youtubeInfo.videoId}
+                  channelId={youtubeInfo.channelId}
+                  onOpen={(url) => onOpenExternal?.(url)}
+                />
+              ) : null
+            }
+          >
             <PlatformStreamCard
               platform={section.id}
               auth={auth}
@@ -144,7 +158,6 @@ export function StreamInfoView({
               onSearch={onSearch}
               onLogin={onLogin}
               onOpenSettings={onOpenSettings}
-              onOpenExternal={onOpenExternal}
               onYoutubeLogin={onYoutubeLogin}
               onKickLogin={onKickLogin}
             />
@@ -158,10 +171,23 @@ export function StreamInfoView({
   );
 }
 
-function PlatformSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+function PlatformSection({
+  id,
+  title,
+  accessory,
+  children,
+}: {
+  id: string;
+  title: string;
+  accessory?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section className="platform-section" data-platform={id} aria-label={title}>
-      <h3>{title}</h3>
+      <div className="panel-head">
+        <h3>{title}</h3>
+        {accessory}
+      </div>
       {children}
     </section>
   );
@@ -180,7 +206,6 @@ function PlatformStreamCard({
   onSearch,
   onLogin,
   onOpenSettings,
-  onOpenExternal,
   onYoutubeLogin,
   onKickLogin,
 }: {
@@ -196,7 +221,6 @@ function PlatformStreamCard({
   onSearch: (query: string, platform?: "twitch" | "kick") => Promise<CategoryHit[]>;
   onLogin: () => void;
   onOpenSettings: () => void;
-  onOpenExternal?: (url: string) => void;
   onYoutubeLogin?: () => void;
   onKickLogin?: () => void;
 }) {
@@ -298,7 +322,7 @@ function PlatformStreamCard({
   if ((platform === "youtube" || platform === "kick") && !loggedIn) {
     return (
       <div>
-        {platform === "youtube" ? <YoutubeNotes videoId={youtube.videoId} channelId={youtube.channelId} onOpen={onOpenExternal} /> : <KickNote />}
+        {platform === "youtube" ? <YoutubeNotes /> : <KickNote />}
         <div className="panel-lock">
           <p>{block}</p>
           <button type="button" className="primary" onClick={platform === "youtube" ? onYoutubeLogin : onKickLogin}>
@@ -326,7 +350,7 @@ function PlatformStreamCard({
           {stream.live ? `Live${stream.viewerCount !== null ? ` · ${stream.viewerCount}` : ""}` : "Offline"}
         </span>
       ) : null}
-      {platform === "youtube" ? <YoutubeNotes videoId={youtube.videoId} channelId={youtube.channelId} onOpen={onOpenExternal} /> : null}
+      {platform === "youtube" ? <YoutubeNotes /> : null}
       {platform === "kick" ? <KickNote /> : null}
       {block ? (
         <div className="panel-lock">
@@ -444,22 +468,11 @@ function PlatformStreamCard({
   );
 }
 
-function YoutubeNotes({
-  videoId,
-  channelId,
-  onOpen,
-}: {
-  videoId?: string;
-  channelId?: string;
-  onOpen?: (url: string) => void;
-}) {
+function YoutubeNotes() {
   return (
-    <>
-      <p className="form-note" data-testid="youtube-game-note">
-        YouTube has no game field for a live stream. Set the game in YouTube Studio. Saving the title costs 50 quota units.
-      </p>
-      <YoutubeStudioButton enabled broadcastId={videoId} channelId={channelId} onOpen={(url) => onOpen?.(url)} />
-    </>
+    <p className="form-note" data-testid="youtube-game-note">
+      YouTube has no game field for a live stream. Set the game in YouTube Studio. Saving the title costs 50 quota units.
+    </p>
   );
 }
 

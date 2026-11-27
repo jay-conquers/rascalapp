@@ -1,7 +1,9 @@
 import type { SettingsPatch } from "../shared/api";
-import type { ChatAlertSettings } from "../shared/chat-alert";
-import type { FeedToggles } from "../shared/feed-toggles";
+import { defaultChatAlert, mergeChatAlert, type ChatAlertSettings } from "../shared/chat-alert";
+import { defaultFeed, mergeFeed, type FeedToggles } from "../shared/feed-toggles";
+import { normalizeRelayUrl } from "../shared/kick/protocol";
 import { CHATTER_SCOPE, MODERATE_MANAGE_SCOPES, MODERATE_READ_SCOPES } from "../shared/scopes";
+import type { Settings } from "../shared/types";
 
 /** Shown under Advanced. A normal login does not need this list on screen. */
 export const TWITCH_SCOPE_REASONS = [
@@ -38,12 +40,8 @@ export function settingsSectionLabel(id: SettingsSectionId): string {
   return found.label;
 }
 
-/**
- * Payload for the Settings form's Save button.
- * Keys match settings.json. Trimming matches the form that shipped before 0.14.0.
- * Platforms, tabs, the Kick secret, the Kick app, and the bot link save on their own.
- */
-export function settingsFormPatch(input: {
+/** Fields the Settings save button writes. Other controls save on their own. */
+export interface SettingsFormDraft {
   twitchClientId: string;
   twitchChannel: string;
   youtubeChannelId: string;
@@ -52,7 +50,55 @@ export function settingsFormPatch(input: {
   autoImportFirebot: boolean;
   feed: FeedToggles;
   chatAlert: ChatAlertSettings;
-}): SettingsPatch {
+}
+
+export function settingsFormFromSettings(settings: Settings): SettingsFormDraft {
+  return {
+    twitchClientId: settings.twitchClientId,
+    twitchChannel: settings.twitchChannel,
+    youtubeChannelId: settings.youtubeChannelId,
+    kickRelayUrl: settings.kickRelayUrl,
+    overlayPort: String(settings.overlayPort),
+    autoImportFirebot: settings.autoImportFirebot !== false,
+    feed: settings.feed,
+    chatAlert: settings.chatAlert ?? defaultChatAlert(),
+  };
+}
+
+/**
+ * True when Save would write something different.
+ * A change that stores the same value, such as channel letter case, stays clean.
+ */
+export function settingsFormDirty(saved: Settings, draft: SettingsFormDraft): boolean {
+  return canonicalSettingsForm(settingsFormFromSettings(saved)) !== canonicalSettingsForm(draft);
+}
+
+function canonicalSettingsForm(input: SettingsFormDraft): string {
+  let relay = input.kickRelayUrl.trim();
+  try {
+    relay = normalizeRelayUrl(input.kickRelayUrl);
+  } catch {
+    relay = input.kickRelayUrl.trim();
+  }
+  const port = Number(input.overlayPort);
+  return JSON.stringify({
+    twitchClientId: input.twitchClientId.trim(),
+    twitchChannel: input.twitchChannel.trim().replace(/^#/, "").toLowerCase(),
+    youtubeChannelId: input.youtubeChannelId.trim(),
+    kickRelayUrl: relay,
+    overlayPort: Number.isFinite(port) ? port : input.overlayPort.trim(),
+    autoImportFirebot: input.autoImportFirebot === true,
+    feed: mergeFeed(defaultFeed(), input.feed),
+    chatAlert: mergeChatAlert(defaultChatAlert(), input.chatAlert),
+  });
+}
+
+/**
+ * Payload for the Settings form's Save button.
+ * Keys match settings.json. Trimming matches the form that shipped before 0.14.0.
+ * Platforms, tabs, the Kick secret, the Kick app, and the bot link save on their own.
+ */
+export function settingsFormPatch(input: SettingsFormDraft): SettingsPatch {
   return {
     twitchClientId: input.twitchClientId.trim(),
     twitchChannel: input.twitchChannel.trim(),

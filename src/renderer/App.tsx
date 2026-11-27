@@ -25,7 +25,6 @@ import { defaultChatAlert } from "../shared/chat-alert";
 import { playChatChime } from "./chat-sound";
 import { RascalMark, GearIcon, PinIcon } from "./components/icons";
 import { StatusPill } from "./components/StatusPill";
-import { YoutubeStudioButton } from "./components/YoutubeStudioButton";
 import { DeskTabs } from "./components/DeskTabs";
 import { FirstRunPlatforms } from "./components/PlatformPicker";
 
@@ -74,6 +73,7 @@ export function App() {
         void playChatChime({
           volume: alert.volume,
           soundPath: alert.soundPath,
+          outputDeviceId: alert.outputDeviceId,
           readFile: (filePath) => window.rascal?.readChatSound(filePath) ?? Promise.resolve(null),
         });
       }
@@ -297,15 +297,7 @@ export function App() {
         <div className="pills">
           {twitchOn ? <StatusPill label="Twitch" state={status.twitch.state} detail={status.twitch.detail} viewers={status.twitch.viewers} /> : null}
           {youtubeOn ? (
-            <div className="youtube-status">
-              <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} />
-              <YoutubeStudioButton
-                enabled
-                broadcastId={status.youtube.videoId}
-                channelId={status.youtube.accountChannelId || settings.youtubeChannelId}
-                onOpen={(url) => void window.rascal?.openExternal(url)}
-              />
-            </div>
+            <StatusPill label="YouTube" state={status.youtube.state} detail={`${status.youtube.detail}${youtubeTitle}`} viewers={status.youtube.viewers} />
           ) : null}
           {kickOn ? <StatusPill label="Kick" state={status.kick.state} detail={status.kick.detail} viewers={status.kick.viewers} /> : null}
         </div>

@@ -1,3 +1,5 @@
+import { sanitizeOutputDeviceId } from "./audio-output";
+
 /** New-message chime. Off until the streamer turns it on. */
 export interface ChatAlertSettings {
   enabled: boolean;
@@ -9,6 +11,8 @@ export interface ChatAlertSettings {
   notices: boolean;
   /** Empty uses the built-in chime. A local audio file only. */
   soundPath: string;
+  /** Empty uses the system default output. A missing device falls back to that default. */
+  outputDeviceId: string;
 }
 
 export interface AlertMessage {
@@ -48,7 +52,7 @@ export interface AlertDecision {
 export const CHAT_ALERT_BACKFILL_MS = 12_000;
 
 export function defaultChatAlert(): ChatAlertSettings {
-  return { enabled: false, volume: 0.7, cooldownMs: 2_000, notices: false, soundPath: "" };
+  return { enabled: false, volume: 0.7, cooldownMs: 2_000, notices: false, soundPath: "", outputDeviceId: "" };
 }
 
 export function mergeChatAlert(current: ChatAlertSettings | undefined, patch: unknown): ChatAlertSettings {
@@ -57,12 +61,14 @@ export function mergeChatAlert(current: ChatAlertSettings | undefined, patch: un
   const volume = typeof row.volume === "number" && Number.isFinite(row.volume) ? row.volume : base.volume;
   const cooldown = typeof row.cooldownMs === "number" && Number.isFinite(row.cooldownMs) ? row.cooldownMs : base.cooldownMs;
   const requestedPath = typeof row.soundPath === "string" ? row.soundPath : base.soundPath;
+  const requestedDevice = typeof row.outputDeviceId === "string" ? row.outputDeviceId : (base.outputDeviceId ?? "");
   return {
     enabled: typeof row.enabled === "boolean" ? row.enabled : base.enabled === true,
     volume: clamp(volume, 0, 1),
     cooldownMs: clamp(Math.round(cooldown), 0, 60_000),
     notices: typeof row.notices === "boolean" ? row.notices : base.notices === true,
     soundPath: isSafeSoundPath(requestedPath) ? requestedPath.trim() : "",
+    outputDeviceId: sanitizeOutputDeviceId(requestedDevice),
   };
 }
 

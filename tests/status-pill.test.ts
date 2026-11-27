@@ -35,7 +35,15 @@ describe("status pills", () => {
     expect(css).toMatch(/@container \(max-width: 72px\) \{\s*\.pill-name \{ display: none; \}/);
     expect(css).toContain("flex: 0 0 auto");
     expect(css).toMatch(/\.pills \{[^}]*flex-wrap:\s*wrap/s);
-    expect(css).toMatch(/\.youtube-status \{[^}]*flex-wrap:\s*wrap/s);
     expect(css).toMatch(/@media \(max-width: 1180px\) \{\s*\.topbar \{ flex-wrap: wrap; \}/);
+  });
+
+  it("keeps dark text on the light green connected chips", () => {
+    const css = readFileSync(new URL("../src/renderer/styles.css", import.meta.url), "utf8");
+    expect(css).toContain(".redeem-bar p:not(.tts-up):not(.tts-down)");
+    expect(css).toMatch(/\.tts-up,\s*\.redeem-bar p\.tts-up \{[^}]*color:\s*#04210f/s);
+    expect(css).toMatch(/\.tts-down,\s*\.redeem-bar p\.tts-down \{[^}]*color:\s*#2a0a0e/s);
+    expect(css).toMatch(/\.live-pill\.on \{[^}]*color:\s*#04210f;[^}]*background:\s*var\(--ok\)/s);
+    expect(css).toMatch(/\.badge\.mod \{[^}]*background:\s*#3dd68c;[^}]*color:\s*#04210f/s);
   });
 });

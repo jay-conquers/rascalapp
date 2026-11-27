@@ -1,6 +1,6 @@
 {
   "name": "@rascal/bot",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "private": true,
   "type": "module",
   "description": "Rascal chat bot. Runs inside Rascal or as a headless process.",

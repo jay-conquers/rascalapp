@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SettingsStore } from "../src/main/settings";
 import { SettingsView } from "../src/renderer/components/SettingsView";
-import { SETTINGS_SECTIONS, TWITCH_SCOPE_REASONS, settingsFormPatch } from "../src/renderer/settings-form";
+import { SETTINGS_SECTIONS, TWITCH_SCOPE_REASONS, settingsFormDirty, settingsFormFromSettings, settingsFormPatch } from "../src/renderer/settings-form";
 import { defaultChatAlert } from "../src/shared/chat-alert";
 import { NOTICE_KINDS, NOTICE_LABELS, defaultFeed } from "../src/shared/feed-toggles";
 import { CHAT_ALWAYS_NOTE } from "../src/shared/desk-tabs";
@@ -182,6 +182,12 @@ describe("settings screen sections", () => {
     expect(alerts).toContain('data-setting="chatAlert.notices"');
     expect(alerts).toContain('data-setting="chatAlert.volume"');
     expect(alerts).toContain('data-setting="chatAlert.cooldownMs"');
+    expect(alerts).toContain('data-setting="chatAlert.outputDeviceId"');
+    expect(alerts).toContain("Output device");
+    expect(alerts).toContain("System default");
+    expect(alerts).toContain("Refresh devices");
+    expect(alerts).toContain("exclude Rascal from OBS Desktop Audio");
+    expect(alerts).toContain("does not move TTS or redeem alerts");
     expect(alerts).toContain("Test sound");
     expect(alerts).toContain("Choose sound");
     expect(alerts).toContain("Use built-in chime");
@@ -223,7 +229,15 @@ describe("settings screen sections", () => {
     expect(advanced).toContain("/tmp/rascal-chime.wav");
     expect(advanced).not.toContain('data-setting="twitchChannel"');
 
-    expect(html).toContain('data-testid="settings-save"');
+    const nav = html.indexOf('data-testid="settings-nav"');
+    const form = html.indexOf('id="settings-form"');
+    const save = html.indexOf('data-testid="settings-save"');
+    expect(save).toBeGreaterThan(nav);
+    expect(save).toBeLessThan(form);
+    const saveTag = html.slice(html.lastIndexOf("<button", save), html.indexOf(">", save));
+    expect(saveTag).toContain("disabled");
+    expect(saveTag).toContain('data-dirty="false"');
+    expect(saveTag).not.toContain("is-dirty");
     expect(html).toContain("Save settings");
     expect(html).not.toContain("Log in with Twitch");
     expect(html).not.toContain("Log in with Kick");
@@ -288,7 +302,7 @@ describe("settings form keys", () => {
     expect(patch.kickRelayUrl).toBe("wss://relay.example.com/v1/events");
     expect(patch.overlayPort).toBe(4777);
     expect(patch.autoImportFirebot).toBe(false);
-    expect(Object.keys(patch.chatAlert ?? {}).sort()).toEqual(["cooldownMs", "enabled", "notices", "soundPath", "volume"]);
+    expect(Object.keys(patch.chatAlert ?? {}).sort()).toEqual(["cooldownMs", "enabled", "notices", "outputDeviceId", "soundPath", "volume"]);
     expect(Object.keys(patch.feed ?? {}).sort()).toEqual(["emotes", "modLog", "notices"]);
     expect(NOTICE_KINDS.every((kind) => patch.feed?.notices[kind] !== undefined)).toBe(true);
 
@@ -322,5 +336,29 @@ describe("settings form keys", () => {
     expect(source).toContain("serverUrl: botUrl");
     expect(source).toContain("adminToken: botToken.trim() || undefined");
     expect(source).not.toContain("jeeves");
+  });
+
+  it("lights Save only when a stored field changes, and goes clean when that change is undone", () => {
+    const settings = loadSettings();
+    const draft = settingsFormFromSettings(settings);
+    expect(settingsFormDirty(settings, draft)).toBe(false);
+    expect(settingsFormDirty(settings, { ...draft, twitchChannel: "  ExampleChannel  " })).toBe(false);
+    expect(settingsFormDirty(settings, { ...draft, twitchChannel: "#otherchannel" })).toBe(true);
+    expect(settingsFormDirty(settings, { ...draft, overlayPort: "4778" })).toBe(true);
+    expect(settingsFormDirty(settings, { ...draft, autoImportFirebot: false })).toBe(true);
+    expect(settingsFormDirty(settings, { ...draft, youtubeChannelId: "UCexamplechannel00000002" })).toBe(true);
+    expect(settingsFormDirty(settings, { ...draft, feed: { ...draft.feed, modLog: !draft.feed.modLog } })).toBe(true);
+    const quieter = { ...draft.chatAlert, volume: draft.chatAlert.volume === 0.2 ? 0.3 : 0.2 };
+    expect(settingsFormDirty(settings, { ...draft, chatAlert: quieter })).toBe(true);
+    expect(settingsFormDirty(settings, { ...draft, chatAlert: { ...draft.chatAlert, outputDeviceId: "headphones" } })).toBe(true);
+    const toggled = { ...draft, feed: { ...draft.feed, emotes: { ...draft.feed.emotes, bttv: !draft.feed.emotes.bttv } } };
+    expect(settingsFormDirty(settings, toggled)).toBe(true);
+    expect(settingsFormDirty(settings, draft)).toBe(false);
+
+    const dir = tempDir();
+    const saved = new SettingsStore(dir).update(settingsFormPatch({ ...draft, chatAlert: { ...draft.chatAlert, outputDeviceId: "desk-speakers" } }));
+    expect(saved.chatAlert.outputDeviceId).toBe("desk-speakers");
+    expect(settingsFormDirty(saved, settingsFormFromSettings(saved))).toBe(false);
+    expect(settingsFormDirty(saved, { ...settingsFormFromSettings(saved), chatAlert: { ...saved.chatAlert, outputDeviceId: "" } })).toBe(true);
   });
 });
