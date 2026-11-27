@@ -1,191 +1,111 @@
 # Rascal
 
-Rascal is a free, open-source streaming desk for Twitch, YouTube, and Kick. Kick chat only arrives through a relay you run, or through Rascal hosting once that exists. Hosting is not available yet. It replaces the usual split between a chat client, Firebot-style channel-point alerts, and a StreamElements-style chat bot. The desktop app runs on Linux, Windows, and macOS Apple Silicon. A headless bot can stay inside the app or on a server you run.
+Rascal is a free, open-source desktop app for Twitch, YouTube, and Kick. One window covers multi-platform chat and mod tools, a chat bot, channel-point alerts, and OBS browser-source overlays. The bot can also run headless on a server you control.
 
-## Features
-
-- Combined Twitch, YouTube, and Kick chat in one window. Twitch emotes (global, channel, subscriber, and follower) render from the emote ids in each message. YouTube member and custom emoji render from the page reader. Kick emotes render from `files.kick.com`. BetterTTV, FrankerFaceZ, and 7TV global and channel emotes are on by default for Twitch and YouTube, each with its own switch in Settings. Those catalogs are not applied to Kick messages.
-- A message chime for new viewer messages. It is off until you turn it on under Settings → Alerts, and it keeps playing while the window is in the background. It skips your own messages, the bot, duplicates, and chat history. Notices are a separate switch. A short built-in chime is included, or you can choose a local audio file. **Output device** routes that chime only. Pick **System default** or another output, then use **Refresh devices** and **Test sound**. If the saved device is unplugged, the chime uses the system default. TTS and channel-point alerts keep their own outputs. The note under the picker says to use an output OBS does not capture, or to exclude Rascal from OBS Desktop Audio.
-- Twitch login with the device-code flow. Rascal is a public client: it never asks for a client secret. Access and refresh tokens stay in the account config folder. Paths and file modes are under [Configuration](#configuration).
-- Stream info edits the title on every platform that is turned on. Twitch and Kick also edit the category. YouTube has no game field in the live API, so the game title stays in YouTube Studio. A checkbox can apply one title to all enabled platforms. Each platform keeps its own fields. A failure on one platform is shown there and does not stop the others. The YouTube card on that tab has a **YouTube Studio** button beside the title. It opens the current livestream when a video id is known, the channel's livestreaming page when only a channel id is known, and Studio home otherwise.
-- Channel-point redeems over EventSub. Map a reward to a video, a sound, or nothing. Import a Firebot `channel-rewards.json` without writing it back. The default path is Firebot v5's Main profile. See [Configuration](#configuration). Rascal only edits rewards it created.
-- On-stream chat and alert pages for OBS.
-- A chat bot: commands, timers, filters, quotes, and a moderator portal. A command can also fire from a keyword or phrase in a normal message. Built-ins cover `!followage`, `!accountage`, mod `!so`, `!quote`, and `!cmds`. Optional thank-you lines for follows, subs, gifts, cheers, raids, and redeems stay off until you turn them on. Each command, timer, and the filter set can target Twitch, YouTube, Kick, or a combination. A missing target stays on Twitch. An item saved for every platform also runs on Kick once Kick is on. A timer can run while the stream is live, while it is offline, or both, with a separate interval for each, and it can rotate through several messages. Live and offline come from Twitch, from the YouTube page reader when that channel is live, and from Kick's livestream status when the relay is connected. The bot can post as the signed-in channel or as a separate account on Twitch and on YouTube. Kick posts as the account you signed in with. The bot can run inside the desktop app or as a separate process.
-- A panel for a separate local text-to-speech HTTP service, if you run one. The address is a setting. Rascal does not ship that service.
-- Chat hooks. A command such as `!ask` can POST the viewer's message to an address you run. The hook is off until you enable it. A secret signs the body with `X-Rascal-Signature`. The service can stay quiet or return a short chat reply. See [docs/chat-hooks.md](docs/chat-hooks.md).
-- Settings is grouped into Platforms, Chat & Bot, Tabs, Alerts, Moderation, App, and Advanced. The list is on the left. **Save settings** sits under that list. It stays quiet until a field changes, then it turns on in the chestnut accent and says Saved after the write. It stores channels, the Kick relay address, the overlay port, emotes, notices, the message sound and its output device, and Firebot import. Platforms, tabs, the relay secret, the Kick app, and the bot connection save with their own controls.
-
-A fresh install asks which platforms you stream on. Twitch starts checked. YouTube and Kick stay off until you select them. Turning Kick on explains that chat needs a relay and waits until you tick **I understand**. Chat for a selected platform follows the channel in Settings, or the Twitch account you sign in with when that field is empty.
-
-The buttons along the top are Redeems, Stream info, Chat overlay, TTS, and Bot. Settings is the gear and always stays, so a hidden button can be turned back on. Chat is the main panel and always stays. Hide a button from Settings, under Tabs, or right-click a button and choose Hide tab. Hiding a button removes it from the window. The bot, the overlays, and the connections keep running. Redeems is also hidden while Twitch is turned off. Turning Twitch back on shows Redeems again, unless it is hidden under Tabs.
-
-The packaged app is a Linux x64 AppImage, a Windows x64 installer, and a macOS Apple Silicon DMG. macOS has the standard application menu: About, Services, Hide, Hide Others, Show All, and Quit (Command+Q), plus Edit and Window. Copy, paste, and the other edit shortcuts come from that menu. Linux and Windows have no application menu. On Windows the taskbar uses the app id `app.rascal.desktop`. The window uses the system font on macOS and Windows, then Noto Sans, Liberation Sans, and DejaVu Sans.
+Kick chat arrives through a relay you run. Hosted Kick is not available yet.
 
 ## Downloads
 
-Pre-release installers are on [GitHub Releases](https://github.com/jay-conquers/rascalapp/releases). The current pre-release is [v0.14.5](https://github.com/jay-conquers/rascalapp/releases/tag/v0.14.5).
+[v0.14.5](https://github.com/jay-conquers/rascalapp/releases/tag/v0.14.5) is the first public release (pre-release).
 
 | Platform | File |
 |---|---|
-| Linux x64 | `Rascal-0.14.5.AppImage` |
-| Windows x64 | `Rascal-0.14.5-win-x64.exe` (NSIS) |
-| macOS Apple Silicon (arm64) | `Rascal-0.14.5-mac-arm64.dmg` |
-| Checksums | `SHA256SUMS.txt` |
+| Linux x64 | [Rascal-0.14.5.AppImage](https://github.com/jay-conquers/rascalapp/releases/download/v0.14.5/Rascal-0.14.5.AppImage) |
+| Windows x64 (NSIS) | [Rascal-0.14.5-win-x64.exe](https://github.com/jay-conquers/rascalapp/releases/download/v0.14.5/Rascal-0.14.5-win-x64.exe) |
+| macOS Apple Silicon (arm64) | [Rascal-0.14.5-mac-arm64.dmg](https://github.com/jay-conquers/rascalapp/releases/download/v0.14.5/Rascal-0.14.5-mac-arm64.dmg) |
+| Checksums | [SHA256SUMS.txt](https://github.com/jay-conquers/rascalapp/releases/download/v0.14.5/SHA256SUMS.txt) |
 
-macOS builds are Apple Silicon (`arm64`) only. `SHA256SUMS.txt` lists one SHA-256 digest per installer, in `sha256sum` form (digest, two spaces, file name).
+macOS is Apple Silicon only. An Intel Mac build is not produced.
 
-The Windows and macOS files in this pre-release are unsigned. There is no certificate and no notarization.
+Windows and macOS builds are unsigned. There is no certificate and no notarization.
 
-- Windows SmartScreen can say "Windows protected your PC" the first time you open the installer. Choose **More info**, then **Run anyway**.
+- Windows SmartScreen can say "Windows protected your PC". Choose **More info**, then **Run anyway**.
 - macOS Gatekeeper can say Apple cannot verify the developer. Control-click Rascal in Finder, choose **Open**, then **Open** again. The same approval is under System Settings → Privacy & Security → **Open Anyway**.
 
-Check the files before you run them:
+`SHA256SUMS.txt` is `sha256sum` form (digest, two spaces, file name). From the folder that contains the files:
 
 ```bash
-# Linux, from the folder that contains the AppImage and SHA256SUMS.txt
-sha256sum -c SHA256SUMS.txt
-
-# macOS
-shasum -a 256 -c SHA256SUMS.txt
+sha256sum -c SHA256SUMS.txt       # Linux
+shasum -a 256 -c SHA256SUMS.txt   # macOS
 ```
 
-On Windows, `Get-FileHash .\Rascal-0.14.5-win-x64.exe -Algorithm SHA256` should match the digest on the `Rascal-0.14.5-win-x64.exe` line. Letter case does not matter.
+On Windows, `Get-FileHash .\Rascal-0.14.5-win-x64.exe -Algorithm SHA256` should match that file's line. Letter case does not matter.
 
-### Linux AppImage
+On Linux, `chmod +x Rascal-0.14.5.AppImage` and run it. If FUSE 2 is missing, install `fuse2`, or start with `APPIMAGE_EXTRACT_AND_RUN=1`.
 
-```bash
-chmod +x Rascal-0.14.5.AppImage
-mkdir -p ~/Applications
-install -m 0755 Rascal-0.14.5.AppImage ~/Applications/Rascal.AppImage
-~/Applications/Rascal.AppImage
-```
+## Features
 
-If the AppImage will not start because FUSE 2 is missing:
+- **Chat and mod tools** for Twitch, YouTube, and Kick. Click or right-click a message to delete, time out, ban, or unban. A private mod log stays in Rascal. It is never posted to chat or drawn on an overlay. Viewer counts sit on each platform's status. Subs, raids, cheers, follows, and YouTube Super Chats can show in the column. Each kind has a switch and defaults to on.
+- **Emotes** from Twitch, YouTube, and Kick. BetterTTV, FrankerFaceZ, and 7TV are on by default for Twitch and YouTube, each with its own switch. They are not applied to Kick.
+- **Message chime** for new viewer messages, under Settings → Alerts. It stays off until you turn it on, plays while the window is in the background, and skips your own messages, the bot, duplicates, and chat history. **Output device** routes that chime only. Pick **System default** or another output, then **Refresh devices** and **Test sound**. An unplugged device falls back to the system default. Use an output OBS does not capture. TTS and redeem alerts stay on their own outputs.
+- **Bot** with commands, keyword triggers, timers, filters, quotes, and a moderator portal. Built-ins include `!followage`, `!accountage`, `!so`, `!quote`, and `!cmds`. Optional thank-you lines for follows, subs, gifts, cheers, raids, and redeems stay off until you turn them on. Each command, timer, and the filter set can target Twitch, YouTube, Kick, or a combination. A command with no platform target runs on Twitch. A timer can run live, offline, or both. The bot posts as the signed-in channel or as a separate Twitch or YouTube account. Kick posts as the account you signed in with. It runs inside the app or as its own process.
+- **Redeems and overlays.** Map a Twitch channel-point reward to a video, a sound, or nothing. Import a Firebot v5 `channel-rewards.json` without writing it back. Rascal only edits rewards it created. OBS browser sources serve alerts and chat, including a vertical preset.
+- **Text-to-speech** panel for a local HTTP TTS service you run. Rascal does not ship that service.
+- **Stream info** edits the title on every platform that is on. Twitch and Kick also edit the category. YouTube has no game field, so the game title stays in YouTube Studio. A **YouTube Studio** button beside the title opens the current livestream, the channel's livestreaming page, or Studio home. One checkbox can apply a title to every enabled platform. A failure on one platform does not stop the others.
+- **Chat hooks.** A command such as `!ask` can POST the viewer's message to an address you run. See [docs/chat-hooks.md](docs/chat-hooks.md).
+- **Self-hosting.** Run the headless bot with Docker, or use the optional Fly.io example. Kick uses the relay in [docs/kick-relay.md](docs/kick-relay.md).
 
-```bash
-# Arch
-sudo pacman -S fuse2
-# or skip FUSE
-APPIMAGE_EXTRACT_AND_RUN=1 ~/Applications/Rascal.AppImage
-```
+A new install asks which platforms you use. Twitch starts checked. YouTube and Kick stay off until you select them. Turning Kick on waits until you tick **I understand**.
 
-From a git checkout you can also run `./scripts/install-local.sh` after a build. That copies the AppImage to `~/Applications/Rascal.AppImage` and writes `~/.local/share/applications/rascal.desktop`.
+The top bar is Redeems, Stream info, Chat overlay, TTS, and Bot. Chat always stays. Settings is the gear and always stays. Hide a button under Settings → Tabs, or right-click it and choose Hide tab. Hiding a button does not stop the bot, the overlays, or the connections. Redeems is also hidden while Twitch is off.
 
-### Twitch application
+## Quick setup
 
-1. Open <https://dev.twitch.tv/console/apps> and register an application.
-2. OAuth redirect URL: `http://localhost`
-3. Category: Application Integration. Client type: Public.
-4. Copy the client ID into Settings → Advanced and choose **Save settings**.
-5. Under Platforms → Twitch, choose **Log in** and approve the code at `twitch.tv/activate`.
+### Config paths
 
-For the moderator portal, also add `http://localhost:4788/portal/callback`. Twitch will not save a `127.0.0.1` redirect. The process still listens on `127.0.0.1`.
-
-### YouTube and Google OAuth
-
-YouTube chat in the desk still arrives through the public live chat page. Sending, bot replies, deletes, and bans use the YouTube Data API v3 and a Google login. Rascal does not ship a Google client id or secret.
-
-1. Open [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) and enable it on a Google Cloud project you control.
-2. Open [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials). Configure the OAuth consent screen as External and Testing. Add every Google account that will post or moderate as a test user. The scope Rascal requests is `https://www.googleapis.com/auth/youtube.force-ssl` (the consent screen shows it as managing the YouTube account). That scope is what live chat send, delete, ban, and the live title update require. `https://www.googleapis.com/auth/youtube` would also allow the title update. Rascal does not ask for a second YouTube scope. A login that already granted `youtube.force-ssl` can change the title without signing in again.
-3. Create an OAuth client.
-   - **Desktop app.** Rascal sends the browser to Google and listens for `http://127.0.0.1:4799/youtube/callback`. The listener accepts that callback on `127.0.0.1` and on `::1`. Desktop clients accept the loopback redirect.
-   - **Web application.** Add this exact redirect URI: `http://127.0.0.1:4799/youtube/callback`.
-4. In Rascal, open **Bot → YouTube**, paste the client ID and client secret, and choose **Save Google client**. They are written to `google-client.json` next to the other config files, mode `0600` on Linux and macOS. They are not logged and they are not in git.
-5. Or set `RASCAL_GOOGLE_CLIENT_ID` and `RASCAL_GOOGLE_CLIENT_SECRET` in the environment. When the client ID variable is set, it overrides the file. Do not commit those values.
-6. **Connect channel account** and approve the prompt in the browser. That is the account the chat box posts as. Use the Google account that owns the YouTube channel, or another account you want the typed messages to come from.
-7. Optional: **Connect bot account** with a second Google account. Leave **Post as the signed-in channel** unchecked if the bot should use that second account. Check it if the bot should post as the channel account from step 6. Twitch keeps using its separate bot account unless you check the same box on the Twitch section.
-8. A separate bot account can delete messages and time people out only when YouTube considers it a moderator of that live chat. The channel owner can do those actions without a second account. YouTube has no timeout call of its own: a timeout is a temporary live-chat ban, and a ban is a permanent one. Rascal can lift a ban only when this session created it, because the API deletes a ban by the ban id and does not list bans.
-9. On each command and timer, check Twitch, YouTube, Kick, or a combination. The filter card has the same checks. A missing or unrecognized target stays on Twitch. An item saved for every platform also runs on Kick once Kick is on.
-10. On the chat screen, check **YouTube** or **Kick** before sending there. Those choices are saved, including across tabs and restarts. A new install sends to Twitch only. If YouTube is offline, or sending is not set up yet, the box stays as you left it and shows a short note. Messages skip a platform until its chat can take one, then include it again with no re-check. Reading YouTube chat does not need the Google login. YouTube live chat stops at 200 characters. Twitch and Kick stop at 500. When YouTube is checked, the box uses the 200-character limit. Twitch chat still works while the stream is offline. Kick chat can be sent while the channel is offline once the account and the relay are up. A YouTube send uses the active live chat for the video Rascal is reading. An upcoming or finished broadcast is not used, even when YouTube still lists a chat id for it. If YouTube rejects a message, the error text is YouTube's own reason.
-
-Incoming YouTube chat, for the desk and for the bot, comes from the public live chat page (`youtubei` `get_live_chat`). That does not spend Data API quota. The message id and the author channel id from that page are the ones delete and ban use. The Data API is used when someone sends, deletes, times out, or bans, and once to learn the `liveChatId`. A checkbox on the Bot tab can also poll `liveChatMessages.list`. It is off unless the page reader fails three times in a row, and it turns off again when the page reader recovers.
-
-The page asks Rascal to wait, often about 5 seconds, before the next chat fetch. Rascal asks about every 1.5 seconds instead (never faster than 1 second). `RASCAL_YOUTUBE_POLL_MS` changes that target. A 429 or another error stretches the wait toward YouTube's suggested timeout, and healthy polls ease it back down. Repeated copies of the same message id are dropped. The Data API poll, when it is on, still waits for `pollingIntervalMillis` and does not use this 1.5 second pace.
-
-The bot finds `liveChatId` with `liveBroadcasts.list` (`mine=true`, active) when it needs to post or moderate. A moderator account does not own the broadcast, so that call can come back empty. Rascal then uses the video id the page reader already has, and `videos.list` `liveStreamingDetails.activeLiveChatId`.
-
-Stream info can change the title of the active or upcoming broadcast. Rascal loads that broadcast and sends the snippet back with only the title changed. The description is not edited. YouTube's live API has no game field. The game title is set in YouTube Studio. The **YouTube Studio** button on the YouTube card opens Studio for the current livestream, or the channel's livestreaming page when only a channel id is known. That save costs 50 quota units and is not polled. A login that already has `youtube.force-ssl` does not need to sign in again.
-
-## Kick
-
-Kick does not give chat to a desktop app directly. Events are webhooks, and a webhook needs a public HTTPS address. Kick works with a relay you run. Rascal hosting would use that same relay later. It is not available yet.
-
-Turning Kick on explains this and waits until you tick **I understand**. Cancel leaves Kick off. The choice is saved. Without a relay address and secret, Kick's status says **No relay configured**.
-
-The steps for the Docker relay, the Kick developer app, the webhook URL, and the desktop settings are in [docs/kick-relay.md](docs/kick-relay.md). The same page is at <https://github.com/jay-conquers/rascalapp/blob/main/docs/kick-relay.md>.
-
-What you can do once that is connected: read chat, send a message as the account you signed in with, and delete, time out, ban, or unban from the moderation menu. A Kick timeout is 1 minute to 7 days, in whole minutes. Stream info can also set the Kick title and category. That uses Kick's public API (`PATCH /public/v1/channels`) and does not need the relay. It needs `channel:write`, which a login from 0.12.0 does not have. Chat keeps working. Log out of Kick and back in once so the title can be saved.
-
-What you cannot do on Kick in this version: channel-point redeems, a separate bot account, `!followage`, `!accountage`, `!so`, a viewer list beyond people who spoke this session, and follows, subscriptions, gifted subscriptions, or Kicks gifts in the chat column. BetterTTV, FrankerFaceZ, and 7TV do not apply to Kick messages. Turning Kick off stops its connections and leaves the login saved. An upgrade from 0.11.0 does not turn Kick on.
-
-#### Quota
-
-Google's default project quota is **10,000 units per day** and it resets at midnight Pacific time. Costs below are from [Google's quota calculator](https://developers.google.com/youtube/v3/determine_quota_cost) as published in November 2026. The numbers in Rascal live in `src/shared/platform/youtube-quota.ts`.
-
-| Call | Units |
+| System | Rascal files |
 |---|---|
-| `liveChatMessages.list` (one Data API poll) | 5 |
-| `liveChatMessages.insert` (one sent message) | 20 |
-| `liveChatMessages.delete` | 20 |
-| `liveChatBans.insert` (timeout or ban) | 200 |
-| `liveChatBans.delete` (lift a ban) | 200 |
-| `liveBroadcasts.list`, `videos.list`, `channels.list` | 1 each |
-| `liveBroadcasts.update` (change the live title) | 50 |
+| Linux | `~/.config/rascal` (`XDG_CONFIG_HOME` is honored). Electron window data is `~/.config/Rascal`. |
+| Windows | `%APPDATA%\Rascal` |
+| macOS | `~/Library/Application Support/Rascal` |
 
-A normal 5-hour stream does not poll `liveChatMessages.list`. Reading chat is free. One lookup for the live chat id is 1 unit. Each bot reply or typed send is 20. Thirty replies in those 5 hours is about **601 units** (1 + 30 × 20). The same 5 hours polled on the Data API every 5 seconds is 3,600 polls × 5 = **18,000 units** before replies, or about **18,601** once those 30 replies are included. That is more than the daily quota. The Data API poll stays off.
+On Linux and macOS, secret files are mode `0600` and their directory is mode `0700`. Windows uses the user profile ACL.
 
-If the whole 10,000 units were spent on one kind of call, that would be 2,000 polls, 500 sent messages, 500 deletes, 50 bans, or 200 live title updates. The Bot tab shows the session estimate and the 5-hour figure. Changing a title fetches the broadcast (1 unit) and then updates it (50). It is not repeated on a timer.
+Default alert media is `~/Streaming/Rascal-Assets/Sounds` on Linux, and `Rascal-Assets/Sounds` inside Music on Windows and macOS (Documents if Music is missing). A `soundFolder` saved in `redeems.json` is left as it is.
 
-## Build from source
+Firebot import reads the Main profile and does not write it back. The startup import switch is under Settings → App, and only while Twitch is on. On Linux, `$XDG_CONFIG_HOME` replaces `~/.config` when it is set.
 
-Node.js 22 and Python 3. The first build needs network access so Electron and the AppImage tool can download. Python is the standard library only. `scripts/render-icon.py` reads `build/icon.svg` and writes the icon files. No image library is required.
+| System | Firebot v5 rewards file |
+|---|---|
+| Linux | `~/.config/Firebot/v5/profiles/Main/channel-rewards.json` |
+| Windows | `%APPDATA%\Firebot\v5\profiles\Main\channel-rewards.json` |
+| macOS | `~/Library/Application Support/Firebot/v5/profiles/Main/channel-rewards.json` |
 
-The icon is a sitting tabby facing left. The badge is charcoal, the cat is chestnut with espresso stripes and a cream outline, and the corners outside the circle are transparent. The script writes:
+### Twitch
 
-- Linux PNGs at `build/icons/16x16.png` through `build/icons/512x512.png`
-- `build/icon.png` and `packaging/rascal.png` at 256 pixels
-- `build/icon.ico` for Windows
-- `build/icon.icns` for macOS, including the 1024 pixel `ic10` image (512 points at 2x)
+Rascal is a public client and never asks for a client secret. Tokens stay in the config folder.
 
-`npm run build` runs that script before the typecheck and the bundle. `scripts/generate-icons.cjs` is the electron-builder `beforePack` hook. It skips the render when `build/icon.ico` and `build/icon.icns` are already newer than the SVG.
+1. Register an application at <https://dev.twitch.tv/console/apps>. Redirect URL: `http://localhost`. Category: Application Integration. Client type: Public.
+2. Paste the client ID into Settings → Advanced and choose **Save settings**.
+3. Under Platforms → Twitch, choose **Log in** and approve the code at `twitch.tv/activate`.
 
-```bash
-npm ci
-npm test
-npm run build
-npm run build:appimage
-```
+For the moderator portal, also add `http://localhost:4788/portal/callback`. Twitch will not save a `127.0.0.1` redirect. The process listens on `127.0.0.1`.
 
-`./scripts/build-appimage.sh` runs install, test, build, and the AppImage pack. The image is `release/Rascal-0.14.5.AppImage`.
+### YouTube
 
-Windows (NSIS, x64) and macOS (DMG, Apple Silicon arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. `npm run build:win` packages the Windows installer on Windows. `npm run build:mac` packages the Apple Silicon DMG on macOS. The GitHub Actions workflow uploads them as `Rascal-Windows-NSIS` and `Rascal-macOS-DMG`. The release files use the names in [Downloads](#downloads).
+Chat is read from the public live page and does not spend Data API quota. Sending, deletes, bans, and the live title use YouTube Data API v3. Rascal does not ship a Google client.
 
-```bash
-npm run build:win
-npm run build:mac
-```
+1. Enable [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com).
+2. Set the OAuth consent screen to External and Testing. Add each Google account that will post or moderate as a test user. Rascal requests `https://www.googleapis.com/auth/youtube.force-ssl`.
+3. Create an OAuth client. A Desktop app client accepts the loopback redirect. A Web application client needs `http://127.0.0.1:4799/youtube/callback`. Rascal listens on `127.0.0.1` and on `::1`.
+4. Open **Bot → YouTube**, paste the client ID and secret, and choose **Save Google client**. They are stored in `google-client.json` (mode `0600` on Linux and macOS) and are not logged. Or set `RASCAL_GOOGLE_CLIENT_ID` and `RASCAL_GOOGLE_CLIENT_SECRET`. A set client ID overrides the file.
+5. **Connect channel account**. That account is who the chat box posts as. An optional second account is the bot. It can delete and time people out only when YouTube treats it as a moderator of that live chat. The channel owner can do those without a second account. A timeout is a temporary live-chat ban. Rascal can lift a ban only when this session created it.
 
-`npm run dev` starts Vite and Electron against the unpacked source. `npm test` does not contact Twitch or YouTube.
+Check **YouTube** on the chat screen before sending there. A new install sends to Twitch only, and the checks are saved. YouTube live chat stops at 200 characters. Twitch and Kick stop at 500. When YouTube is checked, the box uses 200. Reading chat does not need the Google login.
 
-## Chat notices, viewers, and the mod log
+Google's default quota is 10,000 units per day. Reading chat is free. A send is 20 units, a ban or timeout is 200, and a title save is 50 plus 1 to fetch the broadcast. The Data API chat poll stays off unless the page reader fails. The Bot tab shows the session estimate.
 
-The chat column shows Twitch subs, resubs, gifted subs, raids, and cheers when chat sends them. Cheers are the bits messages already in IRC. Follows, watch streaks, and mod anniversaries come from EventSub (`channel.follow` v2 and `channel.chat.notification`). YouTube Super Chats, Super Stickers, memberships, gifted memberships, and member milestones come from the page reader. Channel point redeems show the reward name, who redeemed it, and any text they typed. Each of those, and the private mod log, has a switch in Settings. They default to on.
+### Kick
 
-A login from 0.7.0 does not include the new scopes. Rascal keeps reading chat. Settings names the missing scopes and asks you to log in again. Approve the device code when you want the mod log, follows, watch streaks, and mod anniversaries. The scopes added in 0.8.0 are `user:read:chat`, `moderator:read:followers`, and the moderator read set required by `channel.moderate` v2: `moderator:read:blocked_terms`, `moderator:read:chat_settings`, `moderator:read:unban_requests`, `moderator:read:banned_users`, `moderator:read:chat_messages`, `moderator:read:warnings`, `moderator:read:moderators`, and `moderator:read:vips`. `channel:read:redemptions` was already requested. 0.9.0 also asks for `moderator:manage:chat_messages`, `moderator:manage:banned_users`, and `moderator:read:chatters`. Log out and back in once. Until then, chat still works, and deletes, timeouts, bans, and the Twitch chatter list stay off.
+Kick events are webhooks, so they need a public HTTPS address. The Docker relay, the Kick app, and the webhook URL are in [docs/kick-relay.md](docs/kick-relay.md). Without a relay address and secret, status stays **No relay configured**.
 
-Click or right-click a chat message or a name to delete it, time that viewer out, ban, or unban. Twitch uses your login. YouTube uses the connected account on the live chat. Kick uses the signed-in account. The broadcaster's own account is left alone, and a ban asks first.
+Save the relay address with **Save settings**. **Save relay secret** stores the secret only. The login includes `channel:write`, which Stream info uses for the Kick title and category. That call does not use the relay.
 
-The mod log is a panel in Rascal's own window. It lists Twitch timeouts, bans, unbans, message deletes, warnings, chat clears, chat mode changes, and mod or unmod, with who did it and the duration or reason when Twitch sent them. It is not posted to Twitch, YouTube, or Kick chat, and it is not drawn on the alert or chat overlay. YouTube's page reader reports deleted messages and removed authors, and ban or timeout banners when the text says so. It usually does not name the moderator, and a removed author is not labeled as a ban unless the banner says banned.
+Once connected you can read chat, send as the signed-in account, and delete, time out, ban, or unban. A Kick timeout is 1 minute to 7 days, in whole minutes. Kick does not include channel-point redeems, a separate bot account, `!followage`, `!accountage`, `!so`, a viewer list beyond people who spoke this session, or follows, subscriptions, gifted subscriptions, and Kicks gifts in the chat column. Turning Kick off stops its connections and leaves the login saved.
 
-Viewer counts sit on the Twitch, YouTube, and Kick status pills. Twitch uses Helix `GET /streams` about every 60 seconds and needs a login. YouTube uses the concurrent count on the live page (`videoDetails.viewCount` while the player says the broadcast is live). That does not call `videos.list`. Kick shows `stream.viewer_count` from `GET /channels` when the relay connects.
+### OBS overlays
 
-Emote images are cached on disk under the config directory after a fetch that sends no cookies and no auth header. Only https images on the Twitch, BetterTTV, FrankerFaceZ, 7TV, YouTube, and Kick hosts Rascal already allows are stored. SVG is not stored.
-
-Twitch's public `channel.chat.notification` list includes `watch_streak` and `modiversary` (plus `shared_chat_modiversary`). It does not list a separate `shared_chat_watch_streak` type. A watch streak that arrives as `watch_streak` with a source channel name is labeled as shared chat. VIP changes, AutoMod term edits, and unban-request decisions are not shown.
-
-## OBS overlays
-
-Add a browser source. Both pages are loopback only.
+Add a browser source. The pages are loopback only. Use 1920×1080, leave custom CSS empty, and turn on transparency. The port is 4777 unless you change it in Settings.
 
 | Source | URL |
 |---|---|
@@ -193,39 +113,29 @@ Add a browser source. Both pages are loopback only.
 | Chat | `http://127.0.0.1:4777/overlay/chat` |
 | Vertical chat | `http://127.0.0.1:4777/overlay/chat?preset=vertical` |
 
-Use 1920×1080, leave custom CSS empty, and turn on transparency. The page reloads itself when a newer Rascal build changes the overlay. Refresh the browser source once if it was left open from a build that did not have that check.
+## Build from source
 
-The port is 4777 unless you change it in Settings. The paths stay the same.
+Node.js 22 and Python 3. Python's standard library rasterizes `build/icon.svg` during the build. No image library is required. The first package step needs network access so Electron can download.
 
-## Source layout
+```bash
+npm install
+npm test
+npm run build:appimage
+npm run build:win
+npm run build:mac
+```
 
-The desk (Electron) and the headless bot share `src/shared`. The bot does not import the desktop. Chat sites implement one `ChatPlatform` interface. Twitch, YouTube, and Kick are the adapters. Kick's events go through the relay in `packages/relay`. How to add a platform, and where config loading stops and the command engine starts, is in [docs/architecture.md](docs/architecture.md).
+`npm run build:appimage` writes `release/Rascal-0.14.5.AppImage` on Linux. `npm run build:win` packages the unsigned x64 NSIS installer on Windows. `npm run build:mac` packages the unsigned Apple Silicon DMG on macOS. `npm run dev` starts Vite and Electron from source. Tests do not contact Twitch, YouTube, or Kick.
+
+After an AppImage build, `./scripts/install-local.sh` copies it to `~/Applications/Rascal.AppImage` and writes a desktop entry.
+
+How the desk and the bot share code is in [docs/architecture.md](docs/architecture.md).
 
 ## Self-host the bot
 
-The bot can stay inside the desktop app, or run on a server you control. The step-by-step for your own domain, HTTPS, and OAuth apps is [docs/self-hosting.md](docs/self-hosting.md). `deploy/fly` is an optional Fly.io example for one small always-on machine in Ashburn (`shared-cpu-1x`, 256 MB, no dedicated IPv4). The app name in `fly.toml` is `rascal`. If that name is taken, use `rascalapp`. The volume is `rascal_bot_data`. The public portal callback is `https://<your-host>/portal/callback`.
+The desktop app can keep the bot on the same computer, or control one bot on a server you run. Bring your own domain and OAuth apps. See [docs/self-hosting.md](docs/self-hosting.md).
 
-Nothing in `deploy/fly` is deployed by this repository. The steps, the cost notes, and the secret commands are in [deploy/fly/README.md](deploy/fly/README.md). Put tokens in `fly secrets` or in the volume, not in git.
-
-## Configuration
-
-On Linux, settings, tokens, redeem mappings, and the bot files live in `~/.config/rascal` (`XDG_CONFIG_HOME` is honored). Electron's own window data stays in `~/.config/Rascal`.
-
-On Windows those files live in `%APPDATA%\Rascal`. On macOS they live in `~/Library/Application Support/Rascal`.
-
-Secret files are mode `0600` on Linux and macOS, and their directory is mode `0700`. Windows has no Unix permission bits. Rascal does not call chmod there, so startup does not crash, and access control is the user profile ACL.
-
-The default alert media folder is `~/Streaming/Rascal-Assets/Sounds` on Linux. On Windows and macOS it is `Rascal-Assets/Sounds` inside Music (Documents if Music is not available). A `soundFolder` already saved in `redeems.json` is left as it is.
-
-Firebot import reads `channel-rewards.json` from the Main profile and does not write it back. A saved copy inside Rascal is what later edits use.
-
-| Platform | Firebot rewards file |
-|---|---|
-| Linux | `$XDG_CONFIG_HOME/Firebot/v5/profiles/Main/channel-rewards.json`, or `~/.config/Firebot/v5/profiles/Main/channel-rewards.json` |
-| Windows | `%APPDATA%\Firebot\v5\profiles\Main\channel-rewards.json` |
-| macOS | `~/Library/Application Support/Firebot/v5/profiles/Main/channel-rewards.json` |
-
-The switch that imports that file on startup is under Settings → App, and only while Twitch is on.
+`deploy/fly` is an optional Fly.io example: one small machine in Ashburn, app name `rascal`, volume `rascal_bot_data`. Nothing in that folder is deployed by this repository. See [deploy/fly/README.md](deploy/fly/README.md).
 
 ## License
 
