@@ -117,7 +117,8 @@ describe("packaging scripts", () => {
     expect(workflow).toContain("name: Rascal-macOS-DMG");
     const builder = readFileSync(path.join(root, "electron-builder.yml"), "utf8");
     expect(builder).toMatch(/win:[\s\S]*arch:\s*\n\s*- x64/);
-    expect(builder).toMatch(/mac:[\s\S]*arch:\s*\n\s*- x64\s*\n\s*- arm64/);
+    expect(builder).toMatch(/mac:[\s\S]*arch:\s*\n\s*- arm64\n/);
+    expect(builder).not.toMatch(/mac:[\s\S]*\n\s*- x64/);
   });
 });
 

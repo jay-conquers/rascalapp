@@ -20,13 +20,13 @@ Version=1.0
 Type=Application
 Name=Rascal
 GenericName=Stream desk
-Comment=Twitch and YouTube chat and stream info
+Comment=Twitch, YouTube, and Kick chat and stream info
 Exec=$HOME/Applications/Rascal.AppImage --ozone-platform-hint=auto %U
 Icon=$HOME/.local/share/icons/hicolor/256x256/apps/rascal.png
 Terminal=false
 Categories=AudioVideo;Network;
 StartupWMClass=rascal
-Keywords=twitch;youtube;chat;stream;
+Keywords=twitch;youtube;kick;chat;stream;
 StartupNotify=true
 EOF
 

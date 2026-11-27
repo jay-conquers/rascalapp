@@ -59,7 +59,7 @@ Open [Kick developer settings](https://kick.com/settings/developer) and create a
 - Turn webhooks on.
 - Webhook URL: `https://<your-host>/webhooks/kick`
 
-Kick will not deliver webhooks to `localhost`. The redirect above is only for the login on the computer where Rascal is open. The process listens on `127.0.0.1:4801`. The redirect host is `localhost` because Kick rewrites `127.0.0.1` to that name.
+Kick will not deliver webhooks to `localhost`. The redirect above is only for the login on the computer where Rascal is open. The process listens on `127.0.0.1:4801` and on `::1`. The redirect host is `localhost` because Kick rewrites `127.0.0.1` to that name. A callback whose state does not match the login Rascal started is ignored.
 
 Copy the client ID and the client secret into Rascal. They are stored in `kick-client.json` next to the other config files, mode `0600` on Linux and macOS. They are not written to `settings.json` and they are not logged.
 
@@ -69,8 +69,8 @@ Turn Kick on in the platform list. The notice explains that Kick needs hosting o
 
 In Settings, with Kick on:
 
-1. Relay address: `wss://<your-host>/v1/events`
-2. Relay secret: the same string as `RELAY_SECRET`. Choose **Save relay secret**.
+1. Relay address: `wss://<your-host>/v1/events`. Choose **Save settings** in the left sidebar. The address is part of that save. **Save relay secret** does not store it.
+2. Relay secret: the same string as `RELAY_SECRET`, at least 16 characters. Choose **Save relay secret**.
 3. Under Advanced, Kick client ID and client secret. Choose **Save Kick app**.
 4. Under Kick, choose **Log in** and approve the app.
 

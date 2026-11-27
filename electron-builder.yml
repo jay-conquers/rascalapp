@@ -23,20 +23,21 @@ linux:
   executableName: rascal
   syncDesktopName: true
   artifactName: Rascal-${version}.${ext}
-  synopsis: Twitch and YouTube stream desk
+  synopsis: Twitch, YouTube, and Kick stream desk
   description: Combined chat, alerts, and a chat bot.
   maintainer: jay-conquers
   desktop:
     entry:
       Name: Rascal
       GenericName: Stream desk
-      Comment: Twitch and YouTube chat and stream info
+      Comment: Twitch, YouTube, and Kick chat and stream info
       Categories: AudioVideo;Network;
-      Keywords: twitch;youtube;chat;stream;
+      Keywords: twitch;youtube;kick;chat;stream;
       StartupWMClass: rascal
       Terminal: "false"
       StartupNotify: "true"
 # Unsigned desktop targets. No certificate, no notarization, no publisher.
+# macOS is Apple Silicon (arm64) only.
 # npm run build:appimage, build:win, and build:mac package these.
 # GitHub Actions uploads the Windows NSIS and macOS DMG artifacts.
 win:
@@ -54,7 +55,6 @@ mac:
   target:
     - target: dmg
       arch:
-        - x64
         - arm64
   icon: build/icon.icns
   category: public.app-category.video
