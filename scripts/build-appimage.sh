@@ -2,8 +2,9 @@
 # Reproducible AppImage build. Requires Node 22, python3, and network
 # access so electron-builder can fetch Electron and appimagetool.
 # Icon render writes build/icons, build/icon.ico, and build/icon.icns from
-# build/icon.svg. electron-builder's beforePack hook skips that step when
-# those files are already newer than the SVG.
+# build/icon.svg. The ICNS file includes the 1024px ic10 image.
+# electron-builder's beforePack hook skips that step when those files are
+# already newer than the SVG.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

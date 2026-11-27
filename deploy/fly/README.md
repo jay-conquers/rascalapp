@@ -129,7 +129,7 @@ On Linux the local files are under `~/.config/rascal/` (`XDG_CONFIG_HOME` is hon
 | `bot-tokens.json` | The bot account's Twitch session | Optional. Prefer a fresh login from Rascal. |
 | `bot-link.json` | This computer's embedded/server choice | Stays on the desktop. Do not upload it. |
 
-Upload the public config. This does not print the admin token or the JWT.
+Upload the public config. This does not print the admin token or the JWT. The example `--dir` is the Linux config folder. On Windows or macOS, omit `--dir` and the script uses `%APPDATA%\Rascal` or `~/Library/Application Support/Rascal`.
 
 ```bash
 RASCAL_BOT_API_KEY="the first random value" \

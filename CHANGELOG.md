@@ -7,7 +7,7 @@
 - The macOS icon file includes the 1024 pixel image.
 - The desk uses the system font on macOS and Windows, then the same Linux fonts as before.
 - The packaged window allows a blob audio element, so the message chime's media-element fallback can play.
-- GitHub Actions packages an unsigned Windows NSIS installer and unsigned macOS DMGs (x64 and arm64). The Linux AppImage job is unchanged.
+- GitHub Actions packages an unsigned Windows NSIS installer (x64) and an unsigned macOS DMG for Apple Silicon (arm64). An Intel Mac build is not produced. The Linux AppImage job is unchanged.
 
 ## 0.14.4
 

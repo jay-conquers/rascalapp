@@ -21,7 +21,7 @@ Hooks are stored in `bot.json` under `hooks`. A new hook is off until you enable
 }
 ```
 
-`message` is the full chat line. `text` is the part after the command, or the part after a keyword. `platform` is `twitch` or `youtube`.
+`message` is the full chat line. `text` is the part after the command, or the part after a keyword. `platform` is `youtube` when the line came from YouTube, and `twitch` otherwise. A Kick line is labeled `twitch`, because that field has no Kick value. A hook saved from the Bot tab is stored with `platforms` set to `all`, so it can still fire on Kick.
 
 If the hook has a secret, Rascal adds `X-Rascal-Signature: sha256=<hex>`. The hex is HMAC-SHA256 of the raw body, using the secret as the key. Compare it with a constant-time check. A hook with no secret is not signed.
 
