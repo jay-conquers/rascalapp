@@ -10,7 +10,8 @@ import { KICK_RELAY_DOCS_URL } from "../../shared/kick/docs";
 import type { KickDeskState } from "../../shared/kick/desk-state";
 import { KickRelayDialog } from "./KickRelayNotice";
 import { playChatChime } from "../chat-sound";
-import { SETTINGS_SECTIONS, TWITCH_SCOPE_REASONS, settingsFormPatch, settingsSectionLabel, type SettingsSectionId } from "../settings-form";
+import { SETTINGS_SECTIONS, TWITCH_SCOPE_REASONS, settingsFormDirty, settingsFormPatch, settingsSectionLabel, type SettingsFormDraft, type SettingsSectionId } from "../settings-form";
+import { AlertOutputPicker } from "./AlertOutputPicker";
 import { CheckRow } from "./CheckRow";
 import { TabPicker } from "./DeskTabs";
 import { PlatformPicker } from "./PlatformPicker";
@@ -88,6 +89,27 @@ export function SettingsView({
   const [botNote, setBotNote] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("platforms");
   const rootRef = useRef<HTMLElement>(null);
+  const draft: SettingsFormDraft = {
+    twitchClientId: clientId,
+    twitchChannel: channel,
+    youtubeChannelId: youtube,
+    kickRelayUrl: kickUrl,
+    overlayPort: port,
+    autoImportFirebot: autoImport,
+    feed,
+    chatAlert: alert,
+  };
+  const dirty = settingsFormDirty(settings, draft);
+
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 2200);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
+
+  useEffect(() => {
+    if (dirty) setSaved(false);
+  }, [dirty]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -191,22 +213,12 @@ export function SettingsView({
   }
 
   async function save(): Promise<void> {
+    if (busy || !dirty) return;
     setBusy(true);
     setError(null);
     setSaved(false);
     try {
-      await onSave(
-        settingsFormPatch({
-          twitchClientId: clientId,
-          twitchChannel: channel,
-          youtubeChannelId: youtube,
-          kickRelayUrl: kickUrl,
-          overlayPort: port,
-          autoImportFirebot: autoImport,
-          feed,
-          chatAlert: alert,
-        }),
-      );
+      await onSave(settingsFormPatch(draft));
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save settings.");
@@ -263,9 +275,24 @@ export function SettingsView({
                 </li>
               ))}
             </ul>
+            <div className="settings-save">
+              <button
+                type="submit"
+                form="settings-form"
+                className={dirty ? "settings-save-button is-dirty" : "settings-save-button"}
+                disabled={!dirty || busy}
+                data-testid="settings-save"
+                data-dirty={dirty ? "true" : "false"}
+              >
+                {busy ? "Saving" : "Save settings"}
+              </button>
+              {saved && !dirty ? <p className="saved">Saved</p> : null}
+              {error ? <p className="form-error">{error}</p> : null}
+            </div>
           </nav>
 
           <form
+            id="settings-form"
             className="settings-form"
             onSubmit={(event) => {
               event.preventDefault();
@@ -587,21 +614,23 @@ export function SettingsView({
                   }}
                 />
               </Field>
+              <AlertOutputPicker
+                deviceId={alert.outputDeviceId}
+                onDeviceId={(outputDeviceId) => {
+                  setSaved(false);
+                  setAlert((current) => ({ ...current, outputDeviceId }));
+                }}
+                onTest={(outputDeviceId) => {
+                  void playChatChime({
+                    volume: alert.volume,
+                    soundPath: alert.soundPath,
+                    outputDeviceId,
+                    readFile: (filePath) => window.rascal?.readChatSound(filePath) ?? Promise.resolve(null),
+                  });
+                }}
+              />
               <p className="count">{alert.soundPath ? "Custom sound selected." : "Using the built-in chime."}</p>
               <div className="form-actions">
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => {
-                    void playChatChime({
-                      volume: alert.volume,
-                      soundPath: alert.soundPath,
-                      readFile: (filePath) => window.rascal?.readChatSound(filePath) ?? Promise.resolve(null),
-                    });
-                  }}
-                >
-                  Test sound
-                </button>
                 <button
                   type="button"
                   className="ghost"
@@ -794,13 +823,8 @@ export function SettingsView({
             </SettingsSection>
 
             <div className="settings-savebar">
-              {error && <p className="form-error">{error}</p>}
-              <button className="primary" type="submit" disabled={busy} data-testid="settings-save">
-                {busy ? "Saving" : "Save settings"}
-              </button>
-              {saved && <span className="saved">Saved</span>}
               <p className="count">
-                Saves channels, the relay address, the overlay port, emotes, notices, the message sound, and Firebot import. Platforms, tabs, the relay secret, the Kick app, and the bot connection save with their own controls.
+                Saves channels, the relay address, the overlay port, emotes, notices, the message sound and its output device, and Firebot import. Platforms, tabs, the relay secret, the Kick app, and the bot connection save with their own controls.
               </p>
             </div>
           </form>

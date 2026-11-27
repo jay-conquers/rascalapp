@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SettingsStore } from "../src/main/settings";
 import { readChatSoundFile } from "../src/main/chat-sound-file";
+import { outputDeviceList, resolveOutputDeviceId } from "../src/shared/audio-output";
 import {
   CHAT_ALERT_BACKFILL_MS,
   buildChimeWav,
@@ -87,9 +88,42 @@ describe("chat alert", () => {
     expect(loaded.chatAlert.notices).toBe(true);
     expect(loaded.twitchChannel).toBe("examplechannel");
     expect(mergeChatAlert(loaded.chatAlert, { soundPath: "https://evil.example/beep.wav" }).soundPath).toBe("");
+    expect(loaded.chatAlert.outputDeviceId).toBe("");
     expect(isSafeSoundPath("https://cdn.example/beep.wav")).toBe(false);
     expect(isSafeSoundPath("/home/jay/beep.wav")).toBe(true);
     expect(isSafeSoundPath("C:\\sounds\\beep.wav")).toBe(true);
+  });
+
+  it("persists the output device and falls back when that device is gone", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-sink-"));
+    const store = new SettingsStore(dir);
+    store.update({ chatAlert: { ...defaultChatAlert(), enabled: true, outputDeviceId: "headphones" } });
+    store.update({ twitchChannel: "examplechannel" });
+    const loaded = new SettingsStore(dir).load();
+    expect(loaded.chatAlert.outputDeviceId).toBe("headphones");
+    expect(loaded.chatAlert.enabled).toBe(true);
+    expect(loaded.twitchChannel).toBe("examplechannel");
+    expect(mergeChatAlert(loaded.chatAlert, { volume: 0.2 }).outputDeviceId).toBe("headphones");
+    expect(mergeChatAlert(loaded.chatAlert, { outputDeviceId: "bad\u0000id" }).outputDeviceId).toBe("");
+    expect(mergeChatAlert(loaded.chatAlert, { outputDeviceId: "x".repeat(300) }).outputDeviceId).toBe("");
+    expect(defaultChatAlert().outputDeviceId).toBe("");
+
+    const legacyDir = fs.mkdtempSync(path.join(os.tmpdir(), "rascal-sink-old-"));
+    fs.writeFileSync(
+      path.join(legacyDir, "settings.json"),
+      JSON.stringify({ chatAlert: { enabled: true, volume: 0.5, cooldownMs: 1000, notices: false, soundPath: "" } }),
+    );
+    expect(new SettingsStore(legacyDir).load().chatAlert.outputDeviceId).toBe("");
+
+    const present = outputDeviceList([
+      { kind: "audiooutput", deviceId: "default", label: "Default - Speakers" },
+      { kind: "audiooutput", deviceId: "headphones", label: "Headphones" },
+      { kind: "audioinput", deviceId: "mic", label: "Microphone" },
+    ]);
+    expect(resolveOutputDeviceId("headphones", present)).toBe("headphones");
+    expect(resolveOutputDeviceId("unplugged", present)).toBe("");
+    expect(resolveOutputDeviceId("headphones", outputDeviceList([]))).toBe("");
+    expect(resolveOutputDeviceId("headphones", outputDeviceList(null))).toBe("headphones");
   });
 
   it("builds a wav chime and rejects a file that is not audio", () => {

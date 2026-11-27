@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.4
+
+- YouTube Studio opens from the Stream info tab, next to the YouTube title. It is no longer in the top bar.
+- The Connected status on TTS and Bot uses dark text on the green chip, matching the platform status under Bot.
+- Save settings sits under the Settings section list. It stays quiet until a field changes, then it turns on in the chestnut accent.
+- The message chime can play through a chosen output device, so it can stay off the stream. TTS and redeem alerts are not moved.
+
 ## 0.14.3
 
 - The app icon is a sitting tabby facing left. The badge is charcoal, the cat is chestnut with espresso stripes and a cream outline, and the corners outside the circle are transparent.

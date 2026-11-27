@@ -8,6 +8,7 @@ import { Runtime } from "./runtime";
 import { setChatShortcutHooks } from "./stages/chat";
 import { redactError } from "../shared/redact";
 import { readChatSoundFile } from "./chat-sound-file";
+import { grantRendererPermission } from "./session-permissions";
 import { asDestinations, asSettingsPatch } from "./ipc-args";
 import { normalizePlacement, type RedeemMapping } from "../shared/redeems";
 import type { PlatformStreamDraft, StreamEditRequest } from "../shared/stream-edit";
@@ -56,8 +57,9 @@ async function boot(): Promise<void> {
     win.focus();
   });
   await app.whenReady();
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
-    callback(false);
+  session.defaultSession.setPermissionCheckHandler((_contents, permission) => grantRendererPermission(permission));
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(grantRendererPermission(permission));
   });
   registerAppProtocol();
   if (!readBrandEnv("RENDERER_URL")) {

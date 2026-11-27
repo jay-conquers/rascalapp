@@ -4,7 +4,7 @@ Rascal is a free, open-source streaming desk for Twitch, YouTube, and Kick. Kick
 
 ## Features
 
-- Combined Twitch and YouTube chat in one window. Twitch emotes (global, channel, subscriber, and follower) render from the emote ids in each message. YouTube member and custom emoji render from the page reader. BetterTTV, FrankerFaceZ, and 7TV global and channel emotes are on by default, each with its own switch in Settings. Settings can play a short chime for new viewer messages. It is off until you turn it on, and it keeps playing while the window is in the background.
+- Combined Twitch and YouTube chat in one window. Twitch emotes (global, channel, subscriber, and follower) render from the emote ids in each message. YouTube member and custom emoji render from the page reader. BetterTTV, FrankerFaceZ, and 7TV global and channel emotes are on by default, each with its own switch in Settings. Settings can play a short chime for new viewer messages. It is off until you turn it on, and it keeps playing while the window is in the background. The chime can use a chosen output so it stays off the stream.
 - Twitch login with the device-code flow. Rascal is a public client: it never asks for a client secret. Access and refresh tokens stay in the account config folder. On Linux that is `~/.config/rascal/` with mode `0600`.
 - Stream title, category, and tags for the signed-in Twitch channel.
 - Channel-point redeems over EventSub. Map a reward to a video, a sound, or nothing. Import a Firebot `channel-rewards.json` without writing it back. Rascal only edits rewards it created.
@@ -22,9 +22,9 @@ The buttons along the top can be hidden from Settings, under Tabs. Chat always s
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.14.3.AppImage
+chmod +x Rascal-0.14.4.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.14.3.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.14.4.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -115,7 +115,7 @@ npm run build
 npx electron-builder --linux AppImage --publish never
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.14.3.AppImage`.
+`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.14.4.AppImage`.
 
 Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
 
