@@ -36,7 +36,7 @@ The relay listens on port 8790 inside the compose network. Caddy publishes HTTPS
 | `https://<your-host>/webhooks/kick` | Kick |
 | `wss://<your-host>/v1/events` | Rascal |
 
-`https://<your-host>/healthz` is still the bot. The relay's own check is `http://127.0.0.1:8790/healthz` inside the container and returns `{"ok":true,"service":"relay"}`.
+`https://<your-host>/healthz` is the bot. The relay's own check is `http://127.0.0.1:8790/healthz` inside the container and returns `{"ok":true,"service":"relay"}`.
 
 The image can also be built on its own:
 
@@ -76,7 +76,7 @@ In Settings, with Kick on:
 
 The login asks for `user:read`, `channel:read`, `channel:write`, `chat:write`, `events:subscribe`, `moderation:ban`, and `moderation:chat_message:manage`. After that, Rascal subscribes to `chat.message.sent`, `livestream.status.updated`, and `moderation.banned`. Kick posts those to the webhook URL on the app. The relay checks the signature and forwards the event to Rascal.
 
-Stream title and category use `PATCH /public/v1/channels` (`stream_title` and `category_id`). That is a normal API call. It does not use the relay, so it works when the relay address is empty. `channel:write` is what that call needs. A login from before that scope was requested can still read and moderate chat. Stream info says to log in again before the title can be saved. Category search uses `GET /public/v2/categories`.
+Stream title and category use `PATCH /public/v1/channels` (`stream_title` and `category_id`). That is a normal API call. It does not use the relay, so it works when the relay address is empty. The login includes `channel:write`, which that call needs. Category search uses `GET /public/v2/categories`.
 
 The address is saved in `settings.json` as `kickRelayUrl`. The secret is saved in `kick-relay.json`. The login is saved in `kick-tokens.json`.
 
@@ -88,14 +88,14 @@ If the address or the secret is missing, Kick's status stays **No relay configur
 - Sending a chat message from the chat box, as the account you signed in.
 - Deleting a message, timing a viewer out, banning, and unbanning, from the moderation menu. A timeout is sent to Kick in whole minutes, from 1 minute through 7 days. Anything shorter is rounded up. The broadcaster is left alone.
 - A live or offline flag from `livestream.status.updated`, so a timer can follow the channel.
-- Commands, timers, and filters that target Kick, or that target every platform. An older item saved for Twitch or YouTube stays there. An item saved as every platform also runs on Kick after Kick is on.
+- Commands, timers, and filters that target Kick, or that target every platform. An item aimed at Twitch or YouTube stays on that platform. An item saved as every platform also runs on Kick once Kick is on.
 - Emotes that arrive inside a Kick chat event. Their images come from `files.kick.com`.
 
 Turning Kick off closes the relay socket and stops Kick API calls. The login, the client, and the relay secret stay on disk. Turning it back on uses them again.
 
-An install from 0.11.0 or earlier does not turn Kick on. Kick is added only after the notice is accepted.
+Kick turns on only after the notice is accepted.
 
-A bot that has no saved platform list still connects Twitch and YouTube only. Kick is not part of that default.
+A bot with no saved platform list connects Twitch and YouTube only. Kick is not part of that default.
 
 ## What Kick does not do here
 

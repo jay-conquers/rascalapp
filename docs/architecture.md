@@ -33,7 +33,7 @@ Kick is wired that way. Rumble and TikTok can follow the same steps. Nothing in 
 
 ## Bot config and engine
 
-`packages/bot/src/config.ts` loads and normalizes `bot.json`: commands, timers, filters, quotes, hooks, thanks, and shoutouts. `packages/bot/src/engine.ts` decides what one chat line does and when a timer is due. `packages/bot/src/model.ts` re-exports both, so existing imports keep working. `bot.json` from 0.5.0 and 0.8.1 loads unchanged. The golden files in `tests/fixtures/config/` are that contract.
+`packages/bot/src/config.ts` loads and normalizes `bot.json`: commands, timers, filters, quotes, hooks, thanks, and shoutouts. `packages/bot/src/engine.ts` decides what one chat line does and when a timer is due. `packages/bot/src/model.ts` re-exports both, so either import path works. The golden files in `tests/fixtures/config/` are that contract.
 
 ## Saved files
 
@@ -41,7 +41,7 @@ The desk and the bot share one config directory (`~/.config/rascal` on Linux). S
 
 ## Desk tabs
 
-The top bar lists Redeems, Stream info, Chat overlay, TTS, and Bot. Chat is the main panel and always shows. Settings is the gear and stays in the bar so a hidden panel can be turned back on. **Save settings** sits under the section list on the Settings screen. The choice of hidden panels is `tabs.hidden` in `settings.json` (`src/shared/desk-tabs.ts`). A file with no `tabs` key shows every panel. A saved list that names Chat still shows Chat. Stream info is where the YouTube card opens YouTube Studio. The message chime's output device is Settings → Alerts.
+The top bar lists Redeems, Stream info, Chat overlay, TTS, and Bot. Chat is the main panel and always shows. Settings is the gear and stays in the bar so a hidden panel can be turned back on. **Save settings** sits under the section list on the Settings screen. The choice of hidden panels is `tabs.hidden` in `settings.json` (`src/shared/desk-tabs.ts`). A file with no `tabs` key shows every panel. A saved list that names Chat shows Chat. Stream info is where the YouTube card opens YouTube Studio. The message chime's output device is Settings → Alerts.
 
 Hiding a panel removes its button. If that panel is open, the desk returns to Chat. The bot, platform connections, and overlays keep running. The headless bot does not read `tabs`.
 

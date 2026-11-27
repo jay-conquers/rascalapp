@@ -48,7 +48,7 @@ In the Twitch developer console, create an application. The OAuth redirect URL i
 https://bot.example.com/portal/callback
 ```
 
-`PUBLIC_BASE_URL` derives that address: the origin, then `/portal/callback`. If you also use the desktop app's own portal, keep `http://localhost:4788/portal/callback` as a second redirect. Twitch will not save `127.0.0.1`.
+`PUBLIC_BASE_URL` derives that address: the origin, then `/portal/callback`. If you also use the desktop app's own portal, add `http://localhost:4788/portal/callback` as a second redirect. Twitch will not save `127.0.0.1`.
 
 A public client does not have a secret. Leave `RASCAL_TWITCH_CLIENT_SECRET` empty. The portal login uses PKCE, and the bot account login uses the device-code flow. Neither one sends a secret.
 
@@ -66,7 +66,7 @@ https://bot.example.com/youtube/callback
 
 That is `PUBLIC_BASE_URL` plus `/youtube/callback`. Put the client id and secret in `RASCAL_GOOGLE_CLIENT_ID` and `RASCAL_GOOGLE_CLIENT_SECRET`.
 
-The desktop app, when it logs YouTube in on the streamer's computer, still uses `http://127.0.0.1:4799/youtube/callback`. Add that too if you connect YouTube from the desktop. A server login uses the public redirect, and the browser must be able to open `https://bot.example.com/youtube/callback`.
+The desktop app logs YouTube in on the streamer's computer at `http://127.0.0.1:4799/youtube/callback`. Add that too if you connect YouTube from the desktop. A server login uses the public redirect, and the browser must be able to open `https://bot.example.com/youtube/callback`.
 
 ## 6. Point the desktop app at the server
 
@@ -105,7 +105,7 @@ The volume name is `<compose-project>_bot-data`. `docker volume ls` shows it. Re
 
 Kick chat does not arrive at the bot by itself. It needs the relay in this same compose file, started with the `kick` profile. The steps, the webhook URL, and the desktop settings are in [docs/kick-relay.md](kick-relay.md).
 
-## 10. Upgrades and logs
+## 10. Update and logs
 
 ```bash
 git pull
