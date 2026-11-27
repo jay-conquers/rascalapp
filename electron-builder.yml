@@ -37,8 +37,8 @@ linux:
       Terminal: "false"
       StartupNotify: "true"
 # Unsigned desktop targets. No certificate, no notarization, no publisher.
-# `npx electron-builder --linux AppImage` is unchanged. Windows and macOS
-# are built on those hosts later: `--win nsis` and `--mac dmg`.
+# npm run build:appimage, build:win, and build:mac package these.
+# GitHub Actions uploads the Windows NSIS and macOS DMG artifacts.
 win:
   target:
     - target: nsis

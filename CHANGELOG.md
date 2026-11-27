@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.5
+
+- macOS has the standard application menu: About, Services, Hide, Hide Others, Show All, and Quit (Command+Q), plus Edit and Window. Copy, paste, and the other edit shortcuts come from that menu. Linux and Windows still have no application menu.
+- On Windows the taskbar uses the app id `app.rascal.desktop`.
+- The macOS icon file includes the 1024 pixel image.
+- The desk uses the system font on macOS and Windows, then the same Linux fonts as before.
+- The packaged window allows a blob audio element, so the message chime's media-element fallback can play.
+- GitHub Actions packages an unsigned Windows NSIS installer and unsigned macOS DMGs (x64 and arm64). The Linux AppImage job is unchanged.
+
 ## 0.14.4
 
 - YouTube Studio opens from the Stream info tab, next to the YouTube title. It is no longer in the top bar.

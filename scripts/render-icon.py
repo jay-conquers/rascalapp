@@ -4,6 +4,8 @@
 Stdlib only. The SVG is the source; this flattens its circles, ellipses, and
 paths (M/L/H/V/C/Q/Z), applies translate() and clip-path, and paints them with
 supersampling. Windows and macOS icons are packed from those PNGs.
+The ICNS file also carries the 1024px ic10 image (512pt at 2x). Linux icon
+files stay the sizes they already had.
 """
 
 import math
@@ -490,7 +492,7 @@ def render(size: int, view, shapes, samples: int) -> bytes:
     return bytes(buf)
 
 
-def write_png(path: Path, size: int, rgba: bytes) -> None:
+def png_bytes(size: int, rgba: bytes) -> bytes:
     def chunk(tag: bytes, data: bytes) -> bytes:
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
@@ -499,7 +501,11 @@ def write_png(path: Path, size: int, rgba: bytes) -> None:
     png += chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
     png += chunk(b"IDAT", zlib.compress(raw, 9))
     png += chunk(b"IEND", b"")
-    path.write_bytes(png)
+    return png
+
+
+def write_png(path: Path, size: int, rgba: bytes) -> None:
+    path.write_bytes(png_bytes(size, rgba))
 
 
 def samples_for(size: int) -> int:
@@ -509,7 +515,10 @@ def samples_for(size: int) -> int:
         return 4
     if size <= 128:
         return 3
-    return 2
+    # 1024 is one sample per pixel: the same grid density as 512 at 2x.
+    if size <= 512:
+        return 2
+    return 1
 
 
 def write_ico(path: Path, pngs: list[tuple[int, bytes]]) -> None:
@@ -527,8 +536,14 @@ def write_ico(path: Path, pngs: list[tuple[int, bytes]]) -> None:
     path.write_bytes(header + entries + blobs)
 
 
-def write_icns(path: Path, pngs: dict[int, bytes]) -> None:
-    kinds = [
+def linux_png_sizes():
+    """PNG files written under build/icons. Linux packaging reads that directory."""
+    return (16, 32, 48, 64, 128, 256, 512)
+
+
+def icns_kinds():
+    """OSTypes stored in build/icon.icns. ic10 is 512pt at 2x (1024px)."""
+    return [
         (16, b"icp4"),
         (32, b"icp5"),
         (32, b"ic11"),
@@ -539,9 +554,21 @@ def write_icns(path: Path, pngs: dict[int, bytes]) -> None:
         (256, b"ic13"),
         (512, b"ic09"),
         (512, b"ic14"),
+        (1024, b"ic10"),
     ]
+
+
+def sizes_to_render():
+    sizes = list(linux_png_sizes())
+    for size, _tag in icns_kinds():
+        if size not in sizes:
+            sizes.append(size)
+    return tuple(sizes)
+
+
+def write_icns(path: Path, pngs: dict[int, bytes]) -> None:
     chunks = b""
-    for size, tag in kinds:
+    for size, tag in icns_kinds():
         data = pngs.get(size)
         if data is None:
             continue
@@ -580,9 +607,12 @@ def main() -> None:
         return
     ICON_DIR.mkdir(parents=True, exist_ok=True)
     rendered = {}
-    for size in (16, 32, 48, 64, 128, 256, 512):
+    linux_sizes = linux_png_sizes()
+    for size in sizes_to_render():
         rgba = render(size, view, shapes, samples_for(size))
         rendered[size] = rgba
+        if size not in linux_sizes:
+            continue
         destination = ICON_DIR / f"{size}x{size}.png"
         write_png(destination, size, rgba)
         print(destination)
@@ -590,7 +620,7 @@ def main() -> None:
     write_png(packaging, 256, rendered[256])
     print(packaging)
     shutil.copyfile(ICON_DIR / "256x256.png", ROOT / "build" / "icon.png")
-    encoded = {size: (ICON_DIR / f"{size}x{size}.png").read_bytes() for size in rendered}
+    encoded = {size: png_bytes(size, rgba) for size, rgba in rendered.items()}
     ico = ROOT / "build" / "icon.ico"
     icns = ROOT / "build" / "icon.icns"
     write_ico(ico, [(size, encoded[size]) for size in (16, 32, 48, 64, 128, 256) if size in encoded])

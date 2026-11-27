@@ -58,3 +58,51 @@ jobs:
           name: Rascal-AppImage
           path: release/Rascal-*.AppImage
           if-no-files-found: error
+
+  windows:
+    name: Windows NSIS
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Package unsigned NSIS
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run build:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rascal-Windows-NSIS
+          path: release/Rascal-*-win-*.exe
+          if-no-files-found: error
+
+  macos:
+    name: macOS DMG
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Package unsigned DMG
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run build:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rascal-macOS-DMG
+          path: release/Rascal-*-mac-*.dmg
+          if-no-files-found: error

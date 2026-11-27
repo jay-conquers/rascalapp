@@ -14,15 +14,8 @@ import { normalizePlacement, type RedeemMapping } from "../shared/redeems";
 import type { PlatformStreamDraft, StreamEditRequest } from "../shared/stream-edit";
 import type { StreamUpdate } from "../shared/types";
 import { asRecord } from "../shared/record";
-
-const PAGE_CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: http://127.0.0.1:* http://localhost:* https://static-cdn.jtvnw.net https://cdn.betterttv.net https://cdn.frankerfacez.com https://cdn.7tv.app https://yt3.ggpht.com https://yt3.googleusercontent.com https://i.ytimg.com https://lh3.googleusercontent.com https://files.kick.com https://kick.com",
-  "connect-src 'self'",
-  "font-src 'self'",
-].join("; ");
+import { applyDesktopShell } from "./desktop-shell";
+import { PAGE_CSP } from "./page-csp";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -49,7 +42,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 async function boot(): Promise<void> {
-  Menu.setApplicationMenu(null);
+  installDesktopShell();
   app.on("second-instance", () => {
     if (!win) return;
     if (win.isMinimized()) win.restore();
@@ -101,6 +94,21 @@ async function boot(): Promise<void> {
     void runtime.stop();
   });
   app.on("window-all-closed", () => app.quit());
+}
+
+function installDesktopShell(): void {
+  applyDesktopShell(process.platform, app.name, {
+    setAppUserModelId: (id) => {
+      app.setAppUserModelId(id);
+    },
+    setApplicationMenu: (template) => {
+      if (!template) {
+        Menu.setApplicationMenu(null);
+        return;
+      }
+      Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+    },
+  });
 }
 
 function createWindow(runtime: Runtime): void {

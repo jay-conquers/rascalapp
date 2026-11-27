@@ -1,6 +1,6 @@
 # Rascal
 
-Rascal is a free, open-source streaming desk for Twitch, YouTube, and Kick. Kick chat only arrives through a relay you run, or through Rascal hosting once that exists. Hosting is not available yet. It replaces the usual split between a chat client, Firebot-style channel-point alerts, and a StreamElements-style chat bot. The desktop build shipped today is a Linux AppImage, with an optional headless bot you can host yourself. The source is also set up for unsigned Windows and macOS builds.
+Rascal is a free, open-source streaming desk for Twitch, YouTube, and Kick. Kick chat only arrives through a relay you run, or through Rascal hosting once that exists. Hosting is not available yet. It replaces the usual split between a chat client, Firebot-style channel-point alerts, and a StreamElements-style chat bot. The desktop build shipped today is a Linux AppImage, with an optional headless bot you can host yourself. Unsigned Windows and macOS installers are packaged in GitHub Actions.
 
 ## Features
 
@@ -22,9 +22,9 @@ The buttons along the top can be hidden from Settings, under Tabs. Chat always s
 The desktop build is a Linux AppImage (x64). Releases are published separately from this repository.
 
 ```bash
-chmod +x Rascal-0.14.4.AppImage
+chmod +x Rascal-0.14.5.AppImage
 mkdir -p ~/Applications
-install -m 0755 Rascal-0.14.4.AppImage ~/Applications/Rascal.AppImage
+install -m 0755 Rascal-0.14.5.AppImage ~/Applications/Rascal.AppImage
 ~/Applications/Rascal.AppImage
 ```
 
@@ -112,16 +112,16 @@ Node.js 22 and Python 3. The first build needs network access so Electron and th
 npm ci
 npm test
 npm run build
-npx electron-builder --linux AppImage --publish never
+npm run build:appimage
 ```
 
-`./scripts/build-appimage.sh` runs that sequence. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.14.4.AppImage`.
+`./scripts/build-appimage.sh` runs install, test, build, and the AppImage pack. `npm run build` rasterizes `build/icon.svg` first. The image is `release/Rascal-0.14.5.AppImage`.
 
-Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. Those installers are built on Windows and macOS later.
+Windows (NSIS, x64) and macOS (DMG, x64 and arm64) are declared in `electron-builder.yml`. They are unsigned: this repository has no certificate and no notarization settings. `npm run build:win` and `npm run build:mac` package those installers on Windows and macOS. The GitHub Actions workflow uploads them as `Rascal-Windows-NSIS` and `Rascal-macOS-DMG`.
 
 ```bash
-npx electron-builder --win nsis --publish never
-npx electron-builder --mac dmg --publish never
+npm run build:win
+npm run build:mac
 ```
 
 `npm run dev` starts Vite and Electron against the unpacked source. `npm test` does not contact Twitch or YouTube.
